@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_title">Activity</string>
+
+    <!-- Top-level tabs -->
+    <string name="activity_tab_history">History</string>
+    <string name="activity_tab_curve">Statistics</string>
+
+    <!-- History tab -->
+    <string name="activity_history_empty">Nothing read yet — chapters you open will show up here.</string>
+    <string name="activity_cover_content_description">Cover of %1$s</string>
+    <string name="activity_action_series">Series</string>
+    <string name="activity_action_delete">Delete</string>
+    <plurals name="activity_history_count">
+        <item quantity="one">%1$d chapter read</item>
+        <item quantity="other">%1$d chapters read</item>
+    </plurals>
+
+    <!-- Relative "read at" captions -->
+    <string name="activity_time_just_now">Just now</string>
+    <plurals name="activity_time_minutes">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <plurals name="activity_time_hours">
+        <item quantity="one">%1$d h ago</item>
+        <item quantity="other">%1$d h ago</item>
+    </plurals>
+    <plurals name="activity_time_days">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <plurals name="activity_time_weeks">
+        <item quantity="one">%1$d week ago</item>
+        <item quantity="other">%1$d weeks ago</item>
+    </plurals>
+
+    <!-- Statistics tab: period selector -->
+    <string name="activity_period_week">Week</string>
+    <string name="activity_period_month">Month</string>
+    <string name="activity_period_year">Year</string>
+    <string name="activity_curve_empty">No reads in this period yet.</string>
+    <string name="activity_all_time">All time</string>
+
+    <!-- Statistics tab: section headers -->
+    <string name="activity_section_curve">Reading curve</string>
+    <string name="activity_section_most_read">Most read</string>
+    <string name="activity_section_distribution">By series</string>
+    <string name="activity_section_categories">By category</string>
+
+    <!-- Statistics tab: metric labels -->
+    <string name="activity_stat_chapters">Chapters read</string>
+    <string name="activity_stat_series">Series</string>
+    <string name="activity_stat_streak">Day streak</string>
+    <string name="activity_stat_active_days">Active days</string>
+    <string name="activity_stat_active_months">Active months</string>
+    <string name="activity_distribution_other">Other</string>
+    <plurals name="activity_chapters">
+        <item quantity="one">%1$d chapter</item>
+        <item quantity="other">%1$d chapters</item>
+    </plurals>
+
+    <!-- Curve axis: weekday initials (Mon–Sun) -->
+    <string name="activity_weekday_mon">M</string>
+    <string name="activity_weekday_tue">T</string>
+    <string name="activity_weekday_wed">W</string>
+    <string name="activity_weekday_thu">T</string>
+    <string name="activity_weekday_fri">F</string>
+    <string name="activity_weekday_sat">S</string>
+    <string name="activity_weekday_sun">S</string>
+
+    <!-- Curve axis: month abbreviations (Jan–Dec) -->
+    <string name="activity_month_jan">Jan</string>
+    <string name="activity_month_feb">Feb</string>
+    <string name="activity_month_mar">Mar</string>
+    <string name="activity_month_apr">Apr</string>
+    <string name="activity_month_may">May</string>
+    <string name="activity_month_jun">Jun</string>
+    <string name="activity_month_jul">Jul</string>
+    <string name="activity_month_aug">Aug</string>
+    <string name="activity_month_sep">Sep</string>
+    <string name="activity_month_oct">Oct</string>
+    <string name="activity_month_nov">Nov</string>
+    <string name="activity_month_dec">Dec</string>
+</resources>

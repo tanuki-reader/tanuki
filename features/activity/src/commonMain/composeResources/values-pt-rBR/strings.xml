@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="activity_title">Atividade</string>
+
+    <!-- Abas de nível superior -->
+    <string name="activity_tab_history">Histórico</string>
+    <string name="activity_tab_curve">Estatísticas</string>
+
+    <!-- Aba de histórico -->
+    <string name="activity_history_empty">Nada lido ainda — os capítulos que você abrir aparecerão aqui.</string>
+    <string name="activity_cover_content_description">Capa de %1$s</string>
+    <string name="activity_action_series">Série</string>
+    <string name="activity_action_delete">Excluir</string>
+    <plurals name="activity_history_count">
+        <item quantity="one">%1$d capítulo lido</item>
+        <item quantity="other">%1$d capítulos lidos</item>
+    </plurals>
+
+    <!-- Legendas de "lido em" relativas -->
+    <string name="activity_time_just_now">Agora mesmo</string>
+    <plurals name="activity_time_minutes">
+        <item quantity="one">há %1$d min</item>
+        <item quantity="other">há %1$d min</item>
+    </plurals>
+    <plurals name="activity_time_hours">
+        <item quantity="one">há %1$d h</item>
+        <item quantity="other">há %1$d h</item>
+    </plurals>
+    <plurals name="activity_time_days">
+        <item quantity="one">há %1$d dia</item>
+        <item quantity="other">há %1$d dias</item>
+    </plurals>
+    <plurals name="activity_time_weeks">
+        <item quantity="one">há %1$d semana</item>
+        <item quantity="other">há %1$d semanas</item>
+    </plurals>
+
+    <!-- Aba de estatísticas: seletor de período -->
+    <string name="activity_period_week">Semana</string>
+    <string name="activity_period_month">Mês</string>
+    <string name="activity_period_year">Ano</string>
+    <string name="activity_curve_empty">Nenhuma leitura neste período ainda.</string>
+    <string name="activity_all_time">Todo o período</string>
+
+    <!-- Aba de estatísticas: cabeçalhos de seção -->
+    <string name="activity_section_curve">Curva de leitura</string>
+    <string name="activity_section_most_read">Mais lidos</string>
+    <string name="activity_section_distribution">Por série</string>
+    <string name="activity_section_categories">Por categoria</string>
+
+    <!-- Aba de estatísticas: rótulos de métrica -->
+    <string name="activity_stat_chapters">Capítulos lidos</string>
+    <string name="activity_stat_series">Séries</string>
+    <string name="activity_stat_streak">Sequência</string>
+    <string name="activity_stat_active_days">Dias ativos</string>
+    <string name="activity_stat_active_months">Meses ativos</string>
+    <string name="activity_distribution_other">Outros</string>
+    <plurals name="activity_chapters">
+        <item quantity="one">%1$d capítulo</item>
+        <item quantity="other">%1$d capítulos</item>
+    </plurals>
+
+    <!-- Eixo da curva: iniciais dos dias da semana (seg–dom) -->
+    <string name="activity_weekday_mon">S</string>
+    <string name="activity_weekday_tue">T</string>
+    <string name="activity_weekday_wed">Q</string>
+    <string name="activity_weekday_thu">Q</string>
+    <string name="activity_weekday_fri">S</string>
+    <string name="activity_weekday_sat">S</string>
+    <string name="activity_weekday_sun">D</string>
+
+    <!-- Eixo da curva: abreviações dos meses (jan–dez) -->
+    <string name="activity_month_jan">Jan</string>
+    <string name="activity_month_feb">Fev</string>
+    <string name="activity_month_mar">Mar</string>
+    <string name="activity_month_apr">Abr</string>
+    <string name="activity_month_may">Mai</string>
+    <string name="activity_month_jun">Jun</string>
+    <string name="activity_month_jul">Jul</string>
+    <string name="activity_month_aug">Ago</string>
+    <string name="activity_month_sep">Set</string>
+    <string name="activity_month_oct">Out</string>
+    <string name="activity_month_nov">Nov</string>
+    <string name="activity_month_dec">Dez</string>
+</resources>
