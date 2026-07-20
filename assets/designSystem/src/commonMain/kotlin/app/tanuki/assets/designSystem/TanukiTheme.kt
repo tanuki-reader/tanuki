@@ -1,0 +1,48 @@
+package app.tanuki.assets.designSystem
+
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+
+/**
+ * Root theme for all Tanuki Compose UI. Wraps Material 3 with the Tanuki color scheme and typography,
+ * and provides the brand-extended tokens ([TanukiColors], spacing, full type set) through composition
+ * locals.
+ *
+ * Tanuki is dark-first but ships both dialects; [darkTheme] follows the system by default. Access
+ * tokens via:
+ * - `MaterialTheme.colorScheme` / `MaterialTheme.typography` for Material slots, or
+ * - `TanukiTheme.colors` / `TanukiTheme.spacing` / `TanukiTheme.typography` for the brand extras.
+ */
+@Composable
+fun TanukiTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) {
+    val extendedColors = if (darkTheme) tanukiDarkExtendedColors else tanukiLightExtendedColors
+    val colorScheme = if (darkTheme) tanukiDarkColorScheme() else tanukiLightColorScheme()
+    CompositionLocalProvider(
+        LocalTanukiColors provides extendedColors,
+        LocalTanukiSpacing provides TanukiSpacing,
+        LocalTanukiTypography provides TanukiTextStyles
+    ) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = tanukiTypography(),
+            content = content
+        )
+    }
+}
+
+/** Convenience accessors for the brand-extended tokens, mirroring `MaterialTheme.*`. */
+object TanukiTheme {
+    val colors: TanukiColors
+        @Composable get() = LocalTanukiColors.current
+
+    val spacing: TanukiSpacing
+        @Composable get() = LocalTanukiSpacing.current
+
+    val typography: TanukiTextStyles
+        @Composable get() = LocalTanukiTypography.current
+}
