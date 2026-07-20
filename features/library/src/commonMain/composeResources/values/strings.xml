@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="library_title">Library</string>
+    <string name="library_empty_title">Your library is empty</string>
+    <string name="library_empty_message">Titles you add while browsing will show up here.</string>
+    <string name="library_cover_content_description">Cover of %1$s</string>
+    <string name="library_search_hint">Search library…</string>
+    <string name="library_search_empty">No titles match “%1$s”</string>
+    <string name="library_filter_empty">No titles match the current filters.</string>
+
+    <!-- Sort &amp; filter bottom sheet (tabbed) -->
+    <string name="library_sheet_title">Sort &amp; filter</string>
+    <string name="library_sheet_tab_sort">Sort</string>
+    <string name="library_sheet_tab_filter">Filter</string>
+    <string name="library_sheet_reset">Reset</string>
+    <string name="library_sheet_section_status">Reading status</string>
+    <string name="library_sheet_section_publication">Publication</string>
+    <string name="library_sort_hint">Tap a row to choose; tap it again to flip the direction.</string>
+    <plurals name="library_sheet_show_count">
+        <item quantity="one">Show %1$d title</item>
+        <item quantity="other">Show %1$d titles</item>
+    </plurals>
+
+    <string name="library_sort_alphabetical">Title</string>
+    <string name="library_sort_date_added">Date added</string>
+    <string name="library_sort_last_read">Last read</string>
+    <string name="library_sort_alphabetical_asc">A → Z</string>
+    <string name="library_sort_alphabetical_desc">Z → A</string>
+    <string name="library_sort_date_added_asc">Oldest first</string>
+    <string name="library_sort_date_added_desc">Newest first</string>
+    <string name="library_sort_last_read_asc">Least recent</string>
+    <string name="library_sort_last_read_desc">Recently read</string>
+
+    <string name="library_status_all">Any</string>
+    <string name="library_status_reading">Reading</string>
+    <string name="library_status_completed">Completed</string>
+    <string name="library_status_on_hold">On hold</string>
+    <string name="library_status_dropped">Dropped</string>
+    <string name="library_status_planning">Plan to read</string>
+
+    <string name="library_publication_any">Any</string>
+    <string name="library_publication_completed">Finished</string>
+    <string name="library_publication_ongoing">Ongoing</string>
+
+    <string name="library_sheet_section_categories">Categories</string>
+    <string name="library_category_match_any">Match any</string>
+    <string name="library_category_match_all">Match all</string>
+    <string name="library_category_badge_or">OR</string>
+    <string name="library_category_badge_and">AND</string>
+    <string name="library_category_help_any">Show titles in at least one selected category.</string>
+    <string name="library_category_help_all">Show titles that are in every selected category.</string>
+
+    <plurals name="library_entry_count">
+        <item quantity="one">%1$d title</item>
+        <item quantity="other">%1$d titles</item>
+    </plurals>
+</resources>
