@@ -1,0 +1,45 @@
+package app.tanuki.core.data.repository.source
+
+import androidx.room.ColumnInfo
+import androidx.room.Entity
+import androidx.room.Index
+import androidx.room.PrimaryKey
+import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.source.model.Source
+import kotlin.uuid.Uuid
+
+/**
+ * Room row for a persisted [Source]. Carries two identities: [id] (local surrogate key that
+ * `manga.source` references) and [sourceId] (the source-native string the WASM runtime addresses it
+ * by, e.g. `"mangadex"`), which is globally unique.
+ */
+@Entity(
+    tableName = "sources",
+    indices = [Index(value = ["source_id"], unique = true)],
+)
+data class SourceEntity(
+    @PrimaryKey val id: Uuid,
+    @ColumnInfo(name = "source_id") val sourceId: String,
+    val lang: String,
+    val name: String,
+    val url: String,
+)
+
+fun SourceEntity.toDomain(): Source =
+    Source(
+        id = id,
+        sourceId = sourceId,
+        lang = Text(lang),
+        name = Text(name),
+        url = Url(url),
+    )
+
+fun Source.toEntity(): SourceEntity =
+    SourceEntity(
+        id = id,
+        sourceId = sourceId,
+        lang = lang.value,
+        name = name.value,
+        url = url.value,
+    )

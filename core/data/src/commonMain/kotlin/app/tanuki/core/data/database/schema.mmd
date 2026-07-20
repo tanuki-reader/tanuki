@@ -1,0 +1,73 @@
+---
+title: Tanuki Schema
+---
+erDiagram
+    sources {
+        uuid id PK
+        text source_id UK "source-native id, e.g. mangadex"
+        text lang
+        text name
+        text url
+    }
+
+    manga {
+        uuid id PK
+        uuid source FK "-> sources.id"
+        text title
+        text author "nullable"
+        text description "nullable"
+        text cover_url "nullable"
+        int cover_last_modified "epoch millis"
+        text url "unique within source (source, url)"
+        enum reading_mode
+        enum publish_status
+    }
+
+    library {
+        uuid id PK,FK "-> manga.id (presence = in library)"
+        int date_added "epoch millis"
+        enum reading_status
+    }
+
+    chapters {
+        uuid id PK
+        uuid manga_id FK "-> manga.id"
+        real chapter_number "nullable"
+        text name
+        text url "unique within manga (manga_id, url)"
+        int date_upload "nullable, epoch millis"
+        int date_fetch "epoch millis"
+    }
+
+    reading_progress {
+        uuid chapter_id PK,FK "-> chapters.id"
+        bool has_bookmark
+        int last_page_read
+        bool already_read
+    }
+
+    history {
+        uuid id PK
+        uuid chapter_id FK,UK "-> chapters.id"
+        uuid manga_id FK "-> manga.id"
+        int read_at "epoch millis"
+    }
+
+    categories {
+        uuid id PK
+        text name
+    }
+
+    manga_categories {
+        uuid manga_id PK,FK "-> library.id"
+        uuid category_id PK,FK "-> categories.id"
+    }
+
+    sources          ||--o{ manga            : "has"
+    manga            ||--o| library          : "membership (in library)"
+    manga            ||--o{ chapters          : "has"
+    chapters         ||--o| reading_progress  : "local-only progress"
+    chapters         ||--o| history           : "read entry (chapter_id unique)"
+    manga            ||--o{ history           : "read entries"
+    library          ||--o{ manga_categories  : "membership"
+    categories       ||--o{ manga_categories  : "membership"

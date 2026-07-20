@@ -1,0 +1,132 @@
+package app.tanuki.core.data.repository.manga
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import androidx.room.Transaction
+import androidx.room.Upsert
+import app.tanuki.core.data.repository.library.LibraryEntryEntity
+import kotlinx.coroutines.flow.Flow
+import kotlin.uuid.Uuid
+
+/**
+ * Room DAO for [MangaEntity] and its 1:1 [LibraryEntryEntity]. Reads LEFT JOIN `library` and
+ * `history` so a single [MangaWithDetails] projection carries membership (`date_added` /
+ * `reading_status`) and the derived `last_read`; `GROUP BY manga.id` collapses the per-chapter
+ * history rows. `unread_count` is a correlated subquery over `chapters` / `reading_progress` (a
+ * chapter counts as unread when it has no progress row or `already_read = 0`), kept out of the
+ * `GROUP BY` so it never fans out the history join.
+ */
+@Dao
+interface MangaDao {
+    @Query(
+        """
+        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+               (
+                   SELECT COUNT(*)
+                   FROM chapters
+                   LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+                   WHERE chapters.manga_id = manga.id AND COALESCE(reading_progress.already_read, 0) = 0
+               ) AS unread_count
+        FROM manga
+        LEFT JOIN history ON history.manga_id = manga.id
+        LEFT JOIN library ON library.id = manga.id
+        WHERE manga.id = :mangaId
+        GROUP BY manga.id
+        """,
+    )
+    fun observeManga(mangaId: Uuid): Flow<MangaWithDetails?>
+
+    /** The user's library: every manga with a `library` row, titled for stable display ordering. */
+    @Query(
+        """
+        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+               (
+                   SELECT COUNT(*)
+                   FROM chapters
+                   LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+                   WHERE chapters.manga_id = manga.id AND COALESCE(reading_progress.already_read, 0) = 0
+               ) AS unread_count
+        FROM library
+        JOIN manga ON manga.id = library.id
+        LEFT JOIN history ON history.manga_id = manga.id
+        GROUP BY manga.id
+        ORDER BY manga.title
+        """,
+    )
+    fun observeLibrary(): Flow<List<MangaWithDetails>>
+
+    /** All manga belonging to the source identified by its local [Uuid]. */
+    @Query(
+        """
+        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+               (
+                   SELECT COUNT(*)
+                   FROM chapters
+                   LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+                   WHERE chapters.manga_id = manga.id AND COALESCE(reading_progress.already_read, 0) = 0
+               ) AS unread_count
+        FROM manga
+        LEFT JOIN history ON history.manga_id = manga.id
+        LEFT JOIN library ON library.id = manga.id
+        WHERE manga.source = :sourceId
+        GROUP BY manga.id
+        ORDER BY manga.title
+        """,
+    )
+    fun observeMangaBySource(sourceId: Uuid): Flow<List<MangaWithDetails>>
+
+    @Upsert
+    suspend fun upsert(manga: MangaEntity)
+
+    @Upsert
+    suspend fun upsertLibraryEntry(entry: LibraryEntryEntity)
+
+    @Query("DELETE FROM library WHERE id = :mangaId")
+    suspend fun deleteLibraryEntry(mangaId: Uuid)
+
+    /** Drops every category membership of a manga (rows in the `library`↔`category` join table). */
+    @Query("DELETE FROM manga_categories WHERE manga_id = :mangaId")
+    suspend fun clearCategories(mangaId: Uuid)
+
+    @Query("DELETE FROM manga WHERE id = :mangaId")
+    suspend fun deleteById(mangaId: Uuid)
+
+    /**
+     * Adds a manga to the library without touching the cached manga row — inserts its `library`
+     * membership, or leaves an existing one untouched (so a re-add never resets `date_added`).
+     */
+    suspend fun addToLibrary(entry: LibraryEntryEntity) = insertLibraryEntryIfAbsent(entry)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertLibraryEntryIfAbsent(entry: LibraryEntryEntity)
+
+    /**
+     * Removes a manga from the library without deleting the cached manga itself: clears its category
+     * memberships, then deletes the `library` row (the membership marker). Runs in one transaction so a
+     * title can never be left half-removed. The `manga`/`chapters` rows stay, so it can still be
+     * browsed and read — unlike [deleteById], which purges the manga entirely.
+     */
+    @Transaction
+    suspend fun removeFromLibrary(mangaId: Uuid) {
+        clearCategories(mangaId)
+        deleteLibraryEntry(mangaId)
+    }
+
+    /**
+     * Upserts a manga and reconciles its library membership in one transaction: [libraryEntry] is
+     * removed when `null` (not a favorite), otherwise upserted, committing with the manga.
+     */
+    @Transaction
+    suspend fun upsertWithLibrary(
+        manga: MangaEntity,
+        libraryEntry: LibraryEntryEntity?,
+    ) {
+        upsert(manga)
+        when (libraryEntry) {
+            null -> deleteLibraryEntry(manga.id)
+            else -> upsertLibraryEntry(libraryEntry)
+        }
+    }
+}
