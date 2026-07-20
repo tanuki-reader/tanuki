@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manga_not_found">Manga not found</string>
+    <string name="manga_read_action">Read</string>
+    <!-- %1$s is the chapter number the Read button resumes at (e.g. "5" or "4.5"). -->
+    <string name="manga_read_chapter">Read Chapter %1$s</string>
+    <string name="manga_chapters_title">Chapters</string>
+    <string name="manga_no_chapters">No chapters yet</string>
+
+    <!-- Detail body tabs (Chapters reuses manga_chapters_title). -->
+    <string name="manga_tab_info">Info</string>
+
+    <!-- Info tab: metadata sections and the library toggle. -->
+    <string name="manga_info_description">Description</string>
+    <string name="manga_info_no_description">No description available</string>
+    <string name="manga_info_author">Author</string>
+    <string name="manga_info_source">Source</string>
+    <string name="manga_info_source_unknown">Unknown source</string>
+    <string name="manga_info_add_to_library">Add to library</string>
+    <string name="manga_info_remove_from_library">Remove from library</string>
+    <string name="manga_chapters_sort">Sort by chapter number</string>
+    <!-- %1$s is the chapter number (e.g. "4" or "4.5"), inserted verbatim. -->
+    <string name="manga_chapter_number">Chapter %1$s</string>
+
+    <!-- Category management (hero chips + edit sheet). -->
+    <string name="manga_categories_title">Manage categories</string>
+    <string name="manga_categories_empty">Create categories in your library to organize titles.</string>
+    <string name="manga_categories_add">Add to category</string>
+    <!-- Overflow chip when the manga is in more categories than fit; %1$d is how many more. -->
+    <string name="manga_categories_more">+%1$d</string>
+
+    <!-- Publication status chip in the hero. -->
+    <string name="manga_status_ongoing">Ongoing</string>
+    <string name="manga_status_completed">Completed</string>
+    <string name="manga_status_licensed">Licensed</string>
+    <string name="manga_status_publishing_finished">Publishing finished</string>
+    <string name="manga_status_cancelled">Cancelled</string>
+    <string name="manga_status_hiatus">Hiatus</string>
+
+    <plurals name="manga_chapter_count">
+        <item quantity="one">%1$d chapter</item>
+        <item quantity="other">%1$d chapters</item>
+    </plurals>
+    <plurals name="manga_chapters_total">
+        <item quantity="one">%1$d total</item>
+        <item quantity="other">%1$d total</item>
+    </plurals>
+</resources>

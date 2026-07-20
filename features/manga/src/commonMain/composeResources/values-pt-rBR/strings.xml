@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manga_not_found">Mangá não encontrado</string>
+    <string name="manga_read_action">Ler</string>
+    <!-- %1$s é o número do capítulo em que o botão Ler retoma (ex.: "5" ou "4.5"). -->
+    <string name="manga_read_chapter">Ler Capítulo %1$s</string>
+    <string name="manga_chapters_title">Capítulos</string>
+    <string name="manga_no_chapters">Nenhum capítulo ainda</string>
+
+    <!-- Abas do corpo de detalhes (Capítulos reutiliza manga_chapters_title). -->
+    <string name="manga_tab_info">Informações</string>
+
+    <!-- Aba de informações: seções de metadados e o botão de biblioteca. -->
+    <string name="manga_info_description">Descrição</string>
+    <string name="manga_info_no_description">Nenhuma descrição disponível</string>
+    <string name="manga_info_author">Autor</string>
+    <string name="manga_info_source">Fonte</string>
+    <string name="manga_info_source_unknown">Fonte desconhecida</string>
+    <string name="manga_info_add_to_library">Adicionar à biblioteca</string>
+    <string name="manga_info_remove_from_library">Remover da biblioteca</string>
+    <string name="manga_chapters_sort">Ordenar por número do capítulo</string>
+    <!-- %1$s é o número do capítulo (ex.: "4" ou "4.5"), inserido literalmente. -->
+    <string name="manga_chapter_number">Capítulo %1$s</string>
+
+    <!-- Gerenciamento de categorias (chips no destaque + folha de edição). -->
+    <string name="manga_categories_title">Gerenciar categorias</string>
+    <string name="manga_categories_empty">Crie categorias na sua biblioteca para organizar títulos.</string>
+    <string name="manga_categories_add">Adicionar a categoria</string>
+    <!-- Chip de excedente quando o mangá está em mais categorias do que cabem; %1$d é quantas a mais. -->
+    <string name="manga_categories_more">+%1$d</string>
+
+    <!-- Chip de status de publicação no destaque. -->
+    <string name="manga_status_ongoing">Em andamento</string>
+    <string name="manga_status_completed">Concluído</string>
+    <string name="manga_status_licensed">Licenciado</string>
+    <string name="manga_status_publishing_finished">Publicação encerrada</string>
+    <string name="manga_status_cancelled">Cancelado</string>
+    <string name="manga_status_hiatus">Em hiato</string>
+
+    <plurals name="manga_chapter_count">
+        <item quantity="one">%1$d capítulo</item>
+        <item quantity="other">%1$d capítulos</item>
+    </plurals>
+    <plurals name="manga_chapters_total">
+        <item quantity="one">%1$d no total</item>
+        <item quantity="other">%1$d no total</item>
+    </plurals>
+</resources>
