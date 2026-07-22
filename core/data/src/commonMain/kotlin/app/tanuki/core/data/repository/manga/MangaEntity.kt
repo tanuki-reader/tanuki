@@ -10,6 +10,7 @@ import app.tanuki.core.data.repository.library.LibraryEntryEntity
 import app.tanuki.core.data.repository.source.SourceEntity
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.common.model.toTextOrNull
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -24,8 +25,10 @@ import kotlin.uuid.Uuid
  * library. The domain [MangaCover] is flattened onto the row and rebuilt at the mapper boundary.
  *
  * `source` (Uuid) foreign-keys to [SourceEntity.id] and cascades, so deleting a source removes its
- * manga. A manga is naturally identified within its source by [url] — hence the unique `(source, url)`
- * index (which also serves the FK's child-column index).
+ * manga. A manga is naturally identified within its source by its source-native [sourceMangaKey] —
+ * hence the unique `(source, source_manga_key)` index (whose leftmost `source` also serves the FK's
+ * child-column index). [url] is a display/permalink, not the identity: url-less sources fall back to
+ * the source home, so many series would share one url and cannot dedupe on it.
  */
 @Entity(
     tableName = "manga",
@@ -37,7 +40,7 @@ import kotlin.uuid.Uuid
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index(value = ["source", "url"], unique = true)],
+    indices = [Index(value = ["source", "source_manga_key"], unique = true)],
 )
 data class MangaEntity(
     @PrimaryKey val id: Uuid,
@@ -47,6 +50,7 @@ data class MangaEntity(
     val description: String?,
     @ColumnInfo(name = "cover_url") val coverUrl: String?,
     @ColumnInfo(name = "cover_last_modified") val coverLastModified: Instant,
+    @ColumnInfo(name = "source_manga_key") val sourceMangaKey: String?,
     val url: String,
     @ColumnInfo(name = "reading_mode") val readingMode: ReadingMode,
     @ColumnInfo(name = "publish_status") val publishStatus: PublishStatus,
@@ -82,6 +86,7 @@ fun MangaEntity.toDomain(
         author = author?.let(::Text),
         description = description?.let(::Text),
         cover = MangaCover(mangaId = id, url = coverUrl?.let(::Url), lastModified = coverLastModified),
+        sourceMangaKey = sourceMangaKey.toTextOrNull(),
         url = Url(url),
         // Downloads aren't tracked in the DB yet (no download subsystem — see LibraryFilter), so this
         // stays at its default until that lands. `unread_count` is derived by the read queries.
@@ -102,6 +107,7 @@ fun Manga.toEntity(): MangaEntity =
         description = description?.value,
         coverUrl = cover.url?.value,
         coverLastModified = cover.lastModified,
+        sourceMangaKey = sourceMangaKey?.value,
         url = url.value,
         readingMode = readingMode,
         publishStatus = publishStatus,

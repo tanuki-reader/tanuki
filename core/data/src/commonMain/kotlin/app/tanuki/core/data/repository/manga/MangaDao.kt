@@ -77,6 +77,18 @@ interface MangaDao {
     )
     fun observeMangaBySource(sourceId: Uuid): Flow<List<MangaWithDetails>>
 
+    /**
+     * The local id of the manga keyed [sourceMangaKey] within source [sourceId], or `null` if none is
+     * cached yet. Used to dedupe when caching a browsed manga — a second tap reuses the existing row
+     * (and its library membership) instead of minting a duplicate. Keyed on the source-native id, not
+     * the permalink, so url-less series each get their own row.
+     */
+    @Query("SELECT id FROM manga WHERE source = :sourceId AND source_manga_key = :sourceMangaKey LIMIT 1")
+    suspend fun findMangaIdBySourceAndKey(
+        sourceId: Uuid,
+        sourceMangaKey: String,
+    ): Uuid?
+
     @Upsert
     suspend fun upsert(manga: MangaEntity)
 

@@ -38,6 +38,18 @@ interface MangaRepository {
     fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>>
 
     /**
+     * The local id of the manga keyed [sourceMangaKey] within source [sourceId], or `null` if it isn't
+     * cached.
+     *
+     * @param sourceId Local id of the source.
+     * @param sourceMangaKey The manga's source-native id (its stable key within the source).
+     */
+    suspend fun getMangaIdBySourceAndKey(
+        sourceId: Uuid,
+        sourceMangaKey: String
+    ): Uuid?
+
+    /**
      * Inserts or updates a new manga.
      *
      * @param manga The manga to persist.

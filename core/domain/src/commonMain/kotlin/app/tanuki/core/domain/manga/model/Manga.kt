@@ -19,7 +19,13 @@ import kotlin.uuid.Uuid
  * @property author Author/artist credit; `null` when the source provides none.
  * @property description Synopsis; `null` when the source provides none.
  * @property cover Handle to the cover image (metadata only, never bytes); see [MangaCover].
- * @property url The manga's page on its source — its natural key within that source.
+ * @property sourceMangaKey The source-native manga id (Mihon's "url"/key) that later source calls
+ *   address this series by, and the stable axis that dedupes a browsed series against one already
+ *   cached (see the unique `(source, source_manga_key)` index). A [Text] rather than a raw `String`
+ *   because a source key is never meaningfully blank — it's an address, not display copy, but it
+ *   shares the same non-blank invariant. `null` only for legacy rows persisted before the key was
+ *   recorded.
+ * @property url The manga's page on its source — a display/permalink URL, not the dedupe key.
  * @property isDownloaded Whether the user has downloaded this manga.
  * @property unreadCount The number of chapters the user has not yet read.
  * @property dateAdded When the user added this manga to their library, or `null` if it is not in the
@@ -40,6 +46,7 @@ data class Manga(
     val author: Text?,
     val description: Text?,
     val cover: MangaCover,
+    val sourceMangaKey: Text? = null,
     val url: Url,
     val isDownloaded: Boolean = false,
     val unreadCount: UInt = 0u,

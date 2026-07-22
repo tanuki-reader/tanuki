@@ -170,9 +170,15 @@ private class FakeMangaRepository(
 
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = error("unused")
 
+    override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
+
     override suspend fun upsertManga(manga: Manga) = error("unused")
 
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
+
+    override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
+
+    override suspend fun removeFromLibrary(mangaId: Uuid) = error("unused")
 }
 
 private object NoCategoriesRepository : CategoryRepository {

@@ -46,6 +46,9 @@ class MangaRepositoryImp(
             .map(List<MangaWithDetails>::toDomainList)
             .flowOn(dispatcherProvider.io)
 
+    override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? =
+        mangaDao.findMangaIdBySourceAndKey(sourceId, sourceMangaKey)
+
     override suspend fun upsertManga(manga: Manga) =
         mangaDao.upsertWithLibrary(manga.toEntity(), manga.toLibraryEntry())
 
