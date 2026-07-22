@@ -39,6 +39,10 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
+            // Cover art loading for MangaCoverTile. The MangaCover primitive stays loader-agnostic
+            // (image slot); the tile is the app-level convenience that fills it via Coil's singleton
+            // ImageLoader (configured in App.kt). Kept an implementation dep so consumers don't inherit it.
+            implementation(libs.coil.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

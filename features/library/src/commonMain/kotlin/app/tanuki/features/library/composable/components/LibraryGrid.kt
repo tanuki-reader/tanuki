@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.core.domain.manga.model.Manga
 import kotlin.uuid.Uuid
@@ -68,9 +69,13 @@ internal fun LibraryGrid(
                     )
                 }
                 items(items, key = { it.id }) { manga ->
-                    LibraryItem(
-                        manga = manga,
+                    MangaCoverTile(
+                        seed = manga.id.toString(),
+                        title = manga.title.value,
+                        coverUrl = manga.cover.url?.value,
                         onClick = { onMangaClick(manga.id) },
+                        unread = manga.unreadCount,
+                        downloaded = manga.isDownloaded,
                         modifier = Modifier.animateItem()
                     )
                 }
