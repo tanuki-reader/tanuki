@@ -36,14 +36,16 @@ import androidx.navigation.toRoute
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
+import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.core.navigation.type.UuidNavType
 import app.tanuki.features.activity.ActivityRoute
+import app.tanuki.features.browse.BrowseCatalogRoute
+import app.tanuki.features.browse.SourceBrowseRoute
 import app.tanuki.features.library.LibraryRoute
 import app.tanuki.features.manga.MangaRoute
 import app.tanuki.platform.rememberReducedMotion
 import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.tab_browse_placeholder
 import app.tanuki.shared.resources.tab_settings_placeholder
 import org.jetbrains.compose.resources.stringResource
 import kotlin.reflect.typeOf
@@ -190,12 +192,24 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
             composable<TopLevelDestination.Activity> {
                 ActivityRoute(onNavigate = { navController.navigate(it) })
             }
-            // Placeholders until the Browse & Settings features land, so their tabs are navigable.
             composable<TopLevelDestination.Browser> {
-                TabPlaceholder(stringResource(Res.string.tab_browse_placeholder))
+                BrowseCatalogRoute(onNavigate = { navController.navigate(it) })
             }
+            // Placeholder until the Settings feature lands, so its tab is navigable.
             composable<TopLevelDestination.Settings> {
                 TabPlaceholder(stringResource(Res.string.tab_settings_placeholder))
+            }
+            composable<SourceBrowse>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) { entry ->
+                SourceBrowseRoute(
+                    sourceId = entry.toRoute<SourceBrowse>().sourceId,
+                    onNavigate = { navController.navigate(it) },
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable<MangaDetail>(
                 typeMap = uuidTypeMap,

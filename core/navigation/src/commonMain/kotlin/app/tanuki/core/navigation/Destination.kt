@@ -48,6 +48,19 @@ data class MangaDetail(
     val mangaId: Uuid
 ) : Destination
 
+/**
+ * A single source's browse screen — its catalog, searchable and paged, with the source's declared
+ * listings as tabs. Pushed onto the Browser tab's stack from the source list.
+ *
+ * Identified by the **source-native** [sourceId] string (e.g. `"mangadex"`), not a local `Uuid`: a
+ * source is addressed by its own id everywhere above persistence (see [app.tanuki.core.navigation]
+ * note on ids), and this route only needs to tell the loader which source to browse.
+ */
+@Serializable
+data class SourceBrowse(
+    val sourceId: String
+) : Destination
+
 /** The reader for a specific chapter. [mangaId] is carried so the reader can page across chapters. */
 @Serializable
 data class Reader(
