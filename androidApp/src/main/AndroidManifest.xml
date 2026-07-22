@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Sources fetch manga catalogs, covers, and pages over HTTP (Ktor); the WASM guests have no
+         network capability of their own, so all traffic goes through the app's one client. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".TanukiApplication"
         android:allowBackup="true"
