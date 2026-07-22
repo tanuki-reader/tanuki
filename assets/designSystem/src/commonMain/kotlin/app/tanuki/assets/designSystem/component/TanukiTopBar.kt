@@ -60,7 +60,7 @@ fun TanukiTopBar(
     title: String,
     searchActive: Boolean,
     searchQuery: String,
-    onSearchOpen: (() -> Unit)?,
+    onSearchOpen: (() -> Unit)? = null,
     onSearchClose: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,

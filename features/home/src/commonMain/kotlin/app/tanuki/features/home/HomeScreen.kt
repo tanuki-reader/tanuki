@@ -45,7 +45,7 @@ import app.tanuki.features.home.viewmodel.HomeViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import org.jetbrains.compose.resources.stringResource
 
-/** Home's two views. Which one is showing is pure UI state — it changes nothing in the data. */
+/** Home's two views. Which one is showing is a pure UI state — it changes nothing in the data. */
 private enum class HomeView { ForYou, Sources }
 
 /**
@@ -77,14 +77,14 @@ private fun HomeScreen(
     viewModel: HomeViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val spacing = TanukiTheme.spacing
     var view by rememberSaveable { mutableStateOf(HomeView.ForYou) }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .statusBarsPadding()
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .statusBarsPadding()
     ) {
         // Title-only bar: Home has nothing to search — its two views are a curated shortlist and a short
         // source list, and the segmented control below is the screen's only control.
@@ -92,7 +92,6 @@ private fun HomeScreen(
             title = stringResource(Res.string.home_title),
             searchActive = false,
             searchQuery = "",
-            onSearchOpen = null,
             onSearchClose = {},
             onSearchQueryChange = {}
         )
@@ -105,17 +104,22 @@ private fun HomeScreen(
                 ),
             selected = view,
             onSelect = { view = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = spacing.gutter, vertical = spacing.sm)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(TanukiTheme.spacing.gutter)
         )
 
         when (val current = state) {
-            Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { TanukiLoadingIndicator() }
+            Loading -> {
+                Box(Modifier.fillMaxSize(), Alignment.Center) { TanukiLoadingIndicator() }
+            }
 
-            is Content -> when (view) {
-                HomeView.ForYou -> ForYouView(current, viewModel)
-                HomeView.Sources -> SourcesView(current, viewModel)
+            is Content -> {
+                when (view) {
+                    HomeView.ForYou -> ForYouView(current, viewModel)
+                    HomeView.Sources -> SourcesView(current, viewModel)
+                }
             }
         }
     }
