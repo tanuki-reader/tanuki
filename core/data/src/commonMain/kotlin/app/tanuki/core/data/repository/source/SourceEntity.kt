@@ -24,6 +24,12 @@ data class SourceEntity(
     val lang: String,
     val name: String,
     val url: String,
+    /**
+     * Monotonic version of the installed bundle, or `null` for a source that reports none. Stored so
+     * an update check can compare every installed source against a remote repo index without loading
+     * any `.wasm`.
+     */
+    val version: Int? = null,
 )
 
 fun SourceEntity.toDomain(): Source =
@@ -33,6 +39,7 @@ fun SourceEntity.toDomain(): Source =
         lang = Text(lang),
         name = Text(name),
         url = Url(url),
+        version = version,
     )
 
 fun Source.toEntity(): SourceEntity =
@@ -42,4 +49,5 @@ fun Source.toEntity(): SourceEntity =
         lang = lang.value,
         name = name.value,
         url = url.value,
+        version = version,
     )

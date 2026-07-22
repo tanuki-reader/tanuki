@@ -1,0 +1,5 @@
+# cinterop for the wasmi C shim (native/wasmi-cabi). The header lives in that crate's include/ dir;
+# includeDirs + the per-target static lib (libwasmi_cabi.a) are wired in core/source/build.gradle.kts.
+# Generated Kotlin bindings land in package `wasmi` (e.g. wasmi.tanuki_engine_new()).
+headers = tanuki_wasmi.h
+package = wasmi

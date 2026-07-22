@@ -21,12 +21,14 @@ expect class DatabaseBuilderFactory {
 }
 
 /**
- * Applies the shared driver and threading configuration and opens the database.
+ * Applies the shared driver, migrations, and threading configuration, and opens the database.
  *
  * Uses the bundled SQLite driver (the same native SQLite on both platforms) and runs queries on
- * [Dispatchers.IO] so suspending DAO calls never block the caller's thread.
+ * [Dispatchers.IO] so suspending DAO calls never block the caller's thread. [MIGRATIONS] is applied
+ * rather than a destructive fallback, so a schema change never costs the user their library.
  */
 fun RoomDatabase.Builder<TanukiDatabase>.buildDatabase(dispatcherProvider: DispatcherProvider): TanukiDatabase =
     setDriver(BundledSQLiteDriver())
+        .addMigrations(*MIGRATIONS)
         .setQueryCoroutineContext(dispatcherProvider.io)
         .build()

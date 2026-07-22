@@ -1,5 +1,6 @@
 package app.tanuki.di
 
+import app.tanuki.dev.DevSourceInstaller
 import app.tanuki.dev.LibrarySeeder
 import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import kotlinx.coroutines.CoroutineScope
@@ -17,4 +18,10 @@ interface AppGraph : ViewModelGraph {
 
     /** Temporary dev helper: seeds sample manga into an empty library. Remove once sources exist. */
     val librarySeeder: LibrarySeeder
+
+    /**
+     * Temporary dev helper: installs the app-bundled `.wasm` sources into the bundle store. Remove
+     * once the remote source repo and its installer exist.
+     */
+    val devSourceInstaller: DevSourceInstaller
 }

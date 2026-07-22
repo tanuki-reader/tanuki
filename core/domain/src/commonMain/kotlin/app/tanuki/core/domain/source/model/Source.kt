@@ -22,11 +22,16 @@ import kotlin.uuid.Uuid
  * @property lang language tag the source serves.
  * @property name human-readable source name.
  * @property url the source's base URL.
+ * @property version the installed bundle's monotonic version, as its metadata reported it at install
+ *   time, or `null` for a source that reports none. Persisted rather than re-read from the `.wasm` so
+ *   an update check can compare every installed source against a remote repo index without
+ *   instantiating a single module. Monotonic `Int` (not semver) so the comparison is a plain `>`.
  */
 data class Source(
     val id: Uuid,
     val sourceId: String,
     val lang: Text,
     val name: Text,
-    val url: Url
+    val url: Url,
+    val version: Int? = null
 )
