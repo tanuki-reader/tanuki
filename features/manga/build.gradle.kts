@@ -54,6 +54,9 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
+            // Cover art for the detail hero (foreground cover + blurred backdrop), via the app's
+            // singleton ImageLoader configured in App.kt.
+            implementation(libs.coil.compose)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
