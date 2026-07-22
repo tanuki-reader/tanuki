@@ -22,6 +22,14 @@ kotlinxSerialization = "1.11.0"
 room = "2.8.4"
 sqlite = "2.6.2"
 ksp = "2.3.10"
+# okio — file IO for the on-disk source-bundle store. 3.14+ ships the kotlin.time.Clock-based
+# FakeFileSystem needed for tests on kotlinx-datetime 0.7.x.
+okio = "3.17.0"
+# Chicory — pure-JVM WebAssembly interpreter (zero native deps); the Android-side WASM engine.
+chicory = "1.4.0"
+# Coil 3 — Compose Multiplatform image loading (covers). Network layer via its Ktor 3 integration so
+# the same fetch stack works on Android and iOS.
+coil = "3.0.4"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -33,6 +41,13 @@ androidx-navigation-compose = { module = "org.jetbrains.androidx.navigation:navi
 metrox-android = { module = "dev.zacsweers.metro:metrox-android", version.ref = "metro" }
 metrox-viewmodel-compose = { module = "dev.zacsweers.metro:metrox-viewmodel-compose", version.ref = "metro" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
+ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
+chicory-runtime = { module = "com.dylibso.chicory:runtime", version.ref = "chicory" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
