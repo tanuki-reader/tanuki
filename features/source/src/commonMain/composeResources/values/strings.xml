@@ -1,0 +1,6 @@
+<resources>
+    <string name="source_search_hint">Search %1$s</string>
+    <string name="source_load_error">Couldn\'t load this source. Check your connection and try again.</string>
+    <string name="source_retry">Retry</string>
+    <string name="source_results_empty">No results</string>
+</resources>

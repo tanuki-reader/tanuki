@@ -36,6 +36,7 @@ fun Wire.SourceMetaWire.toDomain(): SourceMeta =
         name = Text(name),
         lang = Text(lang),
         version = version,
+        iconUrl = iconUrl.toUrlOrNull(),
         listings = listings.map(Wire.ListingWire::toDomain),
     )
 

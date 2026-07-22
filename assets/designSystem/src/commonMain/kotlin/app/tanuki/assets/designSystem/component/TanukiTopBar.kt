@@ -50,7 +50,8 @@ private val AppBarHeight = 56.dp
  *
  * [title] is content and [searchPlaceholder] is UI copy, so both are passed as **already-resolved**
  * strings (`stringResource(...)`) — the component never inlines display literals. [onSearchOpen] fires
- * when the search glyph is tapped; [onSearchClose] when the back arrow is tapped (the caller typically
+ * when the search glyph is tapped; passing `null` **omits the search action entirely** for a title-only
+ * bar (e.g. the Home screen). [onSearchClose] fires when the back arrow is tapped (the caller typically
  * also clears the query). Passing [onFilterClick] adds a filter action next to search in the title face
  * (hidden while searching); [filterActive] tints it orange to signal an active selection.
  */
@@ -59,7 +60,7 @@ fun TanukiTopBar(
     title: String,
     searchActive: Boolean,
     searchQuery: String,
-    onSearchOpen: () -> Unit,
+    onSearchOpen: (() -> Unit)?,
     onSearchClose: () -> Unit,
     onSearchQueryChange: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -153,7 +154,9 @@ fun TanukiTopBar(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.xxs)
             ) {
-                TanukiIconButton(onClick = onSearchOpen) { tint -> SearchIcon(tint = tint, size = 24.dp) }
+                if (onSearchOpen != null) {
+                    TanukiIconButton(onClick = onSearchOpen) { tint -> SearchIcon(tint = tint, size = 24.dp) }
+                }
                 if (onFilterClick != null) {
                     TanukiIconButton(onClick = onFilterClick, active = filterActive) { tint ->
                         FilterIcon(tint = tint)

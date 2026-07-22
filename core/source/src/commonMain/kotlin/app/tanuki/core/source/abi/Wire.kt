@@ -57,6 +57,13 @@ object Wire {
          * integer, not semver — comparison is a plain `>`.
          */
         val version: Int? = null,
+        /**
+         * Remote URL of the source's icon/logo, shown beside its name in the source list. Optional
+         * (older guests omit it → the UI falls back to a lettered avatar). Purely additive, so adding
+         * it did not require an ABI [SourceAbi.VERSION] bump — an old bundle that omits the field still
+         * decodes cleanly to `null`.
+         */
+        val iconUrl: String? = null,
         /** Whether the source serves adult content; defaults to safe. */
         val nsfw: Boolean = false,
         /**

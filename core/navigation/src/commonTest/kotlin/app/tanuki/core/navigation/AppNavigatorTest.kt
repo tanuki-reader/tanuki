@@ -14,8 +14,8 @@ class AppNavigatorTest {
     @Test
     fun `selectTab emits a SelectTab command for that tab`() = runTest {
         val navigator = DefaultAppNavigator()
-        navigator.selectTab(TopLevelDestination.Browser)
-        assertEquals(NavCommand.SelectTab(TopLevelDestination.Browser), navigator.commands.first())
+        navigator.selectTab(TopLevelDestination.Home)
+        assertEquals(NavCommand.SelectTab(TopLevelDestination.Home), navigator.commands.first())
     }
 
     @Test

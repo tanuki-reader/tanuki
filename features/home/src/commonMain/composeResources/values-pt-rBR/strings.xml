@@ -1,0 +1,9 @@
+<resources>
+    <string name="home_title">Início</string>
+    <string name="home_segment_for_you">Para você</string>
+    <string name="home_segment_sources">Fontes</string>
+    <string name="home_continue_reading">Continuar lendo</string>
+    <string name="home_for_you_empty">Os títulos que você começar a ler aparecem aqui.</string>
+    <string name="home_sources_empty">As fontes instaladas aparecem aqui.</string>
+    <string name="home_continue_reading_chapter">Capítulo %1$s</string>
+</resources>

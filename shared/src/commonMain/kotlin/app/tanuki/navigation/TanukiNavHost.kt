@@ -40,10 +40,10 @@ import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.core.navigation.type.UuidNavType
 import app.tanuki.features.activity.ActivityRoute
-import app.tanuki.features.browse.BrowseCatalogRoute
-import app.tanuki.features.browse.SourceBrowseRoute
+import app.tanuki.features.home.HomeRoute
 import app.tanuki.features.library.LibraryRoute
 import app.tanuki.features.manga.MangaRoute
+import app.tanuki.features.source.SourceRoute
 import app.tanuki.platform.rememberReducedMotion
 import app.tanuki.shared.resources.Res
 import app.tanuki.shared.resources.tab_settings_placeholder
@@ -192,8 +192,8 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
             composable<TopLevelDestination.Activity> {
                 ActivityRoute(onNavigate = { navController.navigate(it) })
             }
-            composable<TopLevelDestination.Browser> {
-                BrowseCatalogRoute(onNavigate = { navController.navigate(it) })
+            composable<TopLevelDestination.Home> {
+                HomeRoute(onNavigate = { navController.navigate(it) })
             }
             // Placeholder until the Settings feature lands, so its tab is navigable.
             composable<TopLevelDestination.Settings> {
@@ -205,7 +205,7 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
             ) { entry ->
-                SourceBrowseRoute(
+                SourceRoute(
                     sourceId = entry.toRoute<SourceBrowse>().sourceId,
                     onNavigate = { navController.navigate(it) },
                     onBack = { navController.popBackStack() }

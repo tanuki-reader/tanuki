@@ -232,27 +232,58 @@ fun LibraryTabIcon(
 }
 
 /**
- * `explore` — the **Browse** bottom-bar tab: a compass, its ring circling a four-point needle. Marks the
- * source/discovery tab where new titles are found.
+ * `home` — the **Home** bottom-bar tab: a house, a roof gable over a body with a door. Marks the app's
+ * landing surface (For You + Sources), which replaced the old discovery-only "Browse" tab.
  */
 @Composable
-fun BrowseTabIcon(
+fun HomeTabIcon(
     tint: Color,
     modifier: Modifier = Modifier,
     size: Dp = 24.dp
 ) {
     Canvas(modifier.size(size)) {
         iconSpace {
-            drawCircle(tint, radius = 8f, center = Offset(12f, 12f), style = Stroke(width = ICON_STROKE))
-            val needle =
+            val stroke = Stroke(width = ICON_STROKE, cap = StrokeCap.Round, join = StrokeJoin.Round)
+            // Roof gable + body walls as one open outline.
+            val house =
                 Path().apply {
-                    moveTo(12f, 8f)
-                    lineTo(14f, 14f)
-                    lineTo(12f, 16f)
-                    lineTo(10f, 14f)
-                    close()
+                    moveTo(4f, 11f)
+                    lineTo(12f, 4.5f)
+                    lineTo(20f, 11f)
+                    moveTo(5.5f, 10f)
+                    lineTo(5.5f, 20f)
+                    lineTo(18.5f, 20f)
+                    lineTo(18.5f, 10f)
                 }
-            drawPath(needle, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round))
+            drawPath(house, tint, style = stroke)
+            // Door.
+            val door =
+                Path().apply {
+                    moveTo(10f, 20f)
+                    lineTo(10f, 14.5f)
+                    lineTo(14f, 14.5f)
+                    lineTo(14f, 20f)
+                }
+            drawPath(door, tint, style = stroke)
+        }
+    }
+}
+
+/**
+ * `expand_more` — a downward chevron. Marks a collapsible/disclosure control (e.g. a language group in
+ * the source list); callers rotate it 180° when the section is expanded. Public so feature modules can
+ * render it in row headers.
+ */
+@Composable
+fun ChevronDownIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawLine(tint, Offset(6.5f, 9.5f), Offset(12f, 15f), ICON_STROKE, StrokeCap.Round)
+            drawLine(tint, Offset(17.5f, 9.5f), Offset(12f, 15f), ICON_STROKE, StrokeCap.Round)
         }
     }
 }

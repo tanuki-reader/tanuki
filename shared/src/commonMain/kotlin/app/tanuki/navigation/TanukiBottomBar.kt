@@ -18,13 +18,13 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ActivityTabIcon
-import app.tanuki.assets.designSystem.component.BrowseTabIcon
+import app.tanuki.assets.designSystem.component.HomeTabIcon
 import app.tanuki.assets.designSystem.component.LibraryTabIcon
 import app.tanuki.assets.designSystem.component.SettingsTabIcon
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.shared.resources.Res
 import app.tanuki.shared.resources.tab_activity
-import app.tanuki.shared.resources.tab_browse
+import app.tanuki.shared.resources.tab_home
 import app.tanuki.shared.resources.tab_library
 import app.tanuki.shared.resources.tab_settings
 import org.jetbrains.compose.resources.StringResource
@@ -91,7 +91,7 @@ private fun NavDestination?.isOn(destination: TopLevelDestination): Boolean =
 private fun TopLevelDestination.TabIcon(tint: Color) {
     when (this) {
         TopLevelDestination.Library -> LibraryTabIcon(tint)
-        TopLevelDestination.Browser -> BrowseTabIcon(tint)
+        TopLevelDestination.Home -> HomeTabIcon(tint)
         TopLevelDestination.Activity -> ActivityTabIcon(tint)
         TopLevelDestination.Settings -> SettingsTabIcon(tint)
     }
@@ -101,7 +101,7 @@ private fun TopLevelDestination.TabIcon(tint: Color) {
 private fun TopLevelDestination.labelRes(): StringResource =
     when (this) {
         TopLevelDestination.Library -> Res.string.tab_library
-        TopLevelDestination.Browser -> Res.string.tab_browse
+        TopLevelDestination.Home -> Res.string.tab_home
         TopLevelDestination.Activity -> Res.string.tab_activity
         TopLevelDestination.Settings -> Res.string.tab_settings
     }

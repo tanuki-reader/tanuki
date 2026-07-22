@@ -1,6 +1,7 @@
 package app.tanuki.core.domain.source.model
 
 import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.common.model.Url
 
 /**
  * Lightweight catalog entry for a source — enough to list/browse sources without loading one.
@@ -19,6 +20,9 @@ import app.tanuki.core.domain.common.model.Text
  * @property version monotonic version the source reports, or `null` when it reports none. Compared
  *   against the version advertised by a remote source repo to decide whether an update is available;
  *   see [Source.version] for the persisted counterpart.
+ * @property iconUrl remote URL of the source's icon/logo shown beside its name in the source list, or
+ *   `null` when the source reports none (the UI then falls back to a lettered avatar). Optional in the
+ *   ABI's source metadata, so an older source that doesn't report it simply yields `null`.
  * @property listings browseable listings ("Popular", "Latest Updates"…) this source offers, in the
  *   order it declares them. Empty when the source exposes only its single default catalog.
  */
@@ -27,5 +31,6 @@ data class SourceMeta(
     val name: Text,
     val lang: Text,
     val version: Int? = null,
+    val iconUrl: Url? = null,
     val listings: List<SourceListing> = emptyList()
 )

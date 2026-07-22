@@ -24,8 +24,13 @@ sealed interface TopLevelDestination : Destination {
     @Serializable
     data object Library : TopLevelDestination
 
+    /**
+     * The Home tab — the app's landing surface. Hosts a "For You" view (activity over the user's
+     * library) and a "Sources" view (installed sources, grouped by language). Its per-source manga
+     * browser is a separate leaf, [SourceBrowse], pushed onto this tab's stack.
+     */
     @Serializable
-    data object Browser : TopLevelDestination
+    data object Home : TopLevelDestination
 
     @Serializable
     data object Activity : TopLevelDestination
@@ -35,12 +40,12 @@ sealed interface TopLevelDestination : Destination {
 
     companion object {
         /** Ordered tabs the bottom bar renders. Add a tab here and it appears in the bar. */
-        val entries: List<TopLevelDestination> = listOf(Library, Browser, Activity, Settings)
+        val entries: List<TopLevelDestination> = listOf(Library, Home, Activity, Settings)
     }
 }
 
 /**
- * A specific manga's detail screen. Pushed onto whichever tab's stack is active (Library, Browser…),
+ * A specific manga's detail screen. Pushed onto whichever tab's stack is active (Library, Home…),
  * so it carries its own id rather than belonging to one tab.
  */
 @Serializable
@@ -50,7 +55,7 @@ data class MangaDetail(
 
 /**
  * A single source's browse screen — its catalog, searchable and paged, with the source's declared
- * listings as tabs. Pushed onto the Browser tab's stack from the source list.
+ * listings as tabs. A leaf pushed onto the Home tab's stack from its source list.
  *
  * Identified by the **source-native** [sourceId] string (e.g. `"mangadex"`), not a local `Uuid`: a
  * source is addressed by its own id everywhere above persistence (see [app.tanuki.core.navigation]
