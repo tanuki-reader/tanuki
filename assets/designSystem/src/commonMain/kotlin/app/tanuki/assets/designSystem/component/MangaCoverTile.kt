@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,10 +61,13 @@ fun MangaCoverTile(
             downloaded = downloaded,
             image = coverUrl?.let { url ->
                 {
-                    // Remote art fills the cover; while loading/on failure the gradient shows through.
+                    // Crop to fill the 2:3 frame — covers vary in aspect ratio, and the default Fit
+                    // would letterbox them, showing the gradient through the gaps. While loading / on
+                    // failure the gradient shows through instead.
                     AsyncImage(
                         model = url,
                         contentDescription = null,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize()
                     )
                 }
