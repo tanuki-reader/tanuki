@@ -5,10 +5,11 @@ import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.usecase.ObserveReadHistory
-import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.SourceMeta
+import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.NavEvent
+import app.tanuki.core.navigation.NavEvent.NavTo
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.features.home.viewmodel.HomeState.Content
@@ -28,7 +29,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.floor
 
 /**
@@ -49,7 +49,7 @@ import kotlin.math.floor
 @ViewModelKey
 class HomeViewModel(
     observeReadHistory: ObserveReadHistory,
-    private val sourceLoader: SourceLoader,
+    private val getInstalledSources: GetInstalledSources,
     private val dispatcher: DispatcherProvider
 ) : ViewModel() {
     val uiState: StateFlow<HomeState>
@@ -78,15 +78,14 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
-            // listSources never throws for a single bad bundle (the loader skips it), but guard the whole
-            // call anyway so an unexpected failure yields an empty list, not a stuck spinner.
-            sources.value = withContext(dispatcher.default) {
-                runCatching { sourceLoader.listSources() }.getOrDefault(emptyList())
-            }
+            // No withContext: SourceLoader dispatches its own engine work (and the bundle reads beneath
+            // it hop to `io` themselves), so wrapping would only add a hop before it switched again.
+            sources.value = getInstalledSources()
         }
 
         combine(observeReadHistory(), sources, expandedLangs) { history, installed, expanded ->
             // Null `installed` = sources not enumerated yet; emit nothing so the screen stays on Loading.
+            // TODO: change this infinite loading logic
             installed?.let {
                 Content(
                     continueReading = history.toContinueReading(),
@@ -108,7 +107,7 @@ class HomeViewModel(
 
     /** A source row was tapped — open its browse leaf (pushed onto the Home tab's stack). */
     fun onSourceClick(sourceId: String) {
-        _navEvents.trySend(NavEvent.NavTo(SourceBrowse(sourceId)))
+        _navEvents.trySend(NavTo(SourceBrowse(sourceId)))
     }
 
     /**
@@ -119,7 +118,7 @@ class HomeViewModel(
         val destination =
             item.chapterId?.let { Reader(mangaId = item.mangaId, chapterId = it) }
                 ?: MangaDetail(item.mangaId)
-        _navEvents.trySend(NavEvent.NavTo(destination))
+        _navEvents.trySend(NavTo(destination))
     }
 
     /**
@@ -137,9 +136,19 @@ class HomeViewModel(
                     mangaId = entry.manga.id,
                     chapterId = entry.chapter?.id,
                     title = entry.manga.title.value,
-                    coverUrl = entry.manga.cover.url?.value,
-                    chapterNumberLabel = entry.chapter?.chapterNumber?.value?.formatChapterNumber(),
-                    chapterName = entry.chapter?.name?.value.orEmpty()
+                    coverUrl =
+                        entry.manga.cover.url
+                            ?.value,
+                    chapterNumberLabel =
+                        entry.chapter
+                            ?.chapterNumber
+                            ?.value
+                            ?.formatChapterNumber(),
+                    chapterName =
+                        entry.chapter
+                            ?.name
+                            ?.value
+                            .orEmpty()
                 )
             }.toList()
 
@@ -181,5 +190,4 @@ class HomeViewModel(
  * Formats a chapter number for display: whole chapters lose the decimal ("7"), subchapters keep it
  * ("15.3"). Not localizable copy — a chapter number is content, like a title.
  */
-private fun Double.formatChapterNumber(): String =
-    if (this == floor(this)) toInt().toString() else toString()
+private fun Double.formatChapterNumber(): String = if (this == floor(this)) toInt().toString() else toString()

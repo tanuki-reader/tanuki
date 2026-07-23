@@ -3,4 +3,7 @@
     <string name="source_load_error">Couldn\'t load this source. Check your connection and try again.</string>
     <string name="source_retry">Retry</string>
     <string name="source_results_empty">No results</string>
+    <string name="source_search_empty">No results for “%1$s”</string>
+    <string name="listing_popular">Popular</string>
+    <string name="listing_latest">Latest</string>
 </resources>

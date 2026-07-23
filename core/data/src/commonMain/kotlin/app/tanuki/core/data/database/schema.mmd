@@ -1,6 +1,9 @@
 ---
-title: Tanuki Schema
+title: Tanuki Schema (v4)
 ---
+%% Source-owned rows carry two identities: the local uuid PK, and the source-native key a refresh
+%% matches them back by (manga.source_manga_key, chapters.source_chapter_key). `url` is a display
+%% permalink on both — sources need not publish a per-record one, so it isn't unique.
 erDiagram
     sources {
         uuid id PK
@@ -8,6 +11,7 @@ erDiagram
         text lang
         text name
         text url
+        int version "nullable, bundle version at install"
     }
 
     manga {
@@ -18,7 +22,8 @@ erDiagram
         text description "nullable"
         text cover_url "nullable"
         int cover_last_modified "epoch millis"
-        text url "unique within source (source, url)"
+        text source_manga_key "nullable, unique within source (source, source_manga_key)"
+        text url "permalink, not the identity"
         enum reading_mode
         enum publish_status
     }
@@ -33,8 +38,9 @@ erDiagram
         uuid id PK
         uuid manga_id FK "-> manga.id"
         real chapter_number "nullable"
-        text name
-        text url "unique within manga (manga_id, url)"
+        text name "nullable, source title only"
+        text source_chapter_key "nullable, unique within manga (manga_id, source_chapter_key)"
+        text url "permalink, not the identity"
         int date_upload "nullable, epoch millis"
         int date_fetch "epoch millis"
     }

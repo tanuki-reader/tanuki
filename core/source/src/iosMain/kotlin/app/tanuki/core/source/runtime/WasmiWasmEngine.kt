@@ -2,6 +2,7 @@
 
 package app.tanuki.core.source.runtime
 
+import app.tanuki.core.source.abi.HttpFrame
 import app.tanuki.core.source.abi.SourceCodec
 import app.tanuki.core.source.abi.Wire
 import cnames.structs.TanukiEngine
@@ -115,6 +116,9 @@ private class WasmiWasmModule(
  * [SourceHost] travels through [env] as a [StableRef]. `http_request` is driven synchronously via
  * `runBlocking` — the suspend→blocking bridge — and its reply is returned in a `malloc`'d buffer the
  * Rust shim copies out then frees.
+ *
+ * That bridge blocks the calling thread for a whole HTTP round-trip, which is why
+ * [app.tanuki.core.source.WasmSourceLoader] runs the `fetch*` calls on `io` rather than `Default`.
  */
 internal fun wasmiHostCall(
     env: COpaquePointer?,
@@ -137,7 +141,7 @@ internal fun wasmiHostCall(
             val request = SourceCodec.decode<Wire.HttpRequestWire>(
                 inPtr!!.reinterpret<ByteVar>().readBytes(inLen),
             )
-            val responseBytes = SourceCodec.encode(runBlocking { host.httpRequest(request) })
+            val responseBytes = HttpFrame.encode(runBlocking { host.httpRequest(request) })
             val buffer = malloc(responseBytes.size.convert())!!.reinterpret<UByteVar>()
             responseBytes.usePinned { pinned ->
                 memcpy(buffer, pinned.addressOf(0), responseBytes.size.convert())

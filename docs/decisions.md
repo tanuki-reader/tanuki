@@ -6,6 +6,29 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-07-23 — Listings are a closed contract vocabulary, not a source-invented one
+
+**Decision:** the ABI defines the set of browse listings (`popular`, `latest` for now) as an enum on
+both sides — `SourceListing` (host) / `Listing` (`wire.rs`, guest). A source declares only *which* of
+them it serves; it can neither invent a listing nor name one. Unknown names in a bundle's metadata are
+dropped by the mapper rather than failing the decode, and the app renders listings in the enum's order,
+not the order the bundle listed them.
+
+**Why:** with source-declared `key`+`name` pairs the app could not know what any source would offer
+until it loaded it, could not reason about a listing (no `if popular` without branching on an opaque
+string the docs called un-branchable), and — the concrete breakage — could not translate the tab label,
+since a source ships one language. A closed set means the app knows up front what a source *can* be
+asked for and only decides what to show: both tabs, one, or none (default catalog, no tab row).
+
+**Cost:** adding a listing is now an ABI change (new variant + `listing_*` strings in every language +
+an ABI version bump), not a source-side edit. That is the intended trade — the app owns presentation.
+
+**Consequence for the deferred catalog cache below:** listing keys are no longer opaque, so per-listing
+freshness *is* something the app may decide. That paragraph's advice to have the source declare a TTL
+no longer applies.
+
+---
+
 ## 2026-07-22 — Defer a browse-catalog cache until an expensive (scraping) source
 
 **Decision:** do not build a cache over `SourceLoader.fetchMangaList` yet.
@@ -25,9 +48,9 @@ speculative builds now.
 
 **When it's time:** in-memory only (not Room — catalogs are churny); a `SourceCatalog` between
 `SourceBrowseViewModel` and `SourceLoader`, keyed by `(sourceId, listing, query, page)`, LRU-bounded,
-with a uniform modest TTL + explicit refresh. Do **not** hardcode "Popular vs Latest" freshness in the
-app — listing keys are opaque; if per-listing TTL is truly needed, have the source declare it in
-`SourceListing` metadata. If MangaDex ever throttles, the fix is request politeness (rate-limit
+with a uniform modest TTL + explicit refresh. Per-listing freshness ("Latest" going stale faster than
+"Popular") is the app's call to make if it turns out to matter — the listing vocabulary is closed and
+app-owned (see the 2026-07-23 entry), so this no longer has to be deferred to source metadata. If MangaDex ever throttles, the fix is request politeness (rate-limit
 headers / debounce), not a results cache.
 
 ---

@@ -77,7 +77,9 @@ Chicory being lenient means Android-only green is not proof.
 
 ### Wire types (domain shapes)
 Pre-persistence, source-native, no local `Uuid`, no user state:
-`SourceMeta` (id, name, lang, `version: Int?`, `listings`), `SourceListing` (browse-tab key+name),
+`SourceMeta` (id, name, lang, `version: Int?`, `listings`), `SourceListing` (**closed** enum of browse
+tabs the contract defines — `POPULAR`, `LATEST`; a source declares which it serves, the app owns the
+localized label and the tab order),
 `MangaListing` (`sourceMangaKey`, `url: Url?` permalink, title, cover, author, description, status),
 `MangaPage` (entries + `hasNextPage`), `ChapterListing`, `Page`.
 
@@ -85,7 +87,7 @@ Pre-persistence, source-native, no local `Uuid`, no user state:
 ```
 loadSource(id) : Source                          // installs on first load, mints local Uuid
 listSources() : List<SourceMeta>
-fetchMangaList(sourceId, listing?, query?, page) : MangaPage
+fetchMangaList(sourceId, listing: SourceListing?, query?, page) : MangaPage
 fetchMangaDetails(sourceId, mangaKey) : MangaListing
 fetchChapterList(sourceId, mangaKey) : List<ChapterListing>
 fetchChapterPages(sourceId, chapterId) : List<Page>

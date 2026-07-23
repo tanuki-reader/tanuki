@@ -178,7 +178,7 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = TopLevelDestination.Library,
+            startDestination = TopLevelDestination.Home,
             modifier = Modifier.padding(innerPadding),
             // Default (inherited by the top-level tabs): crossfade.
             enterTransition = tabEnter,

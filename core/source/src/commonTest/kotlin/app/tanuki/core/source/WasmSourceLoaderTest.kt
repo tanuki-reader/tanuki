@@ -4,6 +4,7 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.model.Source
+import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.repository.SourceRepository
 import app.tanuki.core.source.abi.SourceAbi
 import app.tanuki.core.source.abi.SourceAbiException
@@ -136,7 +137,12 @@ class WasmSourceLoaderTest {
             val engine = FakeWasmEngine(catalog = mapOf("mangadex" to emptyList()))
             val loader = loader(engine, FakeBundleStore("mangadex"))
 
-            loader.fetchMangaList("mangadex", listing = "popular", query = "berserk", page = 3)
+            loader.fetchMangaList(
+                "mangadex",
+                listing = SourceListing.POPULAR,
+                query = "berserk",
+                page = 3
+            )
 
             assertEquals(1, engine.requests.size)
             val request = engine.requests.single()
@@ -264,7 +270,7 @@ class WasmSourceLoaderTest {
         }
 
     @Test
-    fun `listSources carries version and declared listings`() =
+    fun `listSources carries version and resolves declared listings against the contract`() =
         runTest {
             val engine =
                 FakeWasmEngine(
@@ -277,12 +283,9 @@ class WasmSourceLoaderTest {
                                     lang = "en",
                                     baseUrl = "https://mangadex.test",
                                     version = 7,
-                                    listings =
-                                        listOf(
-                                            Wire.ListingWire(key = "popular", name = "Popular"),
-                                            // Blank label falls back to the key rather than failing the whole decode.
-                                            Wire.ListingWire(key = "latest", name = " ")
-                                        )
+                                    // Declared out of contract order, with a duplicate and a listing
+                                    // this build has no concept of.
+                                    listings = listOf("latest", "nonsense", "popular", "latest")
                                 )
                         )
                 )
@@ -291,9 +294,8 @@ class WasmSourceLoaderTest {
             val meta = loader.listSources().single()
 
             assertEquals(7, meta.version)
-            assertEquals(listOf("popular", "latest"), meta.listings.map { it.key })
-            assertEquals("Popular", meta.listings[0].name.value)
-            assertEquals("latest", meta.listings[1].name.value)
+            // Unknown dropped, duplicate collapsed, and the order is the contract's — not the source's.
+            assertEquals(listOf(SourceListing.POPULAR, SourceListing.LATEST), meta.listings)
         }
 
     @Test
@@ -388,7 +390,7 @@ class WasmSourceLoaderTest {
 /** A [SourceHost] that does nothing; the loader tests never exercise a real HTTP/log import. */
 private object NoOpSourceHost : SourceHost {
     override suspend fun httpRequest(request: Wire.HttpRequestWire) =
-        Wire.HttpResponseWire(status = 200, bodyBase64 = "")
+        Wire.HttpResponseWire(status = 200, body = ByteArray(0))
 
     override fun log(
         level: Wire.LogLevel,

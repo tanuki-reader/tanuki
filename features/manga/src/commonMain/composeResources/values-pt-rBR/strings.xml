@@ -21,6 +21,8 @@
     <string name="manga_chapters_sort">Ordenar por número do capítulo</string>
     <!-- %1$s é o número do capítulo (ex.: "4" ou "4.5"), inserido literalmente. -->
     <string name="manga_chapter_number">Capítulo %1$s</string>
+    <!-- Título alternativo para um capítulo que a fonte publicou sem número nem título. -->
+    <string name="manga_chapter_untitled">Capítulo sem título</string>
 
     <!-- Gerenciamento de categorias (chips no destaque + folha de edição). -->
     <string name="manga_categories_title">Gerenciar categorias</string>

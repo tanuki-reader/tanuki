@@ -192,6 +192,9 @@ class LibrarySeeder(
                 mangaId = manga.id,
                 chapterNumber = ChapterNumber(n),
                 name = Text(CHAPTER_TITLES[(n - 1) % CHAPTER_TITLES.size]),
+                // Seeded rows stand in for synced ones, so they need the key a real sync would match on
+                // — without it the unique (manga_id, source_chapter_key) index sees them all as NULL.
+                sourceChapterKey = Text("seed-${manga.id}-$n"),
                 url = Url("${manga.url.value}/chapter-$n"),
                 dateUpload = now,
                 dateFetch = now,

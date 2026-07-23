@@ -6,10 +6,12 @@ import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.category.usecase.SetMangaCategories
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
+import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
 import app.tanuki.core.domain.manga.usecase.ObserveManga
 import app.tanuki.core.domain.manga.usecase.RemoveMangaFromLibrary
+import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.core.navigation.Reader
@@ -50,6 +52,10 @@ import kotlin.uuid.Uuid
  * The pipeline is reactive: [ObserveManga] and [ObserveChapters] are combined into [MangaState], so the
  * screen re-derives whenever the manga or its chapters change. A `null` manga (deleted row / bad deep
  * link) surfaces as [MangaState.NotFound].
+ *
+ * Chapters are refreshed from the source on open ([SyncSourceChapters]) but nothing waits on it: the
+ * cached list renders immediately and the fetched one replaces it through the same reactive pipeline
+ * when it lands.
  */
 @AssistedInject
 class MangaViewModel(
@@ -61,6 +67,8 @@ class MangaViewModel(
     private val setMangaCategories: SetMangaCategories,
     private val addToLibrary: AddToLibrary,
     private val removeMangaFromLibrary: RemoveMangaFromLibrary,
+    private val syncSourceChapters: SyncSourceChapters,
+    private val syncSourceMangaDetails: SyncSourceMangaDetails,
     private val dispatcher: DispatcherProvider
 ) : ViewModel() {
     val uiState: StateFlow<MangaState>
@@ -95,6 +103,43 @@ class MangaViewModel(
         }.flowOn(dispatcher.default)
             .onEach { uiState.value = it }
             .launchIn(viewModelScope)
+
+        refreshChapters()
+        refreshDetails()
+    }
+
+    /**
+     * Refreshes this manga's chapters from its source, in the background.
+     *
+     * Fire-and-forget by design — the screen never blocks on it, because [ObserveChapters] has already
+     * emitted whatever is cached and the refreshed rows arrive through that same flow. A failure
+     * (offline, source error) therefore leaves the cached list on screen rather than emptying it.
+     *
+     * The failure is currently only logged: surfacing it needs a refresh affordance on the screen
+     * (a pull-to-refresh and an inline error), which doesn't exist yet. `println` matches the stopgap
+     * used elsewhere until a logging abstraction lands in `core/`.
+     */
+    private fun refreshChapters() {
+        viewModelScope.launch {
+            runCatching { withContext(dispatcher.io) { syncSourceChapters(mangaId) } }
+                .onFailure { error -> println("[manga] Chapter refresh failed for $mangaId: ${error.message}") }
+        }
+    }
+
+    /**
+     * Fills in the fields a browse listing doesn't carry (description, author, full status), in the
+     * background — see [SyncSourceMangaDetails] for why the catalog deliberately omits them.
+     *
+     * A separate coroutine from [refreshChapters], not a step inside it: they hit different source
+     * endpoints and neither is worth delaying for the other, so a slow chapter feed can't hold up the
+     * description and a source that implements one but not the other still delivers what it has.
+     * Fire-and-forget and failure-tolerant for the same reason: the cached row stays on screen.
+     */
+    private fun refreshDetails() {
+        viewModelScope.launch {
+            runCatching { withContext(dispatcher.io) { syncSourceMangaDetails(mangaId) } }
+                .onFailure { error -> println("[manga] Detail refresh failed for $mangaId: ${error.message}") }
+        }
     }
 
     /**

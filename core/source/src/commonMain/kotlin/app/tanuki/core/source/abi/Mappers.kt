@@ -2,7 +2,6 @@ package app.tanuki.core.source.abi
 
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.common.model.Text
-import app.tanuki.core.domain.common.model.toTextOrNull
 import app.tanuki.core.domain.common.model.toUrlOrNull
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.source.model.ChapterListing
@@ -37,19 +36,20 @@ fun Wire.SourceMetaWire.toDomain(): SourceMeta =
         lang = Text(lang),
         version = version,
         iconUrl = iconUrl.toUrlOrNull(),
-        listings = listings.map(Wire.ListingWire::toDomain),
+        listings = sourceListingsOf(listings),
     )
 
 /**
- * Maps a declared listing to its domain form. A blank label would fail [Text]'s invariant, so it
- * falls back to the [Wire.ListingWire.key] — a source with a sloppy label still gets a usable tab
- * rather than sinking the whole metadata decode.
+ * Resolves the listing names a source declared against the contract's closed [SourceListing] set.
+ *
+ * Filtering the enum (rather than mapping the wire list) does three things at once, all of them part of
+ * the contract: unknown names are **dropped** — a bundle built against a newer ABI can't smuggle in a
+ * tab the app has no label or handling for — duplicates collapse, and the result comes back in
+ * [SourceListing]'s order, so every source's Browse tabs read the same way regardless of the order the
+ * bundle happened to list them in.
  */
-fun Wire.ListingWire.toDomain(): SourceListing =
-    SourceListing(
-        key = key,
-        name = name.toTextOrNull() ?: Text(key),
-    )
+private fun sourceListingsOf(wireNames: List<String>): List<SourceListing> =
+    SourceListing.entries.filter { it.wireName in wireNames }
 
 /**
  * Maps a source catalog/search entry to the browse-facing [MangaListing]. Total and lossless: every

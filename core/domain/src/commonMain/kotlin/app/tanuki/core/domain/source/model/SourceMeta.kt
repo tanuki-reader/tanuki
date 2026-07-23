@@ -23,8 +23,9 @@ import app.tanuki.core.domain.common.model.Url
  * @property iconUrl remote URL of the source's icon/logo shown beside its name in the source list, or
  *   `null` when the source reports none (the UI then falls back to a lettered avatar). Optional in the
  *   ABI's source metadata, so an older source that doesn't report it simply yields `null`.
- * @property listings browseable listings ("Popular", "Latest Updates"…) this source offers, in the
- *   order it declares them. Empty when the source exposes only its single default catalog.
+ * @property listings which of the contract's [SourceListing]s this source serves, in [SourceListing]'s
+ *   own order (not the source's — the vocabulary and its presentation order are the app's). Empty when
+ *   the source exposes only its single default catalog.
  */
 data class SourceMeta(
     val id: String,

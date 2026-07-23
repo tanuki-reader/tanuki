@@ -11,6 +11,7 @@ import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.MangaPage
 import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.domain.source.model.Source
+import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -92,7 +93,7 @@ class CacheSourceMangaTest {
 private class FakeSourceLoader(private val source: Source) : SourceLoader {
     override suspend fun loadSource(id: String): Source = source
     override suspend fun listSources(): List<SourceMeta> = error("unused")
-    override suspend fun fetchMangaList(sourceId: String, listing: String?, query: String?, page: Int): MangaPage =
+    override suspend fun fetchMangaList(sourceId: String, listing: SourceListing?, query: String?, page: Int): MangaPage =
         error("unused")
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing = error("unused")
     override suspend fun fetchChapterList(sourceId: String, mangaKey: String) = error("unused")

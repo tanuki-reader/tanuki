@@ -31,6 +31,14 @@ interface ChapterRepository {
     fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>>
 
     /**
+     * Every chapter of a manga, read once rather than observed — what a source sync matches its
+     * remote chapters against before writing.
+     *
+     * @param mangaId Local id of the owning manga.
+     */
+    suspend fun getChapters(mangaId: Uuid): List<Chapter>
+
+    /**
      * Inserts or update a new chapter.
      *
      * @param chapter The chapter to persist.
@@ -38,9 +46,28 @@ interface ChapterRepository {
     suspend fun upsertChapter(chapter: Chapter)
 
     /**
+     * Inserts or updates many chapters in a single transaction.
+     *
+     * The bulk form exists because a source sync writes a whole feed at once — a long series is over a
+     * thousand rows, and one transaction per chapter would make a refresh take seconds and leave a
+     * half-written list visible if it were interrupted.
+     *
+     * @param chapters The chapters to persist.
+     */
+    suspend fun upsertChapters(chapters: List<Chapter>)
+
+    /**
      * Deletes a chapter by its local id.
      *
      * @param chapterId Local id of the chapter to remove.
      */
     suspend fun deleteChapter(chapterId: Uuid)
+
+    /**
+     * Deletes many chapters by local id in a single transaction — the sync's counterpart to
+     * [upsertChapters], for chapters a source no longer lists.
+     *
+     * @param chapterIds Local ids of the chapters to remove.
+     */
+    suspend fun deleteChapters(chapterIds: List<Uuid>)
 }

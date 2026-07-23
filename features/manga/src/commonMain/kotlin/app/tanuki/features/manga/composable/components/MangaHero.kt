@@ -2,7 +2,6 @@ package app.tanuki.features.manga.composable.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +36,6 @@ import app.tanuki.assets.designSystem.component.TanukiTag
 import app.tanuki.assets.designSystem.coverGradient
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus
-import coil3.compose.AsyncImage
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_categories_add
 import app.tanuki.features.manga.resources.manga_categories_more
@@ -49,6 +47,7 @@ import app.tanuki.features.manga.resources.manga_status_hiatus
 import app.tanuki.features.manga.resources.manga_status_licensed
 import app.tanuki.features.manga.resources.manga_status_ongoing
 import app.tanuki.features.manga.resources.manga_status_publishing_finished
+import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -62,17 +61,11 @@ private val HeroCoverWidth = 118.dp
 // ("basically white"). Light mode therefore needs a much higher cover opacity and a near-transparent top
 // scrim so a comparable amount of the art actually shows.
 
-/** Cover-backdrop opacity on the dark canvas (the design spec's dimmed 0.22 wash). */
-private const val HeroBackdropAlphaDark = 0.22f
-
 /** Cover-backdrop opacity on the light canvas — higher, to survive the cream scrim above it. */
-private const val HeroBackdropAlphaLight = 0.55f
-
-/** Top-of-backdrop scrim alpha on dark: a dark veil that still lets the colours through. */
-private const val HeroScrimTopDark = 0.4f
+private const val HERO_BACKDROP_ALPHA_LIGHT = 0.55f
 
 /** Top-of-backdrop scrim alpha on light: near-transparent so the cover shows rather than the cream. */
-private const val HeroScrimTopLight = 0.05f
+private const val HERO_SCRIM_TOP_LIGHT = 0.05f
 
 /** Blur radius softening the cover backdrop so it reads as a colour wash, not legible art behind text. */
 private val HeroBackdropBlur = 12.dp
@@ -104,9 +97,8 @@ internal fun MangaHero(
 ) {
     val spacing = TanukiTheme.spacing
     val background = MaterialTheme.colorScheme.background
-    val darkTheme = isSystemInDarkTheme()
-    val backdropAlpha = if (darkTheme) HeroBackdropAlphaDark else HeroBackdropAlphaLight
-    val scrimTopAlpha = if (darkTheme) HeroScrimTopDark else HeroScrimTopLight
+    val backdropAlpha = HERO_BACKDROP_ALPHA_LIGHT
+    val scrimTopAlpha = HERO_SCRIM_TOP_LIGHT
     val seed = manga.id.toString()
     val coverUrl = manga.cover.url?.value
     val statusLabel = manga.publishStatus.labelResource()?.let { stringResource(it) }

@@ -24,7 +24,7 @@ object SourceAbi {
      * refuses to run a source whose version it doesn't recognise (no compatibility shims in v1).
      * Bump on any breaking change to exports, imports, the memory ABI, or a wire shape.
      */
-    const val VERSION: Int = 2
+    const val VERSION: Int = 4
 
     /** Memory-ABI exports a guest must provide so the host can move bytes in/out of its linear memory. */
     object Memory {

@@ -37,8 +37,28 @@ interface ChapterDao {
     )
     fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<ChapterWithProgress>>
 
+    @Query(
+        """
+        SELECT chapters.*,
+               reading_progress.has_bookmark, reading_progress.last_page_read, reading_progress.already_read
+        FROM chapters
+        LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+        WHERE chapters.manga_id = :mangaId
+        ORDER BY chapters.chapter_number
+        """,
+    )
+    suspend fun getChapters(mangaId: Uuid): List<ChapterWithProgress>
+
     @Upsert
     suspend fun upsertChapter(chapter: ChapterEntity)
+
+    /**
+     * Bulk upsert for a source sync. Chapters only — progress rows are untouched, which is the point:
+     * a sync must never write the user's reading state, and a matched chapter keeps its `id`, so its
+     * existing progress row stays attached.
+     */
+    @Upsert
+    suspend fun upsertChapters(chapters: List<ChapterEntity>)
 
     @Upsert
     suspend fun upsertProgress(progress: ReadingProgressEntity)
@@ -48,6 +68,9 @@ interface ChapterDao {
 
     @Query("DELETE FROM chapters WHERE id = :chapterId")
     suspend fun deleteById(chapterId: Uuid)
+
+    @Query("DELETE FROM chapters WHERE id IN (:chapterIds)")
+    suspend fun deleteByIds(chapterIds: List<Uuid>)
 
     /**
      * Upserts a chapter and reconciles its local progress in one transaction: progress is cleared when

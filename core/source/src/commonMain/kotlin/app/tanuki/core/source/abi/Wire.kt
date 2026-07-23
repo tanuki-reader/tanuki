@@ -67,22 +67,17 @@ object Wire {
         /** Whether the source serves adult content; defaults to safe. */
         val nsfw: Boolean = false,
         /**
-         * Browseable listings this source offers, in the order it wants them shown. Empty (the
-         * default, and what every v1 guest sends) means the source has only its default catalog.
+         * Which of the contract's listings this source serves, as
+         * [app.tanuki.core.domain.source.model.SourceListing.wireName] values (`"popular"`, `"latest"`).
+         * Empty (the default) means the source has only its default catalog.
+         *
+         * Typed as raw strings rather than the domain enum for the same reason
+         * [MangaWire.status] is: a bundle built against a newer contract may name a listing this build
+         * doesn't know, and an unknown name must degrade (the mapper drops it) rather than sink the
+         * whole metadata decode. The vocabulary is still closed — the resolution in [toDomain] is what
+         * enforces it host-side, and `wire.rs`'s `Listing` enum enforces it guest-side.
          */
-        val listings: List<ListingWire> = emptyList(),
-    )
-
-    /**
-     * One listing a source declares in [SourceMetaWire.listings] — a Browse-screen tab.
-     * Mirrors [app.tanuki.core.domain.source.model.SourceListing].
-     */
-    @Serializable
-    data class ListingWire(
-        /** Source-native listing id, echoed back in [MangaListRequest.listing]. Opaque to the host. */
-        val key: String,
-        /** Human-readable tab label. */
-        val name: String,
+        val listings: List<String> = emptyList(),
     )
 
     /** A catalog/search entry, as a source provides it — pre-persistence, hence a source-native [key]. */
@@ -115,8 +110,9 @@ object Wire {
         /** 1-based page index for the source's pagination. */
         val page: Int = 1,
         /**
-         * Which declared listing ([ListingWire.key]) to browse; `null` selects the source's default
-         * catalog. A guest that receives a listing key it doesn't recognise should fall back to its
+         * Which listing to browse, as a [app.tanuki.core.domain.source.model.SourceListing.wireName];
+         * `null` selects the source's default catalog. The host only sends one the source declared in
+         * [SourceMetaWire.listings], and a guest that doesn't recognise the value falls back to its
          * default rather than erroring. When both this and [query] are set and the source cannot
          * combine them, [query] wins.
          */
@@ -197,14 +193,33 @@ object Wire {
         val bodyBase64: String? = null,
     )
 
-    /** The host's response to an [HttpRequestWire]. */
-    @Serializable
+    /**
+     * The host's response to an [HttpRequestWire].
+     *
+     * Deliberately **not** `@Serializable`: unlike every other wire type this one never becomes JSON.
+     * It is framed by [HttpFrame] so the body crosses as raw bytes — see that object for why carrying
+     * a body through JSON cost seconds per call.
+     */
     data class HttpResponseWire(
         val status: Int,
         val headers: Map<String, String> = emptyMap(),
-        /** Base64-encoded response body (may be HTML, JSON, or binary). */
-        val bodyBase64: String,
-    )
+        /** Raw response body, exactly as received (may be HTML, JSON, or binary). */
+        val body: ByteArray,
+    ) {
+        // ByteArray identity is referential, which would make two equal responses compare unequal —
+        // worth overriding since tests build these by value.
+        override fun equals(other: Any?): Boolean =
+            this === other ||
+                (
+                    other is HttpResponseWire &&
+                        status == other.status &&
+                        headers == other.headers &&
+                        body.contentEquals(other.body)
+                )
+
+        override fun hashCode(): Int =
+            (status * 31 + headers.hashCode()) * 31 + body.contentHashCode()
+    }
 
     /** Severity for [SourceAbi.Imports.LOG]; the `i32` level passed is the ordinal of this enum. */
     @Serializable

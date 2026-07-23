@@ -38,7 +38,7 @@ class KtorSourceHost(
         return HttpResponseWire(
             status = response.status.value,
             headers = response.headers.entries().associate { (name, values) -> name to values.joinToString(", ") },
-            bodyBase64 = Base64.encode(response.readRawBytes()),
+            body = response.readRawBytes(),
         )
     }
 

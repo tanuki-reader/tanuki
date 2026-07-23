@@ -8,6 +8,7 @@ import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.source.SourceLoader
+import app.tanuki.core.domain.source.model.MangaListing
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
@@ -15,7 +16,7 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 /**
- * Use case: turn a browsed [app.tanuki.core.domain.source.model.MangaListing] into a persisted [Manga]
+ * Use case: turn a browsed [MangaListing] into a persisted [Manga]
  * and return its local [Uuid], so the Browse screen can hand a tapped result off to the manga-detail
  * feature (which loads by [Uuid]).
  *
@@ -37,7 +38,7 @@ sealed interface CacheSourceManga {
      */
     suspend operator fun invoke(
         sourceId: String,
-        listing: app.tanuki.core.domain.source.model.MangaListing
+        listing: MangaListing
     ): Uuid
 
     @Inject
@@ -48,7 +49,7 @@ sealed interface CacheSourceManga {
     ) : CacheSourceManga {
         override suspend fun invoke(
             sourceId: String,
-            listing: app.tanuki.core.domain.source.model.MangaListing
+            listing: MangaListing
         ): Uuid {
             // Resolve (installing on first use) the source's local identity — Manga.source foreign-keys
             // to it, and it's the dedupe scope. A listing carries only the source-native id.

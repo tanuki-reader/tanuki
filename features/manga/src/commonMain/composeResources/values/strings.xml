@@ -21,6 +21,8 @@
     <string name="manga_chapters_sort">Sort by chapter number</string>
     <!-- %1$s is the chapter number (e.g. "4" or "4.5"), inserted verbatim. -->
     <string name="manga_chapter_number">Chapter %1$s</string>
+    <!-- Fallback row title for a chapter the source published with neither a number nor a title. -->
+    <string name="manga_chapter_untitled">Untitled chapter</string>
 
     <!-- Category management (hero chips + edit sheet). -->
     <string name="manga_categories_title">Manage categories</string>

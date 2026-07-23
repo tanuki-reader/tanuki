@@ -33,6 +33,7 @@ import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_chapter_number
+import app.tanuki.features.manga.resources.manga_chapter_untitled
 import app.tanuki.features.manga.resources.manga_chapters_sort
 import app.tanuki.features.manga.resources.manga_chapters_total
 import app.tanuki.features.manga.resources.manga_no_chapters
@@ -171,13 +172,22 @@ private fun ChapterRow(
     }
 }
 
-/** Row title: "Chapter 4" when the number is known, otherwise the raw chapter name. */
+/**
+ * Row title: "Chapter 4" when the number is known, otherwise the source's chapter name — and when the
+ * source gave neither (an unnumbered, untitled extra), a localized placeholder, so the row is never
+ * blank. The number wins over the name because it's the stable, sortable thing.
+ */
 @Composable
 private fun Chapter.title(): String =
-    chapterNumber?.let { stringResource(Res.string.manga_chapter_number, it.display()) } ?: name.value
+    chapterNumber?.let { stringResource(Res.string.manga_chapter_number, it.display()) }
+        ?: name?.value
+        ?: stringResource(Res.string.manga_chapter_untitled)
 
-/** Row subtitle: the chapter name, but only when the title already shows the number (else it'd repeat). */
-private fun Chapter.subtitle(): String? = chapterNumber?.let { name.value }
+/**
+ * Row subtitle: the chapter name, shown only when the title already carries the number (else it would
+ * repeat it). `null` for the many chapters sources publish with no title of their own.
+ */
+private fun Chapter.subtitle(): String? = chapterNumber?.let { name?.value }
 
 /** "4" for whole numbers, "4.5" otherwise — drops the trailing ".0" a raw [Double] would show. */
 internal fun ChapterNumber.display(): String = if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()

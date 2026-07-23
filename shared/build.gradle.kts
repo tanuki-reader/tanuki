@@ -117,6 +117,11 @@ val devSourceCrates = listOf("hello", "mangadex")
 
 val wasmTarget = "wasm32-unknown-unknown"
 val nativeSourcesDir = rootProject.layout.projectDirectory.dir("native/sources")
+// A cargo target dir of our own, NOT the crate's default `native/sources/<crate>/target`. :core:source
+// builds the very same crates there for its test fixtures, and two tasks in two projects declaring the
+// same output file makes Gradle fail any build that contains both ("uses this output without declaring
+// a dependency"). Separate target dirs decouple them for the price of a second ~1s compile.
+val cargoTargetDir = layout.buildDirectory.dir("wasmSources")
 val sourceApiSrc = rootProject.layout.projectDirectory.dir("native/source-api/src")
 val bundledSourcesDir = layout.projectDirectory.dir("src/commonMain/composeResources/files/sources")
 
@@ -131,17 +136,18 @@ val cargoTasks = devSourceCrates.map { crate ->
         val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
         onlyIf { cargo.exists() }
 
+        // Local, so the CC serializes a String rather than the script's providers.
+        val targetDir = cargoTargetDir.get().asFile.absolutePath
+
         workingDir = nativeSourcesDir.dir(crate).asFile
         executable = cargo.absolutePath
-        args("build", "--release", "--target", wasmTarget)
+        args("build", "--release", "--target", wasmTarget, "--target-dir", targetDir)
 
         inputs.dir(nativeSourcesDir.dir(crate).dir("src"))
         inputs.file(nativeSourcesDir.dir(crate).file("Cargo.toml"))
         inputs.dir(sourceApiSrc)
         // cargo replaces dashes with underscores in the artifact name.
-        outputs.file(
-            nativeSourcesDir.dir(crate).file("target/$wasmTarget/release/tanuki_source_$crate.wasm"),
-        )
+        outputs.file(cargoTargetDir.map { it.file("$wasmTarget/release/tanuki_source_$crate.wasm") })
     }
 }
 

@@ -1,5 +1,6 @@
 package app.tanuki.core.source.runtime
 
+import app.tanuki.core.source.abi.HttpFrame
 import app.tanuki.core.source.abi.SourceAbi
 import app.tanuki.core.source.abi.SourceCodec
 import app.tanuki.core.source.abi.Wire
@@ -20,8 +21,10 @@ import kotlinx.coroutines.runBlocking
  *  - **Memory ABI** — moving bytes through the guest's linear memory via its `tanuki_alloc`/`tanuki_dealloc`
  *    exports (the `(ptr,len)` ⇄ packed-`i64` dance). All of it stays below [WasmModule.call].
  *  - **Import bridge** — binding the guest's synchronous `tanuki` imports to [SourceHost]. `http_request`
- *    is suspending host-side, so the handler [runBlocking]s the interpreter's worker thread (acceptable:
- *    [app.tanuki.core.source.WasmSourceLoader] runs all engine work on `Dispatchers.Default`).
+ *    is suspending host-side, so the handler [runBlocking]s the interpreter's worker thread for a whole
+ *    HTTP round-trip. That is why [app.tanuki.core.source.WasmSourceLoader] runs the `fetch*` calls on
+ *    `io` rather than `Default` — a pool meant to be blocked, instead of the CPU-sized one shared with
+ *    every UI state pipeline. The WASM ABI is synchronous by design, so the blocking bridge stays.
  */
 class ChicoryWasmEngine : WasmEngine {
 
@@ -41,7 +44,7 @@ class ChicoryWasmEngine : WasmEngine {
         val request = SourceCodec.decode<Wire.HttpRequestWire>(
             instance.memory().readBytes(args[0].toInt(), args[1].toInt()),
         )
-        val responseBytes = SourceCodec.encode(runBlocking { host.httpRequest(request) })
+        val responseBytes = HttpFrame.encode(runBlocking { host.httpRequest(request) })
         // Response buffer is allocated via the guest's allocator; the guest frees it after reading.
         longArrayOf(packPtrLen(instance.writeToGuest(responseBytes), responseBytes.size))
     }

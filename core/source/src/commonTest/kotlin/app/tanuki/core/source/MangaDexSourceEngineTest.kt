@@ -27,6 +27,25 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalEncodingApi::class)
 class MangaDexSourceEngineTest {
     @Test
+    fun `source_meta describes the source and points at a decodable icon`() {
+        if (MANGADEX_WASM.isEmpty()) return
+
+        val engine = provideWasmEngine()
+        val module = engine.instantiate("mangadex", MANGADEX_WASM, ScriptedHost(CANNED_EMPTY))
+
+        val meta = SourceCodec.decode<Wire.SourceMetaWire>(module.call(SourceAbi.Exports.SOURCE_META, ByteArray(0)))
+
+        assertEquals("mangadex", meta.id)
+        assertEquals("MangaDex", meta.name)
+        assertEquals("en", meta.lang)
+        // A raster icon, not the site's .svg logo or .ico favicon — Coil decodes neither, and a source
+        // that reports one would silently show the lettered fallback forever.
+        assertEquals("https://mangadex.org/pwa/icons/icon-180.png", meta.iconUrl)
+
+        module.close()
+    }
+
+    @Test
     fun `manga_list fetches through the host import and parses the catalog`() {
         if (MANGADEX_WASM.isEmpty()) return
 
@@ -95,6 +114,72 @@ class MangaDexSourceEngineTest {
 
         module.close()
     }
+
+    @Test
+    fun `chapter_list maps the feed and skips chapters it cannot open`() {
+        if (MANGADEX_WASM.isEmpty()) return
+
+        val host = ScriptedHost(CANNED_FEED)
+        val engine = provideWasmEngine()
+        val module = engine.instantiate("mangadex", MANGADEX_WASM, host)
+
+        val request = SourceCodec.encode(Wire.ChapterListRequest(mangaKey = "op-id"))
+        val chapters =
+            SourceCodec.decodeEnvelope<List<Wire.ChapterWire>>(
+                module.call(SourceAbi.Exports.CHAPTER_LIST, request)
+            )
+
+        val url = host.urls.single()
+        assertTrue(url.contains("api.mangadex.org/manga/op-id/feed"), "url was $url")
+        assertTrue(url.contains("translatedLanguage[]=en"), "url was $url")
+        assertTrue(url.contains("includes[]=scanlation_group"), "url was $url")
+
+        // Four entries in, two out: the externally-hosted chapter and the delisted (pages 0) one are
+        // dropped, since neither has pages the reader could fetch.
+        assertEquals(2, chapters.size, "got ${chapters.map(Wire.ChapterWire::key)}")
+
+        val first = chapters.first()
+        assertEquals("ch-1", first.key)
+        assertEquals("Romance Dawn", first.name)
+        assertEquals(1.0, first.number)
+        assertEquals("TCB Scans, Vyrell", first.scanlator, "every credited group should be listed")
+        // 2018-01-01T12:30:00+00:00
+        assertEquals(1_514_809_800_000L, first.dateUpload)
+
+        // A half-chapter with no title of its own: number parses, name stays null so the app derives
+        // a display name, and the zone offset is applied (-03:00 → three hours later in UTC).
+        val half = chapters[1]
+        assertEquals("ch-1-5", half.key)
+        assertEquals(null, half.name)
+        assertEquals(1.5, half.number)
+        assertEquals(1_614_913_200_000L, half.dateUpload)
+        assertEquals(null, half.scanlator, "no scanlation group should stay absent, not empty")
+
+        module.close()
+    }
+
+    @Test
+    fun `chapter_list walks every feed page`() {
+        if (MANGADEX_WASM.isEmpty()) return
+
+        // total 501 with 500 per page: the guest must come back for the remainder, then stop.
+        val host = ScriptedHost(feedPage(offset = 0, count = 500, total = 501), feedPage(offset = 500, count = 1, total = 501))
+        val engine = provideWasmEngine()
+        val module = engine.instantiate("mangadex", MANGADEX_WASM, host)
+
+        val request = SourceCodec.encode(Wire.ChapterListRequest(mangaKey = "op-id"))
+        val chapters =
+            SourceCodec.decodeEnvelope<List<Wire.ChapterWire>>(
+                module.call(SourceAbi.Exports.CHAPTER_LIST, request)
+            )
+
+        assertEquals(501, chapters.size)
+        assertEquals(2, host.urls.size, "the walk should stop once it has passed `total`")
+        assertTrue(host.urls[0].contains("limit=500&offset=0"), "url was ${host.urls[0]}")
+        assertTrue(host.urls[1].contains("limit=500&offset=500"), "url was ${host.urls[1]}")
+
+        module.close()
+    }
 }
 
 /** A [SourceHost] that records the requested URL and answers with a fixed JSON body. */
@@ -109,7 +194,7 @@ private class CapturingHost(
         lastUrl = request.url
         return Wire.HttpResponseWire(
             status = 200,
-            bodyBase64 = Base64.encode(responseJson.encodeToByteArray())
+            body = responseJson.encodeToByteArray()
         )
     }
 
@@ -138,3 +223,61 @@ private val CANNED_POPULAR =
 /** Empty collection, for the tests that only assert on the outgoing URL. */
 private val CANNED_EMPTY =
     """{"result":"ok","response":"collection","data":[],"limit":20,"offset":0,"total":0}"""
+
+/**
+ * A [SourceHost] that answers successive requests with successive bodies (repeating the last one once
+ * the script runs out) and records every URL it was asked for — enough to drive a paginated walk.
+ */
+@OptIn(ExperimentalEncodingApi::class)
+private class ScriptedHost(vararg responses: String) : SourceHost {
+    private val responses = responses.toList()
+    private val _urls = mutableListOf<String>()
+    val urls: List<String> get() = _urls
+
+    override suspend fun httpRequest(request: Wire.HttpRequestWire): Wire.HttpResponseWire {
+        val body = responses.getOrElse(_urls.size) { responses.last() }
+        _urls += request.url
+        return Wire.HttpResponseWire(status = 200, body = body.encodeToByteArray())
+    }
+
+    override fun log(level: Wire.LogLevel, message: String) = Unit
+}
+
+/**
+ * A `/manga/{id}/feed` page covering the cases the mapper has to survive: two readable chapters (one
+ * titled with two scanlation groups, one untitled with a fractional number and a non-UTC timestamp),
+ * one hosted off-site, and one delisted with zero pages.
+ */
+private val CANNED_FEED =
+    """
+    {"result":"ok","response":"collection","data":[
+      {"id":"ch-1","type":"chapter",
+       "attributes":{"chapter":"1","title":"Romance Dawn","translatedLanguage":"en","pages":45,
+                     "publishAt":"2018-01-01T12:30:00+00:00","readableAt":"2018-01-01T12:30:00+00:00"},
+       "relationships":[
+         {"type":"scanlation_group","attributes":{"name":"TCB Scans"}},
+         {"type":"scanlation_group","attributes":{"name":"Vyrell"}}
+       ]},
+      {"id":"ch-1-5","type":"chapter",
+       "attributes":{"chapter":"1.5","title":"","translatedLanguage":"en","pages":12,
+                     "publishAt":"2021-03-05T00:00:00-03:00"},
+       "relationships":[]},
+      {"id":"ch-external","type":"chapter",
+       "attributes":{"chapter":"2","translatedLanguage":"en","pages":0,
+                     "externalUrl":"https://mangaplus.shueisha.co.jp/viewer/1","publishAt":"2019-01-01T00:00:00+00:00"},
+       "relationships":[]},
+      {"id":"ch-delisted","type":"chapter",
+       "attributes":{"chapter":"3","translatedLanguage":"en","pages":0,"publishAt":"2019-02-01T00:00:00+00:00"},
+       "relationships":[]}
+    ],"limit":500,"offset":0,"total":4}
+    """.trimIndent()
+
+/** A synthetic feed page of [count] minimal chapters, for exercising the multi-request walk. */
+private fun feedPage(offset: Int, count: Int, total: Int): String {
+    val data = (0 until count).joinToString(",") { index ->
+        """{"id":"ch-${offset + index}","type":"chapter",""" +
+            """"attributes":{"chapter":"${offset + index + 1}","translatedLanguage":"en","pages":10},""" +
+            """"relationships":[]}"""
+    }
+    return """{"result":"ok","response":"collection","data":[$data],"limit":500,"offset":$offset,"total":$total}"""
+}

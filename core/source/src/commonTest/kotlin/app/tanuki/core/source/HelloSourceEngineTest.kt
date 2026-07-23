@@ -50,9 +50,9 @@ class HelloSourceEngineTest {
         assertEquals("hello", meta.id)
         assertEquals("Hello", meta.name)
         assertEquals("en", meta.lang)
-        assertEquals(1, meta.version)
-        assertEquals(listOf("popular", "latest"), meta.listings.map { it.key })
-        assertEquals(listOf("Popular", "Latest Updates"), meta.listings.map { it.name })
+        assertEquals(2, meta.version)
+        // The contract's listing vocabulary, declared as bare names — no source-supplied labels.
+        assertEquals(listOf("popular", "latest"), meta.listings)
 
         module.close()
     }
@@ -86,7 +86,7 @@ class HelloSourceEngineTest {
 /** A [SourceHost] the engine binds but the metadata path never invokes. */
 private object NoOpHost : SourceHost {
     override suspend fun httpRequest(request: Wire.HttpRequestWire) =
-        Wire.HttpResponseWire(status = 200, bodyBase64 = "")
+        Wire.HttpResponseWire(status = 200, body = ByteArray(0))
 
     override fun log(
         level: Wire.LogLevel,

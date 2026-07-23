@@ -60,9 +60,10 @@ internal fun SourceGrid(
     val currentAppend by rememberUpdatedState(append)
     val loadMore by rememberUpdatedState(onLoadMore)
 
-    // Request the next page as the tail scrolls into view. snapshotFlow observes layout changes, so
-    // this fires while scrolling — not only on recomposition — and distinctUntilChanged keeps it to one
-    // call per new tail position. The ViewModel guards against overlapping/duplicate loads.
+    // Request the next page as the tail scrolls into view. snapshotFlow observes layout changes, so this
+    // fires while scrolling rather than only on recomposition, and it re-emits only when the tail index
+    // actually changes — so one call per new tail position. The ViewModel guards the rest: it rejects a
+    // call while a page is already in flight, and cancels one that a tab switch or search has superseded.
     LaunchedEffect(gridState) {
         snapshotFlow {
             gridState.layoutInfo.visibleItemsInfo
@@ -95,7 +96,8 @@ internal fun SourceGrid(
                 seed = listing.sourceMangaKey,
                 title = listing.title,
                 coverUrl = listing.coverUrl?.value,
-                onClick = { onMangaClick(listing) }
+                onClick = { onMangaClick(listing) },
+                modifier = Modifier.animateItem()
             )
         }
 

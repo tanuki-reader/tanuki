@@ -26,18 +26,24 @@ import app.tanuki.assets.designSystem.component.TanukiDetailTopBar
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
+import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.source.composable.SourceGrid
 import app.tanuki.features.source.resources.Res
+import app.tanuki.features.source.resources.listing_latest
+import app.tanuki.features.source.resources.listing_popular
 import app.tanuki.features.source.resources.source_load_error
 import app.tanuki.features.source.resources.source_results_empty
 import app.tanuki.features.source.resources.source_retry
+import app.tanuki.features.source.resources.source_search_empty
 import app.tanuki.features.source.resources.source_search_hint
 import app.tanuki.features.source.viewmodel.Append
-import app.tanuki.features.source.viewmodel.SourceBrowseState.Content
+import app.tanuki.features.source.viewmodel.SourceBrowseState.Browsing
 import app.tanuki.features.source.viewmodel.SourceBrowseState.Error
 import app.tanuki.features.source.viewmodel.SourceBrowseState.Loading
+import app.tanuki.features.source.viewmodel.SourceBrowseState.Results
+import app.tanuki.features.source.viewmodel.SourceBrowseState.Searching
 import app.tanuki.features.source.viewmodel.SourceBrowseViewModel
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import org.jetbrains.compose.resources.stringResource
@@ -77,28 +83,34 @@ private fun SourceScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // Bound to the VM's live query, not Content.query — the latter only advances once a debounced
+    // Bound to the VM's live query, not Searching.query — the latter only advances once a debounced
     // fetch lands, which would make the field lag a whole round trip behind the user's typing.
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val spacing = TanukiTheme.spacing
-    val content = state as? Content
-    val title = content?.sourceName ?: fallbackTitle
+    // The bar and tab row read from `chrome`, not from `state`: they describe the source and outlive every
+    // page load, so they stay composed while the content below cycles through Loading. Deriving them from
+    // the loaded state instead put them inside the `Results` branch, where a tab switch unmounted them for
+    // a frame — the flicker Home never had, because its segmented control sits outside `when (state)`.
+    val chrome by viewModel.chrome.collectAsStateWithLifecycle()
+    // Null until metadata lands; only then is there a real name to title the bar and search with.
+    val title = chrome.title ?: fallbackTitle
     // Search now lives inside the top bar (same toggle as the Library), not a persistent pill below it.
     var searchActive by rememberSaveable { mutableStateOf(false) }
 
     Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+        modifier =
+            modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
     ) {
         TanukiDetailTopBar(
             title = title,
             onBack = onBack,
             collapsed = true,
-            // Only offer search once the source is loaded (its name is the placeholder subject).
-            searchActive = searchActive && content != null,
+            // Only offer search once the source is resolved (its name is the placeholder subject).
+            searchActive = searchActive && chrome.title != null,
             searchQuery = searchQuery,
-            onSearchOpen = if (content != null) ({ searchActive = true }) else null,
+            onSearchOpen = if (chrome.title != null) ({ searchActive = true }) else null,
             onSearchClose = {
                 searchActive = false
                 viewModel.onQueryChange("")
@@ -107,42 +119,59 @@ private fun SourceScreen(
             searchPlaceholder = stringResource(Res.string.source_search_hint, title)
         )
 
-        when (val current = state) {
-            Loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { TanukiLoadingIndicator() }
+        // Tabs belong to browsing only: a search replaces the listing rather than filtering it, so there
+        // is no active tab to highlight while the field is open. Driven by `searchActive` (a UI toggle)
+        // rather than by the fetched state, so the row appears and disappears with the tap that caused it.
+        if (chrome.listings.size >= 2 && !searchActive) {
+            TanukiSegmentedControl(
+                segments = chrome.listings.map { Segment(it, listingLabel(it)) },
+                selected = chrome.selected ?: chrome.listings.first(),
+                onSelect = viewModel::onListingSelect,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(TanukiTheme.spacing.gutter)
+            )
+        }
 
-            Error -> Column(
-                modifier = Modifier.fillMaxSize().padding(spacing.gutter),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                TanukiEmptyState(message = stringResource(Res.string.source_load_error))
-                Text(
-                    text = stringResource(Res.string.source_retry),
-                    style = TanukiTheme.typography.body,
-                    color = TanukiTheme.colors.accent,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .padding(top = spacing.lg)
-                        .clickable(onClick = viewModel::onRetry)
-                )
-            }
-
-            is Content -> {
-                if (current.listings.size >= 2) {
-                    TanukiSegmentedControl(
-                        segments = current.listings.map { Segment(it.key, it.name.value) },
-                        selected = current.selectedListingKey ?: current.listings.first().key,
-                        onSelect = viewModel::onListingSelect,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = spacing.gutter, vertical = spacing.sm)
-                    )
+        // One fixed content slot under the chrome. Every state renders *inside* it, so switching tabs
+        // swaps only what's in this box — the bar and tabs above never move or re-measure.
+        Box(Modifier.weight(1f)) {
+            when (val current = state) {
+                Loading -> {
+                    Box(Modifier.fillMaxSize(), Alignment.Center) { TanukiLoadingIndicator() }
                 }
 
-                Box(Modifier.weight(1f)) {
+                Error -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(spacing.gutter),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        TanukiEmptyState(message = stringResource(Res.string.source_load_error))
+                        Text(
+                            text = stringResource(Res.string.source_retry),
+                            style = TanukiTheme.typography.body,
+                            color = TanukiTheme.colors.accent,
+                            textAlign = TextAlign.Center,
+                            modifier =
+                                Modifier
+                                    .padding(top = spacing.lg)
+                                    .clickable(onClick = viewModel::onRetry)
+                        )
+                    }
+                }
+
+                is Results -> {
                     if (current.items.isEmpty() && current.append != Append.Loading) {
+                        // A search that matched nothing names the query; an empty listing can't.
+                        val message =
+                            when (current) {
+                                is Searching -> stringResource(Res.string.source_search_empty, current.query)
+                                is Browsing -> stringResource(Res.string.source_results_empty)
+                            }
                         Box(Modifier.fillMaxSize(), Alignment.Center) {
-                            TanukiEmptyState(message = stringResource(Res.string.source_results_empty))
+                            TanukiEmptyState(message = message)
                         }
                     } else {
                         SourceGrid(
@@ -159,3 +188,17 @@ private fun SourceScreen(
         }
     }
 }
+
+/**
+ * The tab label for a contract listing. The label is the **app's**, not the source's — listings are a
+ * closed set declared by the ABI, which is exactly what lets them be translated; a source-supplied name
+ * could only ever arrive in one language.
+ */
+@Composable
+private fun listingLabel(listing: SourceListing): String =
+    stringResource(
+        when (listing) {
+            SourceListing.POPULAR -> Res.string.listing_popular
+            SourceListing.LATEST -> Res.string.listing_latest
+        }
+    )

@@ -3,4 +3,7 @@
     <string name="source_load_error">Não foi possível carregar esta fonte. Verifique sua conexão e tente novamente.</string>
     <string name="source_retry">Tentar novamente</string>
     <string name="source_results_empty">Nenhum resultado</string>
+    <string name="source_search_empty">Nenhum resultado para “%1$s”</string>
+    <string name="listing_popular">Populares</string>
+    <string name="listing_latest">Recentes</string>
 </resources>

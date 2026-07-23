@@ -41,16 +41,16 @@ interface SourceLoader {
      * case inflates a chosen [MangaListing] into a persisted `Manga`. Keeping the browse shape separate
      * is what keeps persistence identity out of the source layer (see [MangaListing]).
      *
-     * @param listing which of the source's declared listings to browse (a [SourceListing.key] from
-     *   [SourceMeta.listings]), or `null` for its default catalog. Opaque — the app passes back what
-     *   the source advertised and never interprets it.
+     * @param listing which listing to browse, or `null` for the source's default catalog. Callers pass
+     *   one the source declared in [SourceMeta.listings]; a source asked for a listing it doesn't serve
+     *   falls back to its default rather than failing.
      * @param query free-text search; `null` or blank browses instead of searching. A source that
      *   cannot combine search with [listing] is expected to let [query] win.
      * @param page 1-based page index. Callers page forward only while [MangaPage.hasNextPage].
      */
     suspend fun fetchMangaList(
         sourceId: String,
-        listing: String? = null,
+        listing: SourceListing? = null,
         query: String? = null,
         page: Int = 1
     ): MangaPage
