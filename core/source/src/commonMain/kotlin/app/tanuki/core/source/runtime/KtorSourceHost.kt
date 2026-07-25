@@ -1,5 +1,7 @@
 package app.tanuki.core.source.runtime
 
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.source.abi.Wire
 import app.tanuki.core.source.abi.Wire.HttpRequestWire
 import app.tanuki.core.source.abi.Wire.HttpResponseWire
@@ -27,6 +29,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 @ContributesBinding(AppScope::class)
 class KtorSourceHost(
     private val client: HttpClient,
+    private val logger: Logger,
 ) : SourceHost {
 
     override suspend fun httpRequest(request: HttpRequestWire): HttpResponseWire {
@@ -42,8 +45,18 @@ class KtorSourceHost(
         )
     }
 
-    // TODO(logging): route to the app's logger once core/ gains a logging abstraction; println for now.
+    /** Routes a source's own diagnostics through the app logger, tagged so they're attributable to a source. */
     override fun log(level: Wire.LogLevel, message: String) {
-        println("[source][$level] $message")
+        val priority = when (level) {
+            Wire.LogLevel.DEBUG -> LogPriority.DEBUG
+            Wire.LogLevel.INFO -> LogPriority.INFO
+            Wire.LogLevel.WARN -> LogPriority.WARN
+            Wire.LogLevel.ERROR -> LogPriority.ERROR
+        }
+        logger.log(priority, TAG, message, throwable = null, analyticsEvent = null, addToBreadcrumbs = false)
+    }
+
+    private companion object {
+        const val TAG = "Source"
     }
 }

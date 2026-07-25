@@ -1,6 +1,8 @@
 package app.tanuki.core.domain.source.usecase
 
 import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.common.service.LogPriority
+import app.tanuki.core.domain.common.service.RecordingLogger
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.MangaPage
@@ -22,28 +24,32 @@ class GetInstalledSourcesTest {
 
     @Test
     fun `returns the runtime's installed sources`() = runTest {
-        val sources = GetInstalledSources.Default(StubSourceLoader(listOf(META)))()
+        val sources = GetInstalledSources.Default(StubSourceLoader(listOf(META)), RecordingLogger())()
 
         assertEquals(listOf(META), sources)
     }
 
     @Test
-    fun `swallows an enumeration failure as an empty list`() = runTest {
-        val sources = GetInstalledSources.Default(StubSourceLoader(failure = IllegalStateException("bad bundle")))()
+    fun `swallows an enumeration failure as an empty list but logs it`() = runTest {
+        val logger = RecordingLogger()
+
+        val sources = GetInstalledSources.Default(StubSourceLoader(failure = IllegalStateException("bad bundle")), logger)()
 
         assertEquals(emptyList(), sources)
+        assertEquals(1, logger.entries.size)
+        assertEquals(LogPriority.WARN, logger.entries.single().priority)
     }
 
     @Test
     fun `resolves one source by its source-native id`() = runTest {
-        val getMeta = GetSourceMeta.Default(GetInstalledSources.Default(StubSourceLoader(listOf(META))))
+        val getMeta = GetSourceMeta.Default(GetInstalledSources.Default(StubSourceLoader(listOf(META)), RecordingLogger()))
 
         assertEquals(META, getMeta("mangadex"))
     }
 
     @Test
     fun `yields null for a source that is not installed`() = runTest {
-        val getMeta = GetSourceMeta.Default(GetInstalledSources.Default(StubSourceLoader(listOf(META))))
+        val getMeta = GetSourceMeta.Default(GetInstalledSources.Default(StubSourceLoader(listOf(META)), RecordingLogger()))
 
         assertNull(getMeta("comick"))
     }

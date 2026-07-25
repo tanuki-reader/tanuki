@@ -1,6 +1,8 @@
 package app.tanuki.dev
 
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.shared.resources.Res
 import dev.zacsweers.metro.Inject
@@ -24,6 +26,7 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 class DevSourceInstaller(
     private val bundleStore: SourceBundleStore,
     private val dispatchers: DispatcherProvider,
+    private val logger: Logger,
 ) {
     /**
      * Installs every bundled source that isn't already present at the current version. Failures are
@@ -37,8 +40,7 @@ class DevSourceInstaller(
                 val bytes = Res.readBytes("files/sources/$sourceId.wasm")
                 bundleStore.writeBundle(sourceId, bytes)
             }.onFailure { error ->
-                // No logging abstraction in core/ yet; println matches KtorSourceHost's stopgap.
-                println("[dev] Could not install bundled source '$sourceId': ${error.message}")
+                logger.warn(TAG, "Could not install bundled source '$sourceId'", error)
             }
         }
     }
@@ -51,6 +53,8 @@ class DevSourceInstaller(
     private fun shouldReinstall(): Boolean = true
 
     private companion object {
+        const val TAG = "DevSourceInstaller"
+
         /**
          * Source ids to install, matching the crate directory names under `native/sources/` and the
          * `devSourceCrates` list in `shared/build.gradle.kts`. Each must correspond to a

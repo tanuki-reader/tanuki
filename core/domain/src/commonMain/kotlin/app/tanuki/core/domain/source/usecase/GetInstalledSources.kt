@@ -1,5 +1,7 @@
 package app.tanuki.core.domain.source.usecase
 
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.SourceMeta
 import dev.zacsweers.metro.AppScope
@@ -26,9 +28,16 @@ sealed interface GetInstalledSources {
     @Inject
     @ContributesBinding(AppScope::class)
     class Default(
-        private val sourceLoader: SourceLoader
+        private val sourceLoader: SourceLoader,
+        private val logger: Logger,
     ) : GetInstalledSources {
         override suspend fun invoke(): List<SourceMeta> =
-            runCatching { sourceLoader.listSources() }.getOrDefault(emptyList())
+            runCatching { sourceLoader.listSources() }
+                .onFailure { logger.warn(TAG, "Failed to enumerate installed sources", it) }
+                .getOrDefault(emptyList())
+
+        private companion object {
+            const val TAG = "GetInstalledSources"
+        }
     }
 }

@@ -3,6 +3,8 @@ package app.tanuki.features.source.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.usecase.CacheSourceManga
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.SourceListing
@@ -86,7 +88,8 @@ class SourceBrowseViewModel(
     private val getSourceMeta: GetSourceMeta,
     private val browseSource: BrowseSource,
     private val cacheSourceManga: CacheSourceManga,
-    private val dispatcher: DispatcherProvider
+    private val dispatcher: DispatcherProvider,
+    private val logger: Logger,
 ) : ViewModel() {
     val uiState: StateFlow<SourceBrowseState>
         field = MutableStateFlow<SourceBrowseState>(Loading)
@@ -229,6 +232,7 @@ class SourceBrowseViewModel(
                                 append = if (pageResult.hasNextPage) Append.Idle else Append.End
                             )
                     }.onFailure {
+                        logger.warn(TAG, "Load-more (page ${page + 1}) failed for source '$sourceId'", it)
                         uiState.value = current.withResults(current.items, Append.Error)
                     }
             }
@@ -282,6 +286,7 @@ class SourceBrowseViewModel(
                         Searching(query = text, items = items, append = append)
                     }
             }.onFailure {
+                logger.warn(TAG, "First-page load failed for source '$sourceId' (query='$text')", it)
                 uiState.value = Error
             }
     }
@@ -309,6 +314,8 @@ class SourceBrowseViewModel(
     }
 
     private companion object {
+        const val TAG = "SourceBrowse"
+
         /** Debounce so a burst of keystrokes issues one search, not one per character. */
         const val SEARCH_DEBOUNCE_MS = 320L
     }

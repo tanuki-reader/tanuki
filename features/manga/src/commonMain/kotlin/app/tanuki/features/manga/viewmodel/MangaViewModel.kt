@@ -8,6 +8,8 @@ import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
 import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
 import app.tanuki.core.domain.manga.usecase.ObserveManga
 import app.tanuki.core.domain.manga.usecase.RemoveMangaFromLibrary
@@ -72,7 +74,8 @@ class MangaViewModel(
     private val setFilteredScanlators: SetFilteredScanlators,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
-    private val dispatcher: DispatcherProvider
+    private val dispatcher: DispatcherProvider,
+    private val logger: Logger,
 ) : ViewModel() {
     val uiState: StateFlow<MangaState>
         field = MutableStateFlow<MangaState>(Loading)
@@ -130,14 +133,14 @@ class MangaViewModel(
      * emitted whatever is cached and the refreshed rows arrive through that same flow. A failure
      * (offline, source error) therefore leaves the cached list on screen rather than emptying it.
      *
-     * The failure is currently only logged: surfacing it needs a refresh affordance on the screen
-     * (a pull-to-refresh and an inline error), which doesn't exist yet. `println` matches the stopgap
-     * used elsewhere until a logging abstraction lands in `core/`.
+     * The failure is currently only logged (WARN — recoverable, the cached list stays up): surfacing it
+     * needs a refresh affordance on the screen (a pull-to-refresh and an inline error), which doesn't
+     * exist yet.
      */
     private fun refreshChapters() {
         viewModelScope.launch {
             runCatching { withContext(dispatcher.io) { syncSourceChapters(mangaId) } }
-                .onFailure { error -> println("[manga] Chapter refresh failed for $mangaId: ${error.message}") }
+                .onFailure { error -> logger.warn(TAG, "Chapter refresh failed for $mangaId", error) }
         }
     }
 
@@ -153,7 +156,7 @@ class MangaViewModel(
     private fun refreshDetails() {
         viewModelScope.launch {
             runCatching { withContext(dispatcher.io) { syncSourceMangaDetails(mangaId) } }
-                .onFailure { error -> println("[manga] Detail refresh failed for $mangaId: ${error.message}") }
+                .onFailure { error -> logger.warn(TAG, "Detail refresh failed for $mangaId", error) }
         }
     }
 
@@ -305,5 +308,9 @@ class MangaViewModel(
     @ContributesIntoMap(AppScope::class)
     fun interface Factory : ManualViewModelAssistedFactory {
         fun create(mangaId: Uuid): MangaViewModel
+    }
+
+    private companion object {
+        const val TAG = "MangaViewModel"
     }
 }
