@@ -72,3 +72,17 @@ data class Reader(
     val mangaId: Uuid,
     val chapterId: Uuid
 ) : Destination
+
+/**
+ * Appearance settings — theme and other look-and-feel options. A leaf pushed onto the Settings tab's
+ * stack from the settings index.
+ */
+@Serializable
+data object SettingsAppearance : Destination
+
+/**
+ * Category management — create/delete the library shelves manga can be organized into. A leaf pushed
+ * onto the Settings tab's stack from the settings index.
+ */
+@Serializable
+data object SettingsCategories : Destination

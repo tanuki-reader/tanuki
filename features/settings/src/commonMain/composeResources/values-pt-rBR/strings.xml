@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tela -->
+    <string name="settings_title">Ajustes</string>
+
+    <!-- Cabeçalhos de seção do índice -->
+    <string name="settings_section_personalization">Personalização</string>
+    <string name="settings_section_library">Biblioteca</string>
+
+    <!-- Linhas do índice -->
+    <string name="settings_appearance">Aparência</string>
+    <string name="settings_categories">Categorias</string>
+    <plurals name="settings_category_count">
+        <item quantity="one">%1$d categoria</item>
+        <item quantity="other">%1$d categorias</item>
+    </plurals>
+
+    <!-- Tela de aparência -->
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Sistema</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Escuro</string>
+
+    <!-- Tela de categorias -->
+    <string name="settings_categories_empty">Nenhuma categoria ainda. Crie uma para organizar sua biblioteca.</string>
+    <string name="settings_add_category">Nova categoria</string>
+    <string name="settings_category_name_hint">Nome da categoria</string>
+    <string name="settings_delete_category_action">Excluir categoria</string>
+
+    <!-- Diálogo de criar categoria -->
+    <string name="settings_new_category_title">Nova categoria</string>
+    <string name="settings_create">Criar</string>
+    <string name="settings_cancel">Cancelar</string>
+
+    <!-- Diálogo de excluir categoria -->
+    <string name="settings_delete_category_title">Excluir categoria?</string>
+    <string name="settings_delete_category_message">“%1$s” será removida de todos os seus mangás. Isso não pode ser desfeito.</string>
+    <string name="settings_delete">Excluir</string>
+</resources>

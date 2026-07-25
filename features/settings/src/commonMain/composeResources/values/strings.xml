@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Screen -->
+    <string name="settings_title">Settings</string>
+
+    <!-- Index section headers -->
+    <string name="settings_section_personalization">Personalization</string>
+    <string name="settings_section_library">Library</string>
+
+    <!-- Index rows -->
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_categories">Categories</string>
+    <plurals name="settings_category_count">
+        <item quantity="one">%1$d category</item>
+        <item quantity="other">%1$d categories</item>
+    </plurals>
+
+    <!-- Appearance screen -->
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
+    <!-- Categories screen -->
+    <string name="settings_categories_empty">No categories yet. Create one to organize your library.</string>
+    <string name="settings_add_category">New category</string>
+    <string name="settings_category_name_hint">Category name</string>
+    <string name="settings_delete_category_action">Delete category</string>
+
+    <!-- Create category dialog -->
+    <string name="settings_new_category_title">New category</string>
+    <string name="settings_create">Create</string>
+    <string name="settings_cancel">Cancel</string>
+
+    <!-- Delete category dialog -->
+    <string name="settings_delete_category_title">Delete category?</string>
+    <string name="settings_delete_category_message">“%1$s” will be removed from all its manga. This can’t be undone.</string>
+    <string name="settings_delete">Delete</string>
+</resources>

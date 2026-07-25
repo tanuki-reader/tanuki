@@ -42,6 +42,10 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.androidx.room.runtime)
             implementation(libs.androidx.sqlite.bundled)
+            // DataStore-backed app preferences (theme). okio provides the on-disk Path the
+            // multiplatform store is created with (see PreferencesFileFactory).
+            implementation(libs.androidx.datastore.preferences.core)
+            implementation(libs.okio)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

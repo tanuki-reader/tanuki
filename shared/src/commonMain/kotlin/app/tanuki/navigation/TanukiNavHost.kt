@@ -36,6 +36,8 @@ import androidx.navigation.toRoute
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
+import app.tanuki.core.navigation.SettingsAppearance
+import app.tanuki.core.navigation.SettingsCategories
 import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.core.navigation.type.UuidNavType
@@ -43,11 +45,11 @@ import app.tanuki.features.activity.ActivityRoute
 import app.tanuki.features.home.HomeRoute
 import app.tanuki.features.library.LibraryRoute
 import app.tanuki.features.manga.MangaRoute
+import app.tanuki.features.settings.SettingsRoute
+import app.tanuki.features.settings.appearance.AppearanceRoute
+import app.tanuki.features.settings.categories.CategoriesRoute
 import app.tanuki.features.source.SourceRoute
 import app.tanuki.platform.rememberReducedMotion
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.tab_settings_placeholder
-import org.jetbrains.compose.resources.stringResource
 import kotlin.reflect.typeOf
 import kotlin.uuid.Uuid
 
@@ -195,9 +197,24 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
             composable<TopLevelDestination.Home> {
                 HomeRoute(onNavigate = { navController.navigate(it) })
             }
-            // Placeholder until the Settings feature lands, so its tab is navigable.
             composable<TopLevelDestination.Settings> {
-                TabPlaceholder(stringResource(Res.string.tab_settings_placeholder))
+                SettingsRoute(onNavigate = { navController.navigate(it) })
+            }
+            composable<SettingsAppearance>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) {
+                AppearanceRoute(onBack = { navController.popBackStack() })
+            }
+            composable<SettingsCategories>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) {
+                CategoriesRoute(onBack = { navController.popBackStack() })
             }
             composable<SourceBrowse>(
                 enterTransition = leafEnter,
@@ -235,14 +252,6 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 ReaderPlaceholder(chapterId = entry.toRoute<Reader>().chapterId)
             }
         }
-    }
-}
-
-/** A centered caption standing in for a not-yet-built top-level tab (Browse, Settings). */
-@Composable
-private fun TabPlaceholder(message: String) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(message, color = MaterialTheme.colorScheme.onBackground)
     }
 }
 

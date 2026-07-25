@@ -5,8 +5,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.di.AppGraph
 import app.tanuki.navigation.TanukiNavHost
 import app.tanuki.platform.SystemBarsEffect
@@ -37,7 +40,17 @@ fun App(appGraph: AppGraph) {
         appGraph.applicationScope.launch { appGraph.devSourceInstaller.installBundled() }
     }
 
-    val darkTheme = isSystemInDarkTheme()
+    // The user's stored theme choice drives the whole UI: System defers to the OS setting, while Light
+    // and Dark force a dialect. Collected at the root so a change re-themes every screen at once.
+    val themePreference by appGraph
+        .observeThemePreference()
+        .collectAsStateWithLifecycle(ThemePreference.System)
+    val darkTheme =
+        when (themePreference) {
+            ThemePreference.System -> isSystemInDarkTheme()
+            ThemePreference.Light -> false
+            ThemePreference.Dark -> true
+        }
     CompositionLocalProvider(
         LocalAppGraph provides appGraph,
         LocalMetroViewModelFactory provides appGraph.metroViewModelFactory

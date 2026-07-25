@@ -54,6 +54,9 @@ object TanukiRadii {
     val coverShape = RoundedCornerShape(cover)
     val sheetShape = RoundedCornerShape(topStart = sheet, topEnd = sheet)
     val pillShape = RoundedCornerShape(pill)
+
+    /** All-corner radius for a centered dialog card (the `sheet` radius on every corner). */
+    val dialogShape = RoundedCornerShape(sheet)
 }
 
 /** Material elevation steps (dp). Used as Compose `tonalElevation` / `shadowElevation`. */

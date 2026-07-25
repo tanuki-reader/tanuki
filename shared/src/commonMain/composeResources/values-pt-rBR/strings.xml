@@ -5,7 +5,4 @@
     <string name="tab_home">Início</string>
     <string name="tab_activity">Atividade</string>
     <string name="tab_settings">Ajustes</string>
-
-    <!-- Corpos de aba provisórios (recursos ainda não construídos) -->
-    <string name="tab_settings_placeholder">Ajustes — em breve</string>
 </resources>

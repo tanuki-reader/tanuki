@@ -5,7 +5,4 @@
     <string name="tab_home">Home</string>
     <string name="tab_activity">Activity</string>
     <string name="tab_settings">Settings</string>
-
-    <!-- Placeholder tab bodies (features not built yet) -->
-    <string name="tab_settings_placeholder">Settings — coming soon</string>
 </resources>

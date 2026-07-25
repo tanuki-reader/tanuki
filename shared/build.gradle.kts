@@ -68,6 +68,7 @@ kotlin {
             api(projects.features.activity)
             api(projects.features.home)
             api(projects.features.source)
+            api(projects.features.settings)
             implementation(projects.assets.designSystem)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.navigation.compose)

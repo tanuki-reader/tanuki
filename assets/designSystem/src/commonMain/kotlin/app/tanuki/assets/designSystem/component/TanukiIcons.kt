@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -394,6 +395,50 @@ fun BookmarkIcon(
                     close()
                 }
             drawPath(ribbon, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round))
+        }
+    }
+}
+
+/**
+ * `chevron_right` — a rightward chevron. Marks a drill-down list row (a settings category, a source)
+ * that pushes a sub-screen. Public so feature modules can render it as a row's trailing affordance.
+ */
+@Composable
+fun ChevronRightIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawLine(tint, Offset(9.5f, 6.5f), Offset(15f, 12f), ICON_STROKE, StrokeCap.Round)
+            drawLine(tint, Offset(9.5f, 17.5f), Offset(15f, 12f), ICON_STROKE, StrokeCap.Round)
+        }
+    }
+}
+
+/**
+ * `contrast` — a circle whose right half is filled, the conventional "appearance / theme" mark (light vs.
+ * dark). Public so feature modules can render it beside the appearance settings row.
+ */
+@Composable
+fun ContrastIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawCircle(tint, radius = 8f, center = Offset(12f, 12f), style = Stroke(width = ICON_STROKE))
+            // Right half filled: sweep 180° clockwise from the top (−90°) through the right to the bottom.
+            drawArc(
+                color = tint,
+                startAngle = -90f,
+                sweepAngle = 180f,
+                useCenter = true,
+                topLeft = Offset(4f, 4f),
+                size = Size(16f, 16f)
+            )
         }
     }
 }
