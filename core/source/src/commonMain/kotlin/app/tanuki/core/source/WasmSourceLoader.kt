@@ -2,6 +2,7 @@ package app.tanuki.core.source
 
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.common.model.toUrlOrNull
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.source.SourceBundleStore
@@ -88,6 +89,10 @@ class WasmSourceLoader(
                 lang = Text(meta.lang),
                 name = Text(meta.name),
                 url = baseUrl,
+                // Snapshotted at install time for the same reason as the version: a screen showing this
+                // source's badge shouldn't have to instantiate the module to find out what it looks
+                // like. Unparseable → null, which the UI renders as the lettered avatar.
+                iconUrl = meta.iconUrl.toUrlOrNull(),
                 // Snapshot the bundle's version at install time so an update check can diff it against
                 // a remote repo index without instantiating a single module.
                 version = meta.version,

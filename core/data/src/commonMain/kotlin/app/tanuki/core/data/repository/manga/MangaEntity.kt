@@ -29,6 +29,11 @@ import kotlin.uuid.Uuid
  * hence the unique `(source, source_manga_key)` index (whose leftmost `source` also serves the FK's
  * child-column index). [url] is a display/permalink, not the identity: url-less sources fall back to
  * the source home, so many series would share one url and cannot dedupe on it.
+ *
+ * `filtered_scanlators` (v6) is the one user preference that isn't a scalar: the groups hidden from
+ * this series' chapter list, newline-joined. Denormalized onto the row rather than given a join table
+ * because it is only ever read and written whole, with one manga's worth of it — a table would buy
+ * nothing but a second query. `NULL` and `""` both read as "no filter"; see [encodeScanlators].
  */
 @Entity(
     tableName = "manga",
@@ -54,6 +59,7 @@ data class MangaEntity(
     val url: String,
     @ColumnInfo(name = "reading_mode") val readingMode: ReadingMode,
     @ColumnInfo(name = "publish_status") val publishStatus: PublishStatus,
+    @ColumnInfo(name = "filtered_scanlators") val filteredScanlators: String?,
 )
 
 /**
@@ -96,6 +102,7 @@ fun MangaEntity.toDomain(
         readingMode = readingMode,
         publishStatus = publishStatus,
         readingStatus = readingStatus,
+        filteredScanlators = decodeScanlators(filteredScanlators),
     )
 
 fun Manga.toEntity(): MangaEntity =
@@ -111,7 +118,26 @@ fun Manga.toEntity(): MangaEntity =
         url = url.value,
         readingMode = readingMode,
         publishStatus = publishStatus,
+        filteredScanlators = encodeScanlators(filteredScanlators),
     )
+
+/**
+ * Encodes hidden scanlation groups for storage, newline-joined, or `null` when nothing is hidden.
+ *
+ * A newline is the separator because it is the one character a group name cannot contain — names come
+ * from a source's chapter feed as single-line credits, and the commas/slashes/brackets that appear in
+ * real ones ("Team A / Team B", "[Oneshot] Scans") would each need escaping.
+ */
+internal fun encodeScanlators(scanlators: Set<String>): String? =
+    scanlators.takeIf { it.isNotEmpty() }?.joinToString("\n")
+
+/** Reverses [encodeScanlators]; a `null` or blank column means no group is hidden. */
+internal fun decodeScanlators(encoded: String?): Set<String> =
+    encoded
+        ?.split('\n')
+        ?.filter(String::isNotBlank)
+        ?.toSet()
+        .orEmpty()
 
 /**
  * The library row to persist for this manga, or `null` when it is not in the library (which the

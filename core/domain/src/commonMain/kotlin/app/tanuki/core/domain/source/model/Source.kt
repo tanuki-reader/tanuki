@@ -22,6 +22,10 @@ import kotlin.uuid.Uuid
  * @property lang language tag the source serves.
  * @property name human-readable source name.
  * @property url the source's base URL.
+ * @property iconUrl remote URL of the source's icon/logo, or `null` when the source reports none (the
+ *   UI then falls back to a lettered avatar). Snapshotted at install time like [version], so a screen
+ *   showing an installed source's badge doesn't have to instantiate its `.wasm` to find out what it
+ *   looks like. The live counterpart on a merely *discovered* source is [SourceMeta.iconUrl].
  * @property version the installed bundle's monotonic version, as its metadata reported it at install
  *   time, or `null` for a source that reports none. Persisted rather than re-read from the `.wasm` so
  *   an update check can compare every installed source against a remote repo index without
@@ -33,5 +37,6 @@ data class Source(
     val lang: Text,
     val name: Text,
     val url: Url,
+    val iconUrl: Url? = null,
     val version: Int? = null
 )

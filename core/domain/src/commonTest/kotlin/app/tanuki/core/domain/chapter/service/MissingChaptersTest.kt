@@ -17,6 +17,7 @@ class MissingChaptersTest {
             mangaId = Uuid.random(),
             chapterNumber = number,
             name = Text("Chapter"),
+            scanlator = null,
             sourceChapterKey = Text("c-$number"),
             url = Url("https://example.test/c"),
             dateUpload = null,

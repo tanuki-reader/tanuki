@@ -15,7 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.SectionHeader
-import app.tanuki.assets.designSystem.component.SourceAvatar
+import app.tanuki.assets.designSystem.component.SourceIcon
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.core.domain.manga.model.Manga
@@ -137,7 +137,13 @@ private fun SourceRow(source: Source?) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.md)
     ) {
-        SourceAvatar(name = source.name.value, color = TanukiTheme.colors.accent)
+        // The lettered avatar still shows through while the icon loads, and for a source that reports
+        // none (or was installed before the URL was persisted) it is the whole badge.
+        SourceIcon(
+            name = source.name.value,
+            iconUrl = source.iconUrl?.value,
+            color = TanukiTheme.colors.accent
+        )
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = source.name.value,

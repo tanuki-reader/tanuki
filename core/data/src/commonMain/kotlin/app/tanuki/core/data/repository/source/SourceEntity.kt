@@ -25,6 +25,11 @@ data class SourceEntity(
     val name: String,
     val url: String,
     /**
+     * Remote URL of the source's icon/logo, or `null` when the source reports none. Snapshotted at
+     * install time so a screen can render an installed source's badge without loading its `.wasm`.
+     */
+    @ColumnInfo(name = "icon_url") val iconUrl: String? = null,
+    /**
      * Monotonic version of the installed bundle, or `null` for a source that reports none. Stored so
      * an update check can compare every installed source against a remote repo index without loading
      * any `.wasm`.
@@ -39,6 +44,7 @@ fun SourceEntity.toDomain(): Source =
         lang = Text(lang),
         name = Text(name),
         url = Url(url),
+        iconUrl = iconUrl?.let(::Url),
         version = version,
     )
 
@@ -49,5 +55,6 @@ fun Source.toEntity(): SourceEntity =
         lang = lang.value,
         name = name.value,
         url = url.value,
+        iconUrl = iconUrl?.value,
         version = version,
     )

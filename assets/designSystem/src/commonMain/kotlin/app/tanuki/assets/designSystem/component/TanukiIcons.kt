@@ -85,7 +85,7 @@ internal fun CloseIcon(
 
 /** `filter_list` — three centered rules of decreasing width. */
 @Composable
-internal fun FilterIcon(
+fun FilterIcon(
     tint: Color,
     modifier: Modifier = Modifier,
     size: Dp = 24.dp

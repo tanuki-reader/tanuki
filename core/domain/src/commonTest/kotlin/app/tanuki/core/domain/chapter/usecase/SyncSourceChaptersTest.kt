@@ -61,6 +61,37 @@ class SyncSourceChaptersTest {
     }
 
     @Test
+    fun `two groups on the same chapter number stay separate rows told apart by scanlator`() = runTest {
+        val chapters = FakeChapterRepository()
+        // What MangaDex actually returns for a popular series: one chapter number, two uploads.
+        val sync =
+            sync(
+                chapters,
+                listings =
+                    listOf(
+                        listing("md-1", 1.0, scanlator = "TCB Scans"),
+                        listing("md-2", 1.0, scanlator = "Mangastream"),
+                    ),
+            )
+
+        sync(MANGA.id)
+
+        val written = chapters.upserted.single()
+        assertEquals(2, written.size, "same-numbered chapters from different groups are not deduplicated")
+        assertEquals(listOf("TCB Scans", "Mangastream"), written.map { it.scanlator?.value })
+    }
+
+    @Test
+    fun `a chapter the source credits to no group has no scanlator`() = runTest {
+        val chapters = FakeChapterRepository()
+        val sync = sync(chapters, listings = listOf(listing("md-1", 1.0, scanlator = null)))
+
+        sync(MANGA.id)
+
+        assertNull(chapters.upserted.single().single().scanlator)
+    }
+
+    @Test
     fun `a re-sync reuses the existing row so reading progress survives`() = runTest {
         val existing = chapter(key = "md-1", number = 1.0, name = "Romance Dawn", read = true)
         val chapters = FakeChapterRepository(existing = listOf(existing))
@@ -73,6 +104,7 @@ class SyncSourceChaptersTest {
         assertEquals(existing.id, written.id, "the local id must be reused, or the progress row is orphaned")
         assertEquals(existing.dateFetch, written.dateFetch, "dateFetch records the first fetch, not this one")
         assertEquals("Romance Dawn!", written.name?.value, "source-owned fields still refresh")
+        assertEquals("TCB Scans", written.scanlator?.value, "a re-credited group refreshes like any source field")
         assertTrue(chapters.deleted.isEmpty())
     }
 
@@ -124,13 +156,18 @@ class SyncSourceChaptersTest {
         sourceLoader = FakeSourceLoader(listings),
     )
 
-    private fun listing(key: String, number: Double, name: String? = null) =
+    private fun listing(
+        key: String,
+        number: Double,
+        name: String? = null,
+        scanlator: String? = "TCB Scans"
+    ) =
         ChapterListing(
             chapterKey = key,
             name = name,
             number = ChapterNumber.orNull(number),
             dateUpload = Instant.fromEpochMilliseconds(1_514_809_800_000),
-            scanlator = "TCB Scans",
+            scanlator = scanlator,
         )
 
     private fun chapter(key: String, number: Double, name: String? = null, read: Boolean = false) =
@@ -139,6 +176,7 @@ class SyncSourceChaptersTest {
             mangaId = MANGA.id,
             chapterNumber = ChapterNumber.orNull(number),
             name = name?.let(::Text),
+            scanlator = null,
             sourceChapterKey = Text(key),
             url = MANGA.url,
             dateUpload = null,
@@ -197,6 +235,8 @@ private class FakeMangaRepository(private val manga: Manga?) : MangaRepository {
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
     override suspend fun upsertManga(manga: Manga) = error("unused")
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
+    override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
+
     override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
     override suspend fun removeFromLibrary(mangaId: Uuid) = error("unused")
 }

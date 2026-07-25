@@ -11,6 +11,7 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
 import app.tanuki.core.domain.manga.usecase.ObserveManga
 import app.tanuki.core.domain.manga.usecase.RemoveMangaFromLibrary
+import app.tanuki.core.domain.manga.usecase.SetFilteredScanlators
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
 import app.tanuki.core.navigation.NavEvent
@@ -19,6 +20,7 @@ import app.tanuki.features.manga.viewmodel.MangaState.Content
 import app.tanuki.features.manga.viewmodel.MangaState.Loading
 import app.tanuki.features.manga.viewmodel.MangaState.MangaCategoryChip
 import app.tanuki.features.manga.viewmodel.MangaState.NotFound
+import app.tanuki.features.manga.viewmodel.MangaState.ScanlatorChip
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
@@ -67,6 +69,7 @@ class MangaViewModel(
     private val setMangaCategories: SetMangaCategories,
     private val addToLibrary: AddToLibrary,
     private val removeMangaFromLibrary: RemoveMangaFromLibrary,
+    private val setFilteredScanlators: SetFilteredScanlators,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
     private val dispatcher: DispatcherProvider
@@ -96,9 +99,21 @@ class MangaViewModel(
                 NotFound
             } else {
                 val ordered = chapters.sortedByNumber(ascending)
+                val hidden = manga.filteredScanlators
+                val visible = ordered.filterNot { it.scanlator?.value in hidden }
                 val categoryChips = categories.map { MangaCategoryChip(it, mangaId in it.associatedMangas) }
                 val source = sources.firstOrNull { it.id == manga.source }
-                Content(manga, ordered, resumeChapter(ordered), ascending, categoryChips, source)
+                Content(
+                    manga = manga,
+                    chapters = visible,
+                    // Resumes within what's on screen: with a group filtered out, its chapters aren't
+                    // offered by the list, so the Read button must not jump into one either.
+                    resumeChapter = resumeChapter(visible),
+                    chapterSortAscending = ascending,
+                    categories = categoryChips,
+                    scanlators = ordered.scanlatorChips(hidden),
+                    source = source,
+                )
             }
         }.flowOn(dispatcher.default)
             .onEach { uiState.value = it }
@@ -190,6 +205,41 @@ class MangaViewModel(
         }
     }
 
+    /**
+     * A group chip was tapped in the chapter filter sheet — show or hide that group's chapters.
+     *
+     * Persisted per manga (so the choice survives leaving the screen) as an *exclude* set, and applied
+     * only when presenting: the hidden chapters stay in the database, because deleting them would
+     * cascade away the reading progress the user built up on them.
+     *
+     * Hiding the last visible group would leave an empty list with no obvious way back, so the final
+     * shown group can't be toggled off — the sheet's reset is the way out of a filter.
+     */
+    fun onToggleScanlator(name: String) {
+        val content = uiState.value as? Content ?: return
+        val hidden = content.manga.filteredScanlators.toMutableSet()
+        if (name in hidden) {
+            hidden.remove(name)
+        } else {
+            if (content.scanlators.count { it.isShown } <= 1) return
+            hidden.add(name)
+        }
+        persistFilteredScanlators(hidden)
+    }
+
+    /** The filter sheet's reset was tapped — show every group again. */
+    fun onResetChapterFilter() {
+        val content = uiState.value as? Content ?: return
+        if (content.manga.filteredScanlators.isEmpty()) return
+        persistFilteredScanlators(emptySet())
+    }
+
+    private fun persistFilteredScanlators(hidden: Set<String>) {
+        viewModelScope.launch {
+            withContext(dispatcher.io) { setFilteredScanlators(mangaId, hidden) }
+        }
+    }
+
     /** The chapter list's sort control was tapped — flip between ascending and descending order. */
     fun onToggleChapterSort() {
         chapterSortAscending.value = !chapterSortAscending.value
@@ -225,6 +275,20 @@ class MangaViewModel(
                 .maxByOrNull { it.chapterNumber?.value ?: Double.NEGATIVE_INFINITY }
         return lastRead ?: chapters.minByOrNull { it.chapterNumber?.value ?: Double.MAX_VALUE }
     }
+
+    /**
+     * The groups that have published a chapter of this series, each with its chapter count and whether
+     * it is currently shown, ordered by count (the prolific groups first) then by name.
+     *
+     * Chapters the source credits to no group are not a chip: with no name to key on there is nothing
+     * to filter by, so they are always shown.
+     */
+    private fun List<Chapter>.scanlatorChips(hidden: Set<String>): List<ScanlatorChip> =
+        mapNotNull { it.scanlator?.value }
+            .groupingBy { it }
+            .eachCount()
+            .map { (name, count) -> ScanlatorChip(name, count, isShown = name !in hidden) }
+            .sortedWith(compareByDescending<ScanlatorChip> { it.chapterCount }.thenBy { it.name })
 
     /** Orders chapters by number; unrecognized-number chapters sort last (ascending) either way. */
     private fun List<Chapter>.sortedByNumber(ascending: Boolean): List<Chapter> {

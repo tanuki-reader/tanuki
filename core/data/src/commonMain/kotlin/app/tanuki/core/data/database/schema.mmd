@@ -1,5 +1,5 @@
 ---
-title: Tanuki Schema (v4)
+title: Tanuki Schema (v7)
 ---
 %% Source-owned rows carry two identities: the local uuid PK, and the source-native key a refresh
 %% matches them back by (manga.source_manga_key, chapters.source_chapter_key). `url` is a display
@@ -11,6 +11,7 @@ erDiagram
         text lang
         text name
         text url
+        text icon_url "nullable, source icon snapshotted at install"
         int version "nullable, bundle version at install"
     }
 
@@ -26,6 +27,7 @@ erDiagram
         text url "permalink, not the identity"
         enum reading_mode
         enum publish_status
+        text filtered_scanlators "nullable, newline-joined hidden groups"
     }
 
     library {
@@ -39,6 +41,7 @@ erDiagram
         uuid manga_id FK "-> manga.id"
         real chapter_number "nullable"
         text name "nullable, source title only"
+        text scanlator "nullable, translation group credited by the source (v5)"
         text source_chapter_key "nullable, unique within manga (manga_id, source_chapter_key)"
         text url "permalink, not the identity"
         int date_upload "nullable, epoch millis"

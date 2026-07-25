@@ -57,6 +57,20 @@ interface MangaRepository {
     suspend fun upsertManga(manga: Manga)
 
     /**
+     * Replaces the set of scanlation groups hidden from a manga's chapter list.
+     *
+     * A targeted column write rather than a whole-row [upsertManga]: a chapter/detail sync may be
+     * writing the same row concurrently, and a full upsert built from a stale snapshot would undo it.
+     *
+     * @param mangaId Local id of the manga.
+     * @param scanlators Group names to hide; empty clears the filter.
+     */
+    suspend fun setFilteredScanlators(
+        mangaId: Uuid,
+        scanlators: Set<String>
+    )
+
+    /**
      * Deletes a manga by its local id.
      *
      * @param mangaId Local id of the manga to remove.

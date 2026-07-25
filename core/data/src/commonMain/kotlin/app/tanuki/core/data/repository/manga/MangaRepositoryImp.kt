@@ -52,6 +52,9 @@ class MangaRepositoryImp(
     override suspend fun upsertManga(manga: Manga) =
         mangaDao.upsertWithLibrary(manga.toEntity(), manga.toLibraryEntry())
 
+    override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) =
+        mangaDao.updateFilteredScanlators(mangaId, encodeScanlators(scanlators))
+
     override suspend fun deleteManga(mangaId: Uuid) = mangaDao.deleteById(mangaId)
 
     override suspend fun addToLibrary(mangaId: Uuid) =

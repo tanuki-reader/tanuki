@@ -192,6 +192,7 @@ class LibrarySeeder(
                 mangaId = manga.id,
                 chapterNumber = ChapterNumber(n),
                 name = Text(CHAPTER_TITLES[(n - 1) % CHAPTER_TITLES.size]),
+                scanlator = Text(SCANLATORS[n % SCANLATORS.size]),
                 // Seeded rows stand in for synced ones, so they need the key a real sync would match on
                 // — without it the unique (manga_id, source_chapter_key) index sees them all as NULL.
                 sourceChapterKey = Text("seed-${manga.id}-$n"),
@@ -249,6 +250,13 @@ class LibrarySeeder(
                 "Betrayal", "The Long Road", "Ashes", "Bonds", "The Descent",
                 "Resolve", "Dawn", "The Gathering", "Crossroads", "Awakening",
             )
+
+        /**
+         * Cycled scanlation groups. Seeded rows stand in for synced ones, and on a real aggregator a
+         * chapter almost always carries a group credit — so the sample list exercises the subtitle the
+         * way MangaDex data does.
+         */
+        val SCANLATORS = listOf("Tanuki Scans", "Midnight Group", "Lantern Translations")
 
         val SAMPLES =
             listOf(

@@ -46,6 +46,8 @@ kotlin {
             implementation(projects.core.domain)
             implementation(projects.assets.designSystem)
             implementation(libs.kotlinx.coroutines.core)
+            // Chapter rows render the upload date in the viewer's locale.
+            implementation(libs.kotlinx.datetime)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.metrox.viewmodel.compose)

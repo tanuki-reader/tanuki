@@ -11,7 +11,8 @@ import androidx.sqlite.execSQL
  * holds the user's library, reading progress, and history — none of it recoverable from a source —
  * so a schema change must never be allowed to drop it, even pre-release.
  */
-internal val MIGRATIONS: Array<Migration> = arrayOf(Migration1To2, Migration2To3, Migration3To4)
+internal val MIGRATIONS: Array<Migration> =
+    arrayOf(Migration1To2, Migration2To3, Migration3To4, Migration4To5, Migration5To6, Migration6To7)
 
 /**
  * Adds `sources.version` — the monotonic version the installed `.wasm` bundle reported at install
@@ -109,5 +110,49 @@ internal object Migration3To4 : Migration(3, 4) {
 
         connection.execSQL("INSERT OR IGNORE INTO reading_progress SELECT * FROM reading_progress_backup")
         connection.execSQL("DROP TABLE reading_progress_backup")
+    }
+}
+
+/**
+ * Adds `chapters.scanlator` — the translation group the source credits for a chapter.
+ *
+ * On an aggregator like MangaDex several groups publish the same chapter number as genuinely distinct
+ * chapters, and without the group credited the detail screen shows them as identical-looking rows. The
+ * rows are kept (each is a real chapter with its own pages, and the user's progress hangs off one of
+ * them) and the column is what lets the UI tell them apart.
+ *
+ * Nullable, and existing rows are left `NULL` rather than backfilled: the credit lives only in the
+ * source's chapter feed, so there is nothing local to derive it from — the next refresh fills it in.
+ */
+internal object Migration4To5 : Migration(4, 5) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE chapters ADD COLUMN scanlator TEXT")
+    }
+}
+
+/**
+ * Adds `manga.filtered_scanlators` — the scanlation groups the user has hidden from a series' chapter
+ * list, newline-joined (see `MangaEntity`).
+ *
+ * Nullable with no backfill: `NULL` is exactly the default the column means, "nothing hidden". The
+ * filter excludes rather than includes, so a series gaining a new group later still shows it.
+ */
+internal object Migration5To6 : Migration(5, 6) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE manga ADD COLUMN filtered_scanlators TEXT")
+    }
+}
+
+/**
+ * Adds `sources.icon_url` — the source's icon/logo, snapshotted at install time so a screen can show an
+ * installed source's badge without instantiating its `.wasm`.
+ *
+ * Nullable with no backfill: the URL only exists in the bundle's metadata, and rows installed before
+ * this column keep `NULL` (the lettered-avatar fallback) until the source is reinstalled. The same
+ * one-way snapshot [Migration1To2] made of `sources.version`.
+ */
+internal object Migration6To7 : Migration(6, 7) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE sources ADD COLUMN icon_url TEXT")
     }
 }

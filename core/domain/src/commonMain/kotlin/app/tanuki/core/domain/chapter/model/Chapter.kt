@@ -29,6 +29,11 @@ import kotlin.uuid.Uuid
  *   on sources that only number their chapters. The UI renders the localized "Chapter N" from
  *   [chapterNumber] in that case; a display name is deliberately **not** invented here, since domain
  *   code is Compose-free and cannot resolve a localized string.
+ * @property scanlator Translation group credited by the source, or `null` when it credits none. Not
+ *   decoration: on an aggregator like MangaDex several groups publish the same chapter number as
+ *   separate chapters, so without this the list shows what reads as duplicate rows. They are kept
+ *   as distinct chapters (each has its own pages and quality, and the user's progress is bound to
+ *   one of them) and told apart by this field, rather than being deduplicated on the way in.
  * @property sourceChapterKey The source's natural key for this chapter — stable within its source,
  *   unique within a manga, and what a refresh matches a remote chapter to its local row by. `null`
  *   only on rows written before the key was persisted.
@@ -47,6 +52,7 @@ data class Chapter(
     val mangaId: Uuid,
     val chapterNumber: ChapterNumber?,
     val name: Text?,
+    val scanlator: Text?,
     val sourceChapterKey: Text?,
     val url: Url,
     val dateUpload: Instant?,
@@ -69,6 +75,7 @@ data class Chapter(
             mangaId: Uuid,
             chapterNumber: ChapterNumber?,
             name: Text?,
+            scanlator: Text?,
             sourceChapterKey: Text?,
             url: Url,
             dateUpload: Instant?,
@@ -79,6 +86,7 @@ data class Chapter(
                 mangaId = mangaId,
                 chapterNumber = chapterNumber,
                 name = name,
+                scanlator = scanlator,
                 sourceChapterKey = sourceChapterKey,
                 url = url,
                 dateUpload = dateUpload,

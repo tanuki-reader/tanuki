@@ -94,6 +94,7 @@ sealed interface SyncSourceChapters {
             return existing?.copy(
                 chapterNumber = number,
                 name = name.toTextOrNull(),
+                scanlator = scanlator.toTextOrNull(),
                 sourceChapterKey = chapterKey.toTextOrNull(),
                 url = url,
                 dateUpload = dateUpload,
@@ -101,6 +102,7 @@ sealed interface SyncSourceChapters {
                 mangaId = manga.id,
                 chapterNumber = number,
                 name = name.toTextOrNull(),
+                scanlator = scanlator.toTextOrNull(),
                 sourceChapterKey = chapterKey.toTextOrNull(),
                 url = url,
                 dateUpload = dateUpload,

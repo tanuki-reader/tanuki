@@ -38,6 +38,11 @@ import kotlin.uuid.Uuid
  * @property publishStatus The series' publication status as reported by the source; see [PublishStatus].
  * @property readingStatus The user's own reading status for the series, or `null` when the manga is
  *   not in the library. Stored on the `library` row; see [ReadingStatus].
+ * @property filteredScanlators Scanlation groups the user has hidden from this series' chapter list,
+ *   by name. A local preference (like [readingMode]), not source data, and deliberately an *exclude*
+ *   list rather than an include list: an aggregator gains groups over time, and a group that starts
+ *   translating a series next month should show up on its own rather than be silently hidden by a
+ *   filter set today. Empty — the default — means every group is shown.
  */
 data class Manga(
     val id: Uuid,
@@ -54,5 +59,6 @@ data class Manga(
     val lastRead: Instant? = null,
     val readingMode: ReadingMode,
     val publishStatus: PublishStatus,
-    val readingStatus: ReadingStatus?
+    val readingStatus: ReadingStatus?,
+    val filteredScanlators: Set<String> = emptySet()
 )

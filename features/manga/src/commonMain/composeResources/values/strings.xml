@@ -23,6 +23,33 @@
     <string name="manga_chapter_number">Chapter %1$s</string>
     <!-- Fallback row title for a chapter the source published with neither a number nor a title. -->
     <string name="manga_chapter_untitled">Untitled chapter</string>
+    <!-- Chapter row's last line when the source gives both an upload date and a scanlation group.
+         %1$s is the formatted date, %2$s the group that translated it. -->
+    <string name="manga_chapter_meta">%1$s · %2$s</string>
+    <!-- A chapter's upload date. %1$s is the abbreviated month, %2$d the day, %3$d the year.
+         Reorder the placeholders to match how dates read in this language. -->
+    <string name="manga_chapter_date">%1$s %2$d, %3$d</string>
+
+    <!-- Abbreviated month names for the chapter upload date. -->
+    <string name="manga_month_jan">Jan</string>
+    <string name="manga_month_feb">Feb</string>
+    <string name="manga_month_mar">Mar</string>
+    <string name="manga_month_apr">Apr</string>
+    <string name="manga_month_may">May</string>
+    <string name="manga_month_jun">Jun</string>
+    <string name="manga_month_jul">Jul</string>
+    <string name="manga_month_aug">Aug</string>
+    <string name="manga_month_sep">Sep</string>
+    <string name="manga_month_oct">Oct</string>
+    <string name="manga_month_nov">Nov</string>
+    <string name="manga_month_dec">Dec</string>
+
+    <!-- Chapter filter sheet (which scanlation groups the chapter list shows). -->
+    <string name="manga_chapters_filter">Filter chapters by scanlation group</string>
+    <string name="manga_filter_title">Filter chapters</string>
+    <string name="manga_filter_section_scanlators">Scanlation groups</string>
+    <string name="manga_filter_scanlators_help">Several groups translate the same chapter. Turn one off to hide its chapters.</string>
+    <string name="manga_sheet_reset">Reset</string>
 
     <!-- Category management (hero chips + edit sheet). -->
     <string name="manga_categories_title">Manage categories</string>
@@ -42,6 +69,10 @@
     <plurals name="manga_chapter_count">
         <item quantity="one">%1$d chapter</item>
         <item quantity="other">%1$d chapters</item>
+    </plurals>
+    <plurals name="manga_filter_show_count">
+        <item quantity="one">Show %1$d chapter</item>
+        <item quantity="other">Show %1$d chapters</item>
     </plurals>
     <plurals name="manga_chapters_total">
         <item quantity="one">%1$d total</item>

@@ -25,6 +25,11 @@ import kotlin.uuid.Uuid
  * not publish a per-chapter permalink, and those chapters fall back to the series URL — under a unique
  * `(manga_id, url)` index the second chapter of such a manga would fail to insert.
  *
+ * `scanlator` (v5) is nullable and deliberately **not** part of the identity: the source key already
+ * separates two groups' takes on the same chapter number, and a group can be re-credited upstream
+ * without the chapter becoming a different chapter. It exists so the UI can tell those rows apart —
+ * see [Chapter.scanlator].
+ *
  * `chapter_number` is a nullable `REAL` with no adapter: it is mapped through [ChapterNumber.orNull]
  * at the boundary so legacy sentinels collapse to the domain's "unknown == null". `name` is nullable
  * because most sources title only some of their chapters; the localized "Chapter N" fallback is the
@@ -54,6 +59,7 @@ data class ChapterEntity(
     @ColumnInfo(name = "manga_id") val mangaId: Uuid,
     @ColumnInfo(name = "chapter_number") val chapterNumber: Double?,
     val name: String?,
+    val scanlator: String?,
     @ColumnInfo(name = "source_chapter_key") val sourceChapterKey: String?,
     val url: String,
     @ColumnInfo(name = "date_upload") val dateUpload: Instant?,
@@ -99,6 +105,7 @@ fun ChapterWithProgress.toDomain(): Chapter =
         mangaId = chapter.mangaId,
         chapterNumber = ChapterNumber.orNull(chapter.chapterNumber),
         name = chapter.name.toTextOrNull(),
+        scanlator = chapter.scanlator.toTextOrNull(),
         sourceChapterKey = chapter.sourceChapterKey.toTextOrNull(),
         url = Url(chapter.url),
         dateUpload = chapter.dateUpload,
@@ -120,6 +127,7 @@ fun Chapter.toEntity(): ChapterEntity =
         mangaId = mangaId,
         chapterNumber = chapterNumber?.value,
         name = name?.value,
+        scanlator = scanlator?.value,
         sourceChapterKey = sourceChapterKey?.value,
         url = url.value,
         dateUpload = dateUpload,

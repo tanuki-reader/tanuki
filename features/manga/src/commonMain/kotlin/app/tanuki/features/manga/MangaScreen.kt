@@ -23,6 +23,7 @@ import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.manga.composable.MangaContentView
+import app.tanuki.features.manga.composable.components.ChapterFilterSheet
 import app.tanuki.features.manga.composable.components.MangaCategoriesSheet
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_not_found
@@ -72,6 +73,7 @@ private fun MangaScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showCategoriesSheet by remember { mutableStateOf(false) }
+    var showChapterFilterSheet by remember { mutableStateOf(false) }
     // Reported by MangaContentView as the hero collapses; drives the top bar's solid/title state.
     var heroCollapsed by remember { mutableStateOf(false) }
 
@@ -106,6 +108,7 @@ private fun MangaScreen(
                     MangaContentView(
                         state = current,
                         onToggleSort = viewModel::onToggleChapterSort,
+                        onOpenChapterFilter = { showChapterFilterSheet = true },
                         onManageCategories = { showCategoriesSheet = true },
                         onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
                         onReadClick = viewModel::onReadClick,
@@ -139,6 +142,15 @@ private fun MangaScreen(
                 categories = content.categories,
                 onToggle = viewModel::onToggleCategory,
                 onDismiss = { showCategoriesSheet = false }
+            )
+        }
+        if (showChapterFilterSheet && content != null) {
+            ChapterFilterSheet(
+                scanlators = content.scanlators,
+                visibleChapterCount = content.chapters.size,
+                onToggle = viewModel::onToggleScanlator,
+                onReset = viewModel::onResetChapterFilter,
+                onDismiss = { showChapterFilterSheet = false }
             )
         }
     }

@@ -80,6 +80,7 @@ private val DetailBarHeight = 56.dp
 fun MangaContentView(
     state: Content,
     onToggleSort: () -> Unit,
+    onOpenChapterFilter: () -> Unit,
     onManageCategories: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
     onReadClick: () -> Unit,
@@ -208,7 +209,10 @@ fun MangaContentView(
                         chapterList(
                             chapters = state.chapters,
                             ascending = state.chapterSortAscending,
+                            canFilter = state.canFilterScanlators,
+                            filterActive = state.isChapterFilterActive,
                             onToggleSort = onToggleSort,
+                            onOpenFilter = onOpenChapterFilter,
                             onChapterClick = onChapterClick
                         )
                     }

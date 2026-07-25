@@ -102,6 +102,16 @@ interface MangaDao {
     @Query("DELETE FROM manga_categories WHERE manga_id = :mangaId")
     suspend fun clearCategories(mangaId: Uuid)
 
+    /**
+     * Writes only the hidden-scanlator column, leaving the rest of the row alone — a detail sync may be
+     * rewriting the same manga, and a whole-row upsert built from the screen's snapshot would undo it.
+     */
+    @Query("UPDATE manga SET filtered_scanlators = :encoded WHERE id = :mangaId")
+    suspend fun updateFilteredScanlators(
+        mangaId: Uuid,
+        encoded: String?,
+    )
+
     @Query("DELETE FROM manga WHERE id = :mangaId")
     suspend fun deleteById(mangaId: Uuid)
 
