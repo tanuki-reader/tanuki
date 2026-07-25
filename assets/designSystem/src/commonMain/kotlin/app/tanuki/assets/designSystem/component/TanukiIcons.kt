@@ -371,6 +371,33 @@ fun TrashIcon(
     }
 }
 
+/**
+ * `bookmark` — a ribbon bookmark: a rectangle whose bottom edge notches up to a center point. Marks the
+ * user's reading status for a series (Reading / Completed / …). Public so feature modules can render it
+ * beside the status label.
+ */
+@Composable
+fun BookmarkIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 18.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val ribbon =
+                Path().apply {
+                    moveTo(6.5f, 4.5f)
+                    lineTo(17.5f, 4.5f)
+                    lineTo(17.5f, 19.5f)
+                    lineTo(12f, 14.5f)
+                    lineTo(6.5f, 19.5f)
+                    close()
+                }
+            drawPath(ribbon, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round))
+        }
+    }
+}
+
 /** Runs [block] in the icon's native 24×24 space, scaled to fill the current [DrawScope]. */
 private inline fun DrawScope.iconSpace(block: DrawScope.() -> Unit) {
     val factor = size.minDimension / ICON_VIEWPORT

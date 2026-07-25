@@ -55,6 +55,11 @@ class MangaRepositoryImp(
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) =
         mangaDao.updateFilteredScanlators(mangaId, encodeScanlators(scanlators))
 
+    override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) =
+        // `dateAddedIfAbsent` is only used when the manga isn't yet in the library (implicit add). An
+        // existing membership keeps its original added date; only the status column is updated.
+        mangaDao.setReadingStatus(mangaId, status, Clock.System.now())
+
     override suspend fun deleteManga(mangaId: Uuid) = mangaDao.deleteById(mangaId)
 
     override suspend fun addToLibrary(mangaId: Uuid) =

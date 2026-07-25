@@ -1,6 +1,7 @@
 package app.tanuki.core.domain.manga.repository
 
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.Uuid
 
@@ -68,6 +69,20 @@ interface MangaRepository {
     suspend fun setFilteredScanlators(
         mangaId: Uuid,
         scanlators: Set<String>
+    )
+
+    /**
+     * Sets the user's reading status for a manga, adding it to the library first when it isn't a member
+     * (the status lives on the `library` row). A targeted write like [setFilteredScanlators], not a
+     * whole-row upsert: a concurrent detail sync must not be clobbered. Adding preserves any existing
+     * `date_added`; only the status column changes for a manga already in the library.
+     *
+     * @param mangaId Local id of the manga.
+     * @param status The reading status to record.
+     */
+    suspend fun setReadingStatus(
+        mangaId: Uuid,
+        status: ReadingStatus
     )
 
     /**

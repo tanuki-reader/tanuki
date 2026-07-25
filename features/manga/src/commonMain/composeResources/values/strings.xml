@@ -58,6 +58,15 @@
     <!-- Overflow chip when the manga is in more categories than fit; %1$d is how many more. -->
     <string name="manga_categories_more">+%1$d</string>
 
+    <!-- Reading-status control (hero pill + picker sheet). Labels mirror the library's status filter. -->
+    <string name="manga_reading_status_title">Reading status</string>
+    <string name="manga_reading_status_set">Set reading status</string>
+    <string name="manga_reading_status_reading">Reading</string>
+    <string name="manga_reading_status_completed">Completed</string>
+    <string name="manga_reading_status_on_hold">On hold</string>
+    <string name="manga_reading_status_dropped">Dropped</string>
+    <string name="manga_reading_status_planning">Plan to read</string>
+
     <!-- Publication status chip in the hero. -->
     <string name="manga_status_ongoing">Ongoing</string>
     <string name="manga_status_completed">Completed</string>

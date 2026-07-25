@@ -5,6 +5,7 @@ import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.MangaListing
@@ -112,6 +113,8 @@ private class FakeMangaRepository(private val existingId: Uuid? = null) : MangaR
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
+
+    override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) = error("unused")
 
     override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
     override suspend fun removeFromLibrary(mangaId: Uuid) = error("unused")

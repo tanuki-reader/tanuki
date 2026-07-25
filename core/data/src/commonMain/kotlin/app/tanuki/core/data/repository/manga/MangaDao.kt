@@ -7,7 +7,9 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import kotlinx.coroutines.flow.Flow
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
@@ -111,6 +113,29 @@ interface MangaDao {
         mangaId: Uuid,
         encoded: String?,
     )
+
+    /** Writes only the reading-status column of an existing `library` row; a no-op if there is none. */
+    @Query("UPDATE library SET reading_status = :status WHERE id = :mangaId")
+    suspend fun updateReadingStatus(
+        mangaId: Uuid,
+        status: ReadingStatus,
+    )
+
+    /**
+     * Sets a manga's reading status, adding it to the library first when it isn't a member — the status
+     * lives on the `library` row, so there must be one to write. Runs in one transaction: insert the
+     * membership only if absent ([dateAddedIfAbsent] with the chosen status, so a fresh add lands with it),
+     * then update the column (the case where the row already existed, preserving its `date_added`).
+     */
+    @Transaction
+    suspend fun setReadingStatus(
+        mangaId: Uuid,
+        status: ReadingStatus,
+        dateAddedIfAbsent: Instant,
+    ) {
+        insertLibraryEntryIfAbsent(LibraryEntryEntity(mangaId, dateAddedIfAbsent, status))
+        updateReadingStatus(mangaId, status)
+    }
 
     @Query("DELETE FROM manga WHERE id = :mangaId")
     suspend fun deleteById(mangaId: Uuid)

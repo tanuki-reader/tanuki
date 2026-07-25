@@ -57,6 +57,15 @@
     <!-- Chip de excedente quando o mangá está em mais categorias do que cabem; %1$d é quantas a mais. -->
     <string name="manga_categories_more">+%1$d</string>
 
+    <!-- Controle de status de leitura (chip no destaque + folha de seleção). Rótulos espelham a biblioteca. -->
+    <string name="manga_reading_status_title">Status de leitura</string>
+    <string name="manga_reading_status_set">Definir status de leitura</string>
+    <string name="manga_reading_status_reading">Lendo</string>
+    <string name="manga_reading_status_completed">Concluído</string>
+    <string name="manga_reading_status_on_hold">Em espera</string>
+    <string name="manga_reading_status_dropped">Abandonado</string>
+    <string name="manga_reading_status_planning">Pretendo ler</string>
+
     <!-- Chip de status de publicação no destaque. -->
     <string name="manga_status_ongoing">Em andamento</string>
     <string name="manga_status_completed">Concluído</string>

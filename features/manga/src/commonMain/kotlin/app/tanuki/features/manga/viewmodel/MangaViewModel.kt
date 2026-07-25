@@ -10,10 +10,12 @@ import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
 import app.tanuki.core.domain.manga.usecase.ObserveManga
 import app.tanuki.core.domain.manga.usecase.RemoveMangaFromLibrary
 import app.tanuki.core.domain.manga.usecase.SetFilteredScanlators
+import app.tanuki.core.domain.manga.usecase.SetReadingStatus
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
 import app.tanuki.core.navigation.NavEvent
@@ -71,6 +73,7 @@ class MangaViewModel(
     private val setMangaCategories: SetMangaCategories,
     private val addToLibrary: AddToLibrary,
     private val removeMangaFromLibrary: RemoveMangaFromLibrary,
+    private val setReadingStatus: SetReadingStatus,
     private val setFilteredScanlators: SetFilteredScanlators,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
@@ -178,6 +181,22 @@ class MangaViewModel(
             withContext(dispatcher.io) {
                 if (!content.inLibrary && members.isNotEmpty()) addToLibrary(mangaId)
                 setMangaCategories(mangaId, members)
+            }
+        }
+    }
+
+    /**
+     * A reading status was picked in the status sheet — record it (live-apply). Setting a status on a
+     * manga that isn't in the library **implicitly adds it first** (see [SetReadingStatus]), the same as
+     * assigning a category: you can't be "reading" a series the library doesn't track. The reactive
+     * pipeline re-emits with the new [Manga.readingStatus] (and `inLibrary = true` when it was an add).
+     */
+    fun onSetReadingStatus(status: ReadingStatus) {
+        val content = uiState.value as? Content ?: return
+        if (content.manga.readingStatus == status) return
+        viewModelScope.launch {
+            withContext(dispatcher.io) {
+                setReadingStatus(mangaId, status)
             }
         }
     }

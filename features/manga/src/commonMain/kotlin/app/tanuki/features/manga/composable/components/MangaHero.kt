@@ -1,6 +1,7 @@
 package app.tanuki.features.manga.composable.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,8 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -30,17 +33,21 @@ import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiElevation
 import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.assets.designSystem.component.BookmarkIcon
+import app.tanuki.assets.designSystem.component.ChevronDownIcon
 import app.tanuki.assets.designSystem.component.LabelIcon
 import app.tanuki.assets.designSystem.component.MangaCover
 import app.tanuki.assets.designSystem.component.TanukiTag
 import app.tanuki.assets.designSystem.coverGradient
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_categories_add
 import app.tanuki.features.manga.resources.manga_categories_more
 import app.tanuki.features.manga.resources.manga_categories_title
 import app.tanuki.features.manga.resources.manga_chapter_count
+import app.tanuki.features.manga.resources.manga_reading_status_set
 import app.tanuki.features.manga.resources.manga_status_cancelled
 import app.tanuki.features.manga.resources.manga_status_completed
 import app.tanuki.features.manga.resources.manga_status_hiatus
@@ -93,6 +100,7 @@ internal fun MangaHero(
     chapterCount: Int,
     categoryNames: List<String>,
     onManageCategories: () -> Unit,
+    onEditReadingStatus: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val spacing = TanukiTheme.spacing
@@ -173,6 +181,8 @@ internal fun MangaHero(
                         color = TanukiTheme.colors.textFaint
                     )
                 }
+                Spacer(Modifier.height(spacing.md))
+                ReadingStatusPill(status = manga.readingStatus, onClick = onEditReadingStatus)
                 Spacer(Modifier.height(spacing.sm))
                 CategoryChipsRow(names = categoryNames, onManage = onManageCategories)
             }
@@ -205,6 +215,57 @@ private fun CategoryChipsRow(
             val overflow = names.size - MAX_HERO_CATEGORY_CHIPS
             if (overflow > 0) TanukiTag(text = stringResource(Res.string.manga_categories_more, overflow))
         }
+    }
+}
+
+/** Leading glyph size on the reading-status pill, matched to the category row's [CategoryGlyphSize]. */
+private val StatusGlyphSize = 16.dp
+
+/** Trailing disclosure chevron on the reading-status pill — signals it opens the picker sheet. */
+private val StatusChevronSize = 16.dp
+
+/**
+ * The user's reading status as a tappable pill that opens the status picker. When a status is set it reads
+ * as an *active* selection — the accent-tint fill / accent text of a selected [TanukiFilterChip] — so the
+ * user's own tracking state stands apart from the outline-only publication tag and category chips. With no
+ * status yet (a manga not in the library) it's a subdued outline "Set reading status" invitation; picking
+ * one implicitly adds the manga to the library (see the ViewModel).
+ */
+@Composable
+private fun ReadingStatusPill(
+    status: ReadingStatus?,
+    onClick: () -> Unit
+) {
+    val spacing = TanukiTheme.spacing
+    val selected = status != null
+    val accent = TanukiTheme.colors.accentHover
+    val contentColor = if (selected) accent else TanukiTheme.colors.textFaint
+    val label =
+        status?.let { stringResource(it.labelResource()) } ?: stringResource(Res.string.manga_reading_status_set)
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier =
+            Modifier
+                .clip(TanukiRadii.pillShape)
+                .background(if (selected) TanukiTheme.colors.accentTint else Color.Transparent)
+                .then(
+                    if (selected) {
+                        Modifier
+                    } else {
+                        Modifier.border(1.dp, MaterialTheme.colorScheme.outline, TanukiRadii.pillShape)
+                    }
+                ).clickable(onClick = onClick)
+                .padding(horizontal = spacing.md, vertical = spacing.xs)
+    ) {
+        BookmarkIcon(tint = contentColor, size = StatusGlyphSize)
+        Text(
+            text = label,
+            style = TanukiTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
+            color = contentColor
+        )
+        ChevronDownIcon(tint = contentColor, size = StatusChevronSize)
     }
 }
 

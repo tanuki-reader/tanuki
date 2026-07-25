@@ -11,6 +11,7 @@ import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.ChapterListing
@@ -236,6 +237,8 @@ private class FakeMangaRepository(private val manga: Manga?) : MangaRepository {
     override suspend fun upsertManga(manga: Manga) = error("unused")
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
+
+    override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) = error("unused")
 
     override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
     override suspend fun removeFromLibrary(mangaId: Uuid) = error("unused")

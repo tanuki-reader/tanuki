@@ -82,6 +82,7 @@ fun MangaContentView(
     onToggleSort: () -> Unit,
     onOpenChapterFilter: () -> Unit,
     onManageCategories: () -> Unit,
+    onEditReadingStatus: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
     onReadClick: () -> Unit,
     onAddToLibrary: () -> Unit,
@@ -161,6 +162,7 @@ fun MangaContentView(
                 chapterCount = state.chapters.size,
                 categoryNames = state.categories.filter { it.isMember }.map { it.category.name.value },
                 onManageCategories = onManageCategories,
+                onEditReadingStatus = onEditReadingStatus,
                 modifier =
                     Modifier.graphicsLayer {
                         val maxCollapse = (heroFullPx - barHeightPx).coerceAtLeast(0).toFloat()
