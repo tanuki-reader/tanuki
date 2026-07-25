@@ -1,5 +1,7 @@
 package app.tanuki.features.manga.composable.components
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +12,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -26,6 +32,8 @@ import app.tanuki.features.manga.resources.manga_info_author
 import app.tanuki.features.manga.resources.manga_info_description
 import app.tanuki.features.manga.resources.manga_info_no_description
 import app.tanuki.features.manga.resources.manga_info_remove_from_library
+import app.tanuki.features.manga.resources.manga_info_show_less
+import app.tanuki.features.manga.resources.manga_info_show_more
 import app.tanuki.features.manga.resources.manga_info_source
 import app.tanuki.features.manga.resources.manga_info_source_unknown
 import org.jetbrains.compose.resources.stringResource
@@ -63,16 +71,15 @@ internal fun MangaInfoTab(
     ) {
         InfoSection(title = stringResource(Res.string.manga_info_description)) {
             val description = manga.description?.value
-            Text(
-                text = description ?: stringResource(Res.string.manga_info_no_description),
-                style = TanukiTheme.typography.body,
-                color =
-                    if (description != null) {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    } else {
-                        TanukiTheme.colors.textFaint
-                    }
-            )
+            if (description != null) {
+                ExpandableDescription(text = description)
+            } else {
+                Text(
+                    text = stringResource(Res.string.manga_info_no_description),
+                    style = TanukiTheme.typography.body,
+                    color = TanukiTheme.colors.textFaint
+                )
+            }
         }
 
         manga.author?.let { author ->
@@ -108,6 +115,52 @@ internal fun MangaInfoTab(
         }
     }
 }
+
+/**
+ * The synopsis, clamped to [COLLAPSED_MAX_LINES] until tapped. A "Show more"/"Show less" toggle appears
+ * only when the text actually overflows the clamp — a short synopsis renders in full with no affordance.
+ * The whole block is tappable so the toggle isn't the only hit target.
+ */
+@Composable
+private fun ExpandableDescription(text: String) {
+    var expanded by remember { mutableStateOf(false) }
+    // Tracks whether the collapsed render clipped any text; drives whether the toggle is shown at all.
+    var isClamped by remember { mutableStateOf(false) }
+
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(enabled = expanded || isClamped) { expanded = !expanded }
+                .animateContentSize(),
+        verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.xs)
+    ) {
+        Text(
+            text = text,
+            style = TanukiTheme.typography.body,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = if (expanded) Int.MAX_VALUE else COLLAPSED_MAX_LINES,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { result ->
+                // Once expanded the clamp no longer applies, so keep the last known clamped state.
+                if (!expanded) isClamped = result.hasVisualOverflow
+            }
+        )
+        if (expanded || isClamped) {
+            Text(
+                text =
+                    stringResource(
+                        if (expanded) Res.string.manga_info_show_less else Res.string.manga_info_show_more
+                    ),
+                style = TanukiTheme.typography.label,
+                color = TanukiTheme.colors.accent
+            )
+        }
+    }
+}
+
+/** Lines of synopsis shown before the "Show more" toggle collapses the rest. */
+private const val COLLAPSED_MAX_LINES = 4
 
 /** A titled block: a [SectionHeader] over its content, spaced by the design system's small gap. */
 @Composable

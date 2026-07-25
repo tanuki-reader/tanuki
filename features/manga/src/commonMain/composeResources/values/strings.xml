@@ -13,6 +13,8 @@
     <!-- Info tab: metadata sections and the library toggle. -->
     <string name="manga_info_description">Description</string>
     <string name="manga_info_no_description">No description available</string>
+    <string name="manga_info_show_more">Show more</string>
+    <string name="manga_info_show_less">Show less</string>
     <string name="manga_info_author">Author</string>
     <string name="manga_info_source">Source</string>
     <string name="manga_info_source_unknown">Unknown source</string>
