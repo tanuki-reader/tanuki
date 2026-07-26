@@ -180,6 +180,64 @@ class MangaDexSourceEngineTest {
 
         module.close()
     }
+
+    @Test
+    fun `manga_details fetches the single entity and parses the fields browse omits`() {
+        if (MANGADEX_WASM.isEmpty()) return
+
+        val host = ScriptedHost(CANNED_DETAILS)
+        val engine = provideWasmEngine()
+        val module = engine.instantiate("mangadex", MANGADEX_WASM, host)
+
+        val request = SourceCodec.encode(Wire.MangaDetailsRequest(mangaKey = "op-id"))
+        val manga =
+            SourceCodec.decodeEnvelope<Wire.MangaWire>(
+                module.call(SourceAbi.Exports.MANGA_DETAILS, request)
+            )
+
+        // A single-entity lookup (`/manga/{id}`), with the cover/author relationships inlined.
+        val url = host.urls.single()
+        assertTrue(url.contains("api.mangadex.org/manga/op-id"), "url was $url")
+        assertTrue(url.contains("includes[]=cover_art"), "url was $url")
+
+        assertEquals("op-id", manga.key)
+        assertEquals("https://mangadex.org/title/op-id", manga.url)
+        assertEquals("One Piece", manga.title)
+        // The whole reason details exists beyond the catalog entry: the synopsis browse deliberately drops.
+        assertEquals("Pirates and dreams.", manga.description)
+        assertEquals("https://uploads.mangadex.org/covers/op-id/cover.jpg.512.jpg", manga.coverUrl)
+        assertEquals("Eiichiro Oda", manga.author)
+        assertEquals("ongoing", manga.status)
+
+        module.close()
+    }
+
+    @Test
+    fun `chapter_pages resolves the at-home server into ordered full-quality image urls`() {
+        if (MANGADEX_WASM.isEmpty()) return
+
+        val host = ScriptedHost(CANNED_AT_HOME)
+        val engine = provideWasmEngine()
+        val module = engine.instantiate("mangadex", MANGADEX_WASM, host)
+
+        val request = SourceCodec.encode(Wire.ChapterPagesRequest(chapterKey = "ch-1"))
+        val pages =
+            SourceCodec.decodeEnvelope<List<Wire.PageWire>>(
+                module.call(SourceAbi.Exports.CHAPTER_PAGES, request)
+            )
+
+        assertTrue(host.urls.single().contains("api.mangadex.org/at-home/server/ch-1"), "url was ${host.urls.single()}")
+
+        // Three file names → three pages, zero-based and in feed order, each a `{base}/data/{hash}/{file}`
+        // URL. The base URL's trailing slash is trimmed (the canned one has one) so there's no `//data`.
+        assertEquals(3, pages.size)
+        assertEquals(0, pages.first().index)
+        assertEquals("https://cdn.mangadex.org/node1/data/abc123/1.jpg", pages.first().imageUrl)
+        assertEquals(2, pages.last().index)
+        assertEquals("https://cdn.mangadex.org/node1/data/abc123/3.jpg", pages.last().imageUrl)
+
+        module.close()
+    }
 }
 
 /** A [SourceHost] that records the requested URL and answers with a fixed JSON body. */
@@ -223,6 +281,32 @@ private val CANNED_POPULAR =
 /** Empty collection, for the tests that only assert on the outgoing URL. */
 private val CANNED_EMPTY =
     """{"result":"ok","response":"collection","data":[],"limit":20,"offset":0,"total":0}"""
+
+/**
+ * A single-entity `/manga/{id}` response — note `data` is one object, not a collection — carrying the
+ * `description` browse omits plus the inlined cover_art/author relationships.
+ */
+private val CANNED_DETAILS =
+    """
+    {"result":"ok","response":"entity","data":
+      {"id":"op-id","type":"manga",
+       "attributes":{"title":{"en":"One Piece"},"description":{"en":"Pirates and dreams."},
+                     "status":"ongoing","originalLanguage":"ja"},
+       "relationships":[
+         {"type":"cover_art","attributes":{"fileName":"cover.jpg"}},
+         {"type":"author","attributes":{"name":"Eiichiro Oda"}}
+       ]}}
+    """.trimIndent()
+
+/**
+ * An `/at-home/server/{id}` response: a CDN base URL (with a trailing slash, to exercise the guest's
+ * trimming) plus the chapter hash and three ordered page file names. `dataSaver` is present but unread.
+ */
+private val CANNED_AT_HOME =
+    """
+    {"result":"ok","baseUrl":"https://cdn.mangadex.org/node1/",
+     "chapter":{"hash":"abc123","data":["1.jpg","2.jpg","3.jpg"],"dataSaver":["1s.jpg","2s.jpg","3s.jpg"]}}
+    """.trimIndent()
 
 /**
  * A [SourceHost] that answers successive requests with successive bodies (repeating the last one once
