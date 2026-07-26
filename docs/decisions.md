@@ -6,6 +6,32 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-07-26 — MangaFire source scaffolded; JSON API (not scraping), blocked on VRF transcription
+
+**Decision:** started the MangaFire guest (`native/sources/mangafire/`). Key finding while researching the
+real keiyoushi extension: **current MangaFire is a clean JSON API** (`/api/titles`,
+`/api/titles/{hid}`, `/api/titles/{hid}/chapters`, `/api/chapters/{id}`) — **no HTML scraping, no CSS
+selectors, no AJAX** — so the guest is structurally like MangaDex (serde over JSON), and needs no
+in-wasm HTML parser. Page images are direct URLs that require a `Referer`, carried via the ABI's new
+per-page `headers`. All five exports and `meta()` are implemented; the source loads and runs on both
+engines (`MangaFireSourceEngineTest`, green on Chicory + wasmi).
+
+**Blocked (needs verbatim transcription from the reference — not reliably obtainable via web fetch):**
+- **VRF signing** (`vrf.rs`) — MangaFire rejects any `/api/*` call without a valid `vrf` token, produced
+  by a 3-stage substitution cipher keyed by **six large base64 constants** (three 256-byte S-boxes +
+  three keys) plus the exact *signed input*. Transcribing those wrong would silently 403 every request,
+  so the cipher is implemented but its constants are zeroed placeholders behind `vrf::CONFIGURED = false`;
+  every API export fails **loudly** with a `"config"` `AbiError` until they're filled from `VrfSigner.kt`.
+- **A few DTO details** marked `TODO(dto)`: poster/author field names, `createdAt` unit (assumed epoch
+  seconds → ms), the manga permalink scheme, status-name mapping, and whether responses are wrapped.
+  Confirm against `Dto.kt` or a live response.
+
+**To finish (fastest path):** paste the reference `VrfSigner.kt` (constants + signed-input construction)
+and `Dto.kt`; then wire the constants, flip `CONFIGURED`, confirm the DTO fields, and add canned-response
+parsing tests like MangaDex's. Live challenge testing then also tunes the WebView/WKWebView solvers.
+
+---
+
 ## 2026-07-26 — Cloudflare interceptor scaffolded (ahead of MangaFire)
 
 **Decision:** built the Cloudflare interceptor as a **Ktor client plugin** on the one shared source

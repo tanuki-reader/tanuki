@@ -20,7 +20,7 @@ plugins {
 // at which point each test skips itself.
 
 /** Source crates under native/sources to compile into test fixtures (`<CRATE>_WASM` byte arrays). */
-val fixtureCrates = listOf("hello", "mangadex")
+val fixtureCrates = listOf("hello", "mangadex", "mangafire")
 
 /**
  * Registers the cargo-build + code-gen task pair for one fixture crate and returns the generate task
