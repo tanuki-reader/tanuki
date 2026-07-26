@@ -1,6 +1,7 @@
 package app.tanuki.core.domain.common.service
 
 import platform.Foundation.NSLog
+import platform.Foundation.NSString
 
 /** Default tag used when a log event carries none. */
 private const val DEFAULT_TAG = "Tanuki"
@@ -33,6 +34,10 @@ internal object NsLogReceiver : Logger.LogReceiver {
             LogPriority.ERROR -> "E"
         }
         val text = listOfNotNull(message, throwable?.stackTraceToString()).joinToString(separator = "\n")
-        NSLog("%@", "$level/${tag ?: DEFAULT_TAG}: $text")
+        // Bridge to NSString explicitly: unlike a normal Obj-C parameter, a *variadic* argument is NOT
+        // auto-bridged, so passing a Kotlin String straight into `%@` hands NSLog a value that isn't a
+        // valid `id` pointer — it dereferences garbage and traps (EXC_BREAKPOINT). Casting produces a
+        // real NSString so `%@` gets a proper object; the format still isolates any `%` in the content.
+        NSLog("%@", "$level/${tag ?: DEFAULT_TAG}: $text" as NSString)
     }
 }
