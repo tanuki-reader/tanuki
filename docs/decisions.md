@@ -6,6 +6,39 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-07-26 — Page descrambling is an app-applied descriptor, not guest-processed bytes
+
+**Decision:** for scrambled page images (MangaFire), the guest emits a **closed-vocabulary transform
+descriptor** on each `Page` (v1: `TileShuffle { cols, rows, permutation }`) computed during
+`chapter_pages`; the **app** fetches the image (through the Cloudflare-carrying client), decodes it, and
+applies the transform with **native pixel ops** (a Coil `Transformation`). Bytes are not sent into the
+guest for processing. Also adds per-page `headers` (Referer/hotlink). Full design + type sketches:
+`design-page-image-abi.md`.
+
+**Why:** the interpreters have no JIT, so decoding+reshuffling a multi-MB image in-guest would cost
+seconds and bloat linear memory; the descriptor is tens of bytes. Keeping the transform a closed set the
+app implements mirrors the listings decision (2026-07-23) — the app can reason about and perform every
+transform, never run arbitrary source logic. MangaDex's direct-URL path is unchanged. The descriptor is
+computed from the scramble key the page-list AJAX already returns, so there is **no new export and no
+extra per-page fetch** — only `Page` grows.
+
+**Cost / trade:** a scramble scheme the vocabulary can't express (byte-level XOR/decrypt) isn't supported
+until the vocabulary + app grow. The escape hatch — a guest `process_page_image(context, bytes)` export
+(Aidoku's model) — is **designed to be additive later**, built only when a real source needs it.
+
+**Versioning:** additive on the wire, but an old host that ignored `transform` would show a *scrambled*
+image — a silent wrong result. So bump `ABI_VERSION`/`SourceAbi.VERSION` (v4 → v5) together, making a
+mismatched host refuse the source loudly.
+
+**Open before coding (see doc §7):** confirm MangaFire scrambles by tile *count* vs fixed *piece size*
+(O1 — if piece size, the guest resolves image dims via a small ranged fetch rather than pushing the
+algorithm app-side); the unsupported-transform error state (O2); remainder-tile behavior (O3).
+
+**Trigger to build:** the MangaFire milestone, alongside the Cloudflare interceptor (the page loader must
+move onto the interceptor-carrying client for any of this to fetch at all).
+
+---
+
 ## 2026-07-23 — Listings are a closed contract vocabulary, not a source-invented one
 
 **Decision:** the ABI defines the set of browse listings (`popular`, `latest` for now) as an enum on
