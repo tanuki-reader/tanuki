@@ -60,6 +60,6 @@ class DevSourceInstaller(
          * `devSourceCrates` list in `shared/build.gradle.kts`. Each must correspond to a
          * `composeResources/files/sources/<id>.wasm`.
          */
-        val BUNDLED_SOURCES = listOf("hello", "mangadex")
+        val BUNDLED_SOURCES = listOf("hello", "mangadex", "mangafire")
     }
 }
