@@ -10,6 +10,32 @@ ABI bump on top of a half-written source.
 
 ---
 
+## 0. Research findings — MangaFire does not scramble today (2026-07-26)
+
+Investigated the real MangaFire implementation before committing to the descramble tier. **MangaFire
+currently serves clean (unscrambled) images.** Evidence, from the canonical
+[keiyoushi/extensions-source](https://github.com/keiyoushi/extensions-source) extension:
+
+- `getPageList()` returns `Page(index, imageUrl = page.url)` directly; `PageDto` has a single `url` field
+  — no interceptor, no bitmap split, no key/offset.
+- The most recent image-related change ([`cf202f5`](https://github.com/keiyoushi/extensions-source/commit/cf202f5),
+  "Fix image couldn't be loaded") **added a `Referer: $baseUrl/` header** — it did not touch descramble.
+- MangaFire's actual barriers are **Cloudflare/WAF** ([issue #4035](https://github.com/keiyoushi/extensions-source/issues/4035))
+  and **VRF request signing** (the extension's `VrfSigner.kt`) — request-side concerns, not image bytes.
+- Scrambling *was* present in older MangaFire builds (a v1.4.16 APK shipped an `ImageInterceptor`), so
+  grid-shuffle descrambling is a real pattern that can reappear or turn up in another source — the design
+  below stays valid as the blueprint for the **first source that actually scrambles**.
+
+**Consequence for the plan (O1 resolved):**
+- The **descramble tier is DEFERRED** — building it now would repeat the exact "building blind against no
+  live target" mistake the Cloudflare interceptor was deferred to avoid. `TileShuffle` and the O1
+  count-vs-piece-size question do not block MangaFire.
+- What MangaFire actually needs from the page ABI is **per-page request headers** (the `Referer`), plus
+  routing the image fetch through the **Cloudflare-carrying client** and VRF signing (guest-side, already
+  expressible via `http_request` — no ABI change). See the revised §5.
+
+---
+
 ## 1. Problem
 
 Today a page is a **URL descriptor and nothing else**:
@@ -197,20 +223,28 @@ Only the small `Page` descriptor crosses the WASM boundary; the multi-MB image n
 
 ## 5. What we build now vs defer
 
-**Now (for MangaFire):**
-- Wire: add `headers` + `transform` to `Page`/`PageWire`; add `PageTransform`/`PageTransformWire` with the
-  single `TileShuffle` variant. Keep `Wire.kt` ↔ `wire.rs` field-for-field identical (one commit).
-- Domain `Page` + mapper; the unknown-transform → error-page sentinel.
-- Reader: header pass-through + a `TileShuffle` Coil `Transformation`; point `LocalPageImageLoader` at the
-  CF client (Cloudflare milestone).
-- Cross-engine test: a fake source emitting a `TileShuffle` page, asserting the descriptor round-trips
-  through both engines; a unit test for the transform on a synthetic bitmap.
+Revised after §0: MangaFire needs headers + CF, **not** descramble. So the *only* page-ABI change to
+build now is per-page `headers`; both `transform` tiers are deferred against a real scrambling source.
 
-**Deferred (escape hatch, Option C) — additive, no break when it lands:**
-- A `process_page_image(context, bytes) → bytes` export for byte-level schemes (decrypt/XOR) that a
-  descriptor can't express. Trigger: the first source that needs it. Because tier-2 pages are marked by
-  `transform` and tier-3 would be marked by a *different* new field, adding it later is additive — an old
-  host simply never asks a new-enough source to post-process.
+**Now (for MangaFire):**
+- Wire: add **only** `headers` to `Page`/`PageWire` (guest attaches the `Referer` the app must send when
+  fetching that page). Keep `Wire.kt` ↔ `wire.rs` field-for-field identical (one commit). This is
+  *additive* — an old host ignoring `headers` just omits a header, a recoverable failure, **not** a
+  silent wrong image — so it does **not** force an ABI bump on its own (contrast §6).
+- Domain `Page` + mapper gain `headers`; reader passes them into the `ImageRequest`.
+- Route `LocalPageImageLoader` (and the cover loader) at the **CF client** — the Cloudflare milestone.
+- VRF signing stays entirely guest-side (the guest sets its own `http_request` headers) — no ABI change.
+
+**Deferred — tier-2 descramble (this doc's main design), against the first scrambling source:**
+- Add `transform` + `PageTransform`/`PageTransformWire` (`TileShuffle`), the unknown-transform sentinel,
+  the Coil `Transformation`, and the ABI bump (§6). Confirm that source's real grid model to close O1
+  (§7) at that point. Everything above the wire is already designed here.
+
+**Deferred — tier-3 escape hatch (Option C) — additive, no break when it lands:**
+- A `process_page_image(context, bytes) → bytes` export for byte-level schemes (decrypt/XOR) a descriptor
+  can't express. Trigger: the first source that needs it. Because tier-2 pages are marked by `transform`
+  and tier-3 by a *different* new field, adding it later is additive — an old host simply never asks a
+  new-enough source to post-process.
 
 ## 6. Versioning decision
 
@@ -222,14 +256,14 @@ must be built against ≥ the host) is the intended, visible failure.
 
 ## 7. Open decisions (resolve before coding)
 
-- **O1 — Grid model: count vs pixel size.** `TileShuffle` is defined by tile **count** (`cols`×`rows`),
-  which is dimension-independent so the guest needs no image fetch. If MangaFire actually scrambles by a
-  **fixed piece size** (variable count per image), the guest can't emit `cols`/`rows` without the image
-  dimensions. Two resolutions: (a) guest reads only the JPEG SOF dimension header via a **ranged fetch**
-  (a few KB, not the whole image) and converts to a count grid; (b) add a `TileShufflePx { piece: u32,
-  permutationSeed }` variant and let the app derive the grid from decoded dims — but that pushes the
-  *permutation algorithm* into the app, which N3 forbids. **Recommendation: (a)** — keep the algorithm in
-  the guest, pay a small header fetch only for sources that need it. Confirm MangaFire's real scheme first.
+- **O1 — Grid model: count vs pixel size. [RESOLVED — moot for MangaFire; see §0.]** MangaFire does not
+  scramble today, so this no longer blocks anything. The standing design answer for the *first actual
+  scrambling source*: `TileShuffle` is defined by tile **count** (`cols`×`rows`), dimension-independent so
+  the guest needs no image fetch. If that source scrambles by a **fixed piece size** (variable count per
+  image), prefer (a) the guest reads only the JPEG SOF dimension header via a **ranged fetch** (a few KB)
+  and converts to a count grid — keeping the algorithm guest-side — over (b) a `TileShufflePx` variant
+  that would push the permutation algorithm app-side (N3 forbids). Confirm against that source's real
+  scheme when it arrives.
 - **O2 — Error semantics for an unknown/failed transform.** Confirm the reader gets a distinct
   `ReaderState`/page state for "transform unsupported" vs "fetch failed" so the message is truthful.
 - **O3 — Remainder tiles.** When image dims aren't divisible by the grid, define whether edge tiles get

@@ -30,12 +30,25 @@ until the vocabulary + app grow. The escape hatch — a guest `process_page_imag
 image — a silent wrong result. So bump `ABI_VERSION`/`SourceAbi.VERSION` (v4 → v5) together, making a
 mismatched host refuse the source loudly.
 
-**Open before coding (see doc §7):** confirm MangaFire scrambles by tile *count* vs fixed *piece size*
-(O1 — if piece size, the guest resolves image dims via a small ranged fetch rather than pushing the
-algorithm app-side); the unsupported-transform error state (O2); remainder-tile behavior (O3).
+**O1 resolved (2026-07-26): MangaFire does not scramble today, so descramble is deferred.** Checked the
+canonical keiyoushi extension: `getPageList` returns `page.url` directly, `PageDto` is just `{url}`, and
+the latest image commit (`cf202f5`) only *added a `Referer` header*. MangaFire's real barriers are
+Cloudflare/WAF + VRF request signing, not scrambled bytes. Building the descramble tier now would repeat
+the "build blind against no live target" mistake the Cloudflare interceptor was deferred to avoid.
 
-**Trigger to build:** the MangaFire milestone, alongside the Cloudflare interceptor (the page loader must
-move onto the interceptor-carrying client for any of this to fetch at all).
+So the plan splits:
+- **Build now (MangaFire):** add only per-page `headers` to `Page`/`PageWire` (the `Referer`) — additive,
+  no ABI bump on its own — and route the page/cover image loader through the Cloudflare-carrying client.
+  VRF signing is guest-side (no ABI change).
+- **Deferred to the first source that actually scrambles:** the `transform`/`PageTransform` tier (with the
+  ABI bump), and the guest byte-processing escape hatch. The full design + `TileShuffle` vocabulary is
+  kept on the shelf in `design-page-image-abi.md`; O1's count-vs-piece-size answer is recorded there for
+  when that source appears. (Scrambling is a real pattern — older MangaFire builds shipped an
+  `ImageInterceptor` — so the design isn't wasted.)
+
+**Trigger to build the descramble tier:** the first scrambling source. **Trigger for the header change:**
+the MangaFire milestone, alongside the Cloudflare interceptor (the page loader must move onto the
+interceptor-carrying client for MangaFire to fetch at all).
 
 ---
 
