@@ -112,4 +112,5 @@ fun Wire.PageWire.toDomain(): Page =
         index = index.toUInt(),
         imageUrl = imageUrl.toUrlOrNull(),
         url = url.toUrlOrNull(),
+        headers = headers,
     )

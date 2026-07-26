@@ -235,6 +235,8 @@ class MangaDexSourceEngineTest {
         assertEquals("https://cdn.mangadex.org/node1/data/abc123/1.jpg", pages.first().imageUrl)
         assertEquals(2, pages.last().index)
         assertEquals("https://cdn.mangadex.org/node1/data/abc123/3.jpg", pages.last().imageUrl)
+        // MangaDex's CDN needs no per-page headers; the field defaults to empty (the common path).
+        assertTrue(pages.first().headers.isEmpty())
 
         module.close()
     }

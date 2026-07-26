@@ -227,12 +227,13 @@ Revised after §0: MangaFire needs headers + CF, **not** descramble. So the *onl
 build now is per-page `headers`; both `transform` tiers are deferred against a real scrambling source.
 
 **Now (for MangaFire):**
-- Wire: add **only** `headers` to `Page`/`PageWire` (guest attaches the `Referer` the app must send when
-  fetching that page). Keep `Wire.kt` ↔ `wire.rs` field-for-field identical (one commit). This is
-  *additive* — an old host ignoring `headers` just omits a header, a recoverable failure, **not** a
-  silent wrong image — so it does **not** force an ABI bump on its own (contrast §6).
-- Domain `Page` + mapper gain `headers`; reader passes them into the `ImageRequest`.
-- Route `LocalPageImageLoader` (and the cover loader) at the **CF client** — the Cloudflare milestone.
+- ~~Wire: add `headers` to `Page`/`PageWire`.~~ **Done (2026-07-26):** additive `headers` map on
+  `wire.rs Page` ↔ `Wire.kt PageWire`, kept field-for-field identical; no ABI bump (an old host ignoring
+  it just omits a header — recoverable, not a silent wrong image, contrast §6).
+- ~~Domain `Page` + mapper gain `headers`; reader passes them into the `ImageRequest`.~~ **Done:** the
+  reader applies them via Coil `httpHeaders()` (render + prefetch share one `toImageRequest` builder).
+- ~~Route `LocalPageImageLoader` (and the cover loader) at the **CF client**.~~ **Done** (see the
+  Cloudflare-interceptor decision in `decisions.md`).
 - VRF signing stays entirely guest-side (the guest sets its own `http_request` headers) — no ABI change.
 
 **Deferred — tier-2 descramble (this doc's main design), against the first scrambling source:**

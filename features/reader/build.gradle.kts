@@ -56,6 +56,8 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             // Page images, loaded through the app's singleton ImageLoader configured in App.kt.
             implementation(libs.coil.compose)
+            // NetworkHeaders / httpHeaders() — per-page request headers (e.g. a source's Referer).
+            implementation(libs.coil.network.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

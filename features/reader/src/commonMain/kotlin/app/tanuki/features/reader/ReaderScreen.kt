@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -40,14 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ChevronRightIcon
@@ -71,6 +71,8 @@ import app.tanuki.features.reader.viewmodel.ReaderState
 import app.tanuki.features.reader.viewmodel.ReaderViewModel
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import kotlinx.coroutines.launch
@@ -123,13 +125,15 @@ private fun ReaderScreen(
     // nothing tints the artwork. This is a deliberate reader convention, not an off-token colour.
     Box(modifier.fillMaxSize().background(Color.Black)) {
         when (val current = state) {
-            ReaderState.Loading ->
+            ReaderState.Loading -> {
                 TanukiLoadingIndicator(Modifier.align(Alignment.Center))
+            }
 
-            ReaderState.Error ->
+            ReaderState.Error -> {
                 ReaderError(onRetry = viewModel::onRetry, modifier = Modifier.align(Alignment.Center))
+            }
 
-            is ReaderState.Content ->
+            is ReaderState.Content -> {
                 ReaderContent(
                     content = current,
                     onPageChanged = viewModel::onPageChanged,
@@ -138,6 +142,7 @@ private fun ReaderScreen(
                     onPreviousChapter = viewModel::onPreviousChapter,
                     onNextChapter = viewModel::onNextChapter
                 )
+            }
         }
     }
 }
@@ -282,14 +287,35 @@ private fun ReaderPage(
                 indication = null,
                 onClick = onToggleChrome
             )
+    val context = LocalPlatformContext.current
+    // An ImageRequest (not a bare URL) so the source's per-page headers ride along — e.g. a Referer a
+    // hotlink-guarded host requires. The fetch runs on the Cloudflare-carrying page loader.
+    val request = remember(context, page) { page.toImageRequest(context) }
     AsyncImage(
-        model = page.imageUrl?.value ?: page.url?.value,
+        model = request,
         contentDescription = null,
         imageLoader = LocalPageImageLoader.current,
         contentScale = if (fillHeight) ContentScale.Fit else ContentScale.FillWidth,
         modifier = if (fillHeight) base.fillMaxSize() else base
     )
 }
+
+/**
+ * Builds the [ImageRequest] for a [Page], attaching its source-provided [Page.headers] (empty for most
+ * sources). Shared by [ReaderPage] and [PagePrefetch] so a prefetched image is byte-for-byte the request
+ * the page later renders — same URL *and* same headers, so both hit the same cache entry.
+ */
+private fun Page.toImageRequest(context: coil3.PlatformContext): ImageRequest =
+    ImageRequest
+        .Builder(context)
+        .data(imageUrl?.value ?: url?.value)
+        .httpHeaders(
+            if (headers.isEmpty()) {
+                NetworkHeaders.EMPTY
+            } else {
+                NetworkHeaders.Builder().apply { headers.forEach { (name, value) -> add(name, value) } }.build()
+            }
+        ).build()
 
 /**
  * Enqueues the next [PAGE_PREFETCH_AHEAD] pages after [currentPage] into the page cache with no target,
@@ -308,8 +334,9 @@ private fun PagePrefetch(
         val start = currentPage + 1
         val end = minOf(start + PAGE_PREFETCH_AHEAD, pages.size)
         for (index in start until end) {
-            val url = pages[index].imageUrl?.value ?: pages[index].url?.value ?: continue
-            imageLoader.enqueue(ImageRequest.Builder(context).data(url).build())
+            val page = pages[index]
+            if (page.imageUrl == null && page.url == null) continue
+            imageLoader.enqueue(page.toImageRequest(context))
         }
     }
 }
@@ -474,8 +501,7 @@ private fun ColumnScope.PageScrubber(
 private fun chapterTitle(
     number: ChapterNumber?,
     name: String?
-): String =
-    name ?: stringResource(Res.string.reader_chapter_number, number?.let(::formatChapterNumber) ?: "")
+): String = name ?: stringResource(Res.string.reader_chapter_number, number?.let(::formatChapterNumber) ?: "")
 
 /** Formats a chapter number without a trailing `.0` — `4.0` → "4", `4.5` → "4.5". */
 private fun formatChapterNumber(number: ChapterNumber): String {

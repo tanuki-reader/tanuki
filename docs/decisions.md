@@ -32,9 +32,11 @@ bindings). Solvers use the common `DispatcherProvider.main` (WebView/WKWebView a
 - ~~Image loaders bypass it.~~ **Done (2026-07-26):** the cover and page Coil loaders
   (`newTanukiImageLoader` / `newTanukiPageImageLoader`) now fetch over the shared client via
   `KtorNetworkFetcherFactory(httpClient = …)`, wired from `AppGraph.sourceHttpClient` in `App.kt`, so
-  image fetches inherit the `cf_clearance` a source's API calls solved for the same host. The remaining
-  image-path item is the page-image `headers` ABI field (the per-page `Referer`) — see the page-image
-  decision below.
+  image fetches inherit the `cf_clearance` a source's API calls solved for the same host.
+- ~~Page-image `headers` ABI field.~~ **Done (2026-07-26):** `Page`/`PageWire`/`wire.rs Page` gained an
+  additive `headers` map (no ABI bump); the reader applies it via Coil `httpHeaders()` on the page
+  ImageRequest (render + prefetch share one builder). MangaFire's `Referer` now has a path; the guest
+  emits it when that source lands.
 
 ---
 

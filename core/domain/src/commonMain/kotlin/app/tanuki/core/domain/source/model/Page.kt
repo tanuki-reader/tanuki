@@ -19,9 +19,13 @@ import app.tanuki.core.domain.common.model.Url
  * @property index zero-based position of the page within its chapter.
  * @property imageUrl direct image URL; `null` when it must be resolved from [url].
  * @property url page URL to resolve when [imageUrl] is absent; `null` when [imageUrl] is direct.
+ * @property headers per-request headers the reader must send when fetching this page's image — e.g. a
+ *   `Referer` for a hotlink-guarded source. Empty (the default) for sources that need none, like MangaDex.
+ *   Content headers from the source, not display copy, so plain `String`s (never localized).
  */
 data class Page(
     val index: UInt,
     val imageUrl: Url?,
-    val url: Url?
+    val url: Url?,
+    val headers: Map<String, String> = emptyMap()
 )

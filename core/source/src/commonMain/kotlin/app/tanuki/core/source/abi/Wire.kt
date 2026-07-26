@@ -180,6 +180,13 @@ object Wire {
         val imageUrl: String? = null,
         /** Page URL to resolve when [imageUrl] is absent. */
         val url: String? = null,
+        /**
+         * Per-request headers the app must send when fetching this page's image (e.g. a `Referer` for a
+         * hotlink-guarded host). Empty — the default — means none. Additive within [SourceAbi.VERSION]:
+         * an older host ignores it (and just omits a header, a recoverable fetch failure), so unlike a
+         * page transform this needs no version bump. See `docs/design-page-image-abi.md`.
+         */
+        val headers: Map<String, String> = emptyMap(),
     )
 
     /** A network request a guest asks the host to perform via [SourceAbi.Imports.HTTP_REQUEST]. */
