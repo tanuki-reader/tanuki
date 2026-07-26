@@ -83,6 +83,7 @@ fun MangaContentView(
     onOpenChapterFilter: () -> Unit,
     onManageCategories: () -> Unit,
     onEditReadingStatus: () -> Unit,
+    onEditReadingMode: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
     onReadClick: () -> Unit,
     onAddToLibrary: () -> Unit,
@@ -225,6 +226,7 @@ fun MangaContentView(
                         manga = state.manga,
                         source = state.source,
                         inLibrary = state.inLibrary,
+                        onEditReadingMode = onEditReadingMode,
                         onAddToLibrary = onAddToLibrary,
                         onRemoveFromLibrary = onRemoveFromLibrary,
                         modifier = Modifier.fillMaxSize()

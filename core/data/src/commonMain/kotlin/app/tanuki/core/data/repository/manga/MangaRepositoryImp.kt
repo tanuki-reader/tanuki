@@ -3,6 +3,7 @@ package app.tanuki.core.data.repository.manga
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import dev.zacsweers.metro.AppScope
@@ -59,6 +60,9 @@ class MangaRepositoryImp(
         // `dateAddedIfAbsent` is only used when the manga isn't yet in the library (implicit add). An
         // existing membership keeps its original added date; only the status column is updated.
         mangaDao.setReadingStatus(mangaId, status, Clock.System.now())
+
+    override suspend fun setReadingMode(mangaId: Uuid, mode: ReadingMode) =
+        mangaDao.updateReadingMode(mangaId, mode)
 
     override suspend fun deleteManga(mangaId: Uuid) = mangaDao.deleteById(mangaId)
 

@@ -25,6 +25,7 @@ import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.manga.composable.MangaContentView
 import app.tanuki.features.manga.composable.components.ChapterFilterSheet
 import app.tanuki.features.manga.composable.components.MangaCategoriesSheet
+import app.tanuki.features.manga.composable.components.ReadingModeSheet
 import app.tanuki.features.manga.composable.components.ReadingStatusSheet
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_not_found
@@ -76,6 +77,7 @@ private fun MangaScreen(
     var showCategoriesSheet by remember { mutableStateOf(false) }
     var showChapterFilterSheet by remember { mutableStateOf(false) }
     var showReadingStatusSheet by remember { mutableStateOf(false) }
+    var showReadingModeSheet by remember { mutableStateOf(false) }
     // Reported by MangaContentView as the hero collapses; drives the top bar's solid/title state.
     var heroCollapsed by remember { mutableStateOf(false) }
 
@@ -113,6 +115,7 @@ private fun MangaScreen(
                         onOpenChapterFilter = { showChapterFilterSheet = true },
                         onManageCategories = { showCategoriesSheet = true },
                         onEditReadingStatus = { showReadingStatusSheet = true },
+                        onEditReadingMode = { showReadingModeSheet = true },
                         onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
                         onReadClick = viewModel::onReadClick,
                         onAddToLibrary = viewModel::onAddToLibrary,
@@ -164,6 +167,16 @@ private fun MangaScreen(
                     showReadingStatusSheet = false
                 },
                 onDismiss = { showReadingStatusSheet = false }
+            )
+        }
+        if (showReadingModeSheet && content != null) {
+            ReadingModeSheet(
+                current = content.manga.readingMode,
+                onSelect = { mode ->
+                    viewModel.onSetReadingMode(mode)
+                    showReadingModeSheet = false
+                },
+                onDismiss = { showReadingModeSheet = false }
             )
         }
     }

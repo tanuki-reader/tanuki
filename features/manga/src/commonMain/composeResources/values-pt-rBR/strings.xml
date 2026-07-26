@@ -71,6 +71,14 @@
     <string name="manga_reading_status_dropped">Abandonado</string>
     <string name="manga_reading_status_planning">Pretendo ler</string>
 
+    <!-- Controle de modo de leitura na aba Info (linha de ajuste + folha de seleção): layout das páginas. -->
+    <string name="manga_reading_mode_title">Modo de leitura</string>
+    <string name="manga_reading_mode_left_to_right">Da esquerda para a direita</string>
+    <string name="manga_reading_mode_right_to_left">Da direita para a esquerda</string>
+    <string name="manga_reading_mode_webtoon">Webtoon</string>
+    <string name="manga_reading_mode_vertical">Vertical</string>
+    <string name="manga_reading_mode_continuous_vertical">Vertical contínuo</string>
+
     <!-- Chip de status de publicação no destaque. -->
     <string name="manga_status_ongoing">Em andamento</string>
     <string name="manga_status_completed">Concluído</string>

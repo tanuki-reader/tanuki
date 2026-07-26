@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
+import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Instant
@@ -112,6 +113,17 @@ interface MangaDao {
     suspend fun updateFilteredScanlators(
         mangaId: Uuid,
         encoded: String?,
+    )
+
+    /**
+     * Writes only the reading-mode column of a manga's row, leaving the rest alone — like
+     * [updateFilteredScanlators], a whole-row upsert from a stale detail-sync snapshot would otherwise
+     * undo the user's choice.
+     */
+    @Query("UPDATE manga SET reading_mode = :mode WHERE id = :mangaId")
+    suspend fun updateReadingMode(
+        mangaId: Uuid,
+        mode: ReadingMode,
     )
 
     /** Writes only the reading-status column of an existing `library` row; a no-op if there is none. */

@@ -20,11 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.assets.designSystem.component.ChevronRightIcon
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.SourceIcon
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.source.model.Source
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_info_add_to_library
@@ -36,6 +38,7 @@ import app.tanuki.features.manga.resources.manga_info_show_less
 import app.tanuki.features.manga.resources.manga_info_show_more
 import app.tanuki.features.manga.resources.manga_info_source
 import app.tanuki.features.manga.resources.manga_info_source_unknown
+import app.tanuki.features.manga.resources.manga_reading_mode_title
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -50,12 +53,15 @@ import org.jetbrains.compose.resources.stringResource
  * @param manga the series whose metadata to present.
  * @param source the manga's source, or `null` when it isn't persisted locally (shows a fallback label).
  * @param inLibrary whether the manga is currently in the library — picks which library action to show.
+ * @param onEditReadingMode the reading-mode row was tapped — open the picker sheet. Lives here (not the
+ *   hero) because it is a reading preference that applies whether or not the manga is in the library.
  */
 @Composable
 internal fun MangaInfoTab(
     manga: Manga,
     source: Source?,
     inLibrary: Boolean,
+    onEditReadingMode: () -> Unit,
     onAddToLibrary: () -> Unit,
     onRemoveFromLibrary: () -> Unit,
     modifier: Modifier = Modifier
@@ -94,6 +100,10 @@ internal fun MangaInfoTab(
 
         InfoSection(title = stringResource(Res.string.manga_info_source)) {
             SourceRow(source)
+        }
+
+        InfoSection(title = stringResource(Res.string.manga_reading_mode_title)) {
+            ReadingModeRow(mode = manga.readingMode, onClick = onEditReadingMode)
         }
 
         if (inLibrary) {
@@ -171,6 +181,36 @@ private fun InfoSection(
     Column(verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.sm)) {
         SectionHeader(title = title)
         content()
+    }
+}
+
+/**
+ * The current reading mode as a tappable value row — its localized label with a drill-down chevron, the
+ * whole row opening the picker sheet via [onClick]. Composed from the design system's primitives (like
+ * [SourceRow] above) so it keeps the Info tab's gutter alignment, rather than a full-bleed `TanukiListRow`.
+ */
+@Composable
+private fun ReadingModeRow(
+    mode: ReadingMode,
+    onClick: () -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.md),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+    ) {
+        Text(
+            text = stringResource(mode.labelResource()),
+            style = TanukiTheme.typography.body,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        ChevronRightIcon(tint = TanukiTheme.colors.textFaint)
     }
 }
 

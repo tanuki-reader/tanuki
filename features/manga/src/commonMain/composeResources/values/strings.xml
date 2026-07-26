@@ -72,6 +72,14 @@
     <string name="manga_reading_status_dropped">Dropped</string>
     <string name="manga_reading_status_planning">Plan to read</string>
 
+    <!-- Reading-mode control on the Info tab (settings row + picker sheet): how pages are laid out. -->
+    <string name="manga_reading_mode_title">Reading mode</string>
+    <string name="manga_reading_mode_left_to_right">Left to right</string>
+    <string name="manga_reading_mode_right_to_left">Right to left</string>
+    <string name="manga_reading_mode_webtoon">Webtoon</string>
+    <string name="manga_reading_mode_vertical">Vertical</string>
+    <string name="manga_reading_mode_continuous_vertical">Continuous vertical</string>
+
     <!-- Publication status chip in the hero. -->
     <string name="manga_status_ongoing">Ongoing</string>
     <string name="manga_status_completed">Completed</string>

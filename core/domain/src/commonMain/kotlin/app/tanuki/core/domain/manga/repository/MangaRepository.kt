@@ -1,6 +1,7 @@
 package app.tanuki.core.domain.manga.repository
 
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.Uuid
@@ -83,6 +84,20 @@ interface MangaRepository {
     suspend fun setReadingStatus(
         mangaId: Uuid,
         status: ReadingStatus
+    )
+
+    /**
+     * Sets how a manga's pages are laid out when reading. A targeted write to the `manga` row's
+     * reading-mode column (like [setFilteredScanlators]), so a concurrent detail sync can't clobber it.
+     * Unlike [setReadingStatus] this is a source-owned column that exists whether or not the manga is in
+     * the library, so it never adds a membership.
+     *
+     * @param mangaId Local id of the manga.
+     * @param mode The reading mode to record.
+     */
+    suspend fun setReadingMode(
+        mangaId: Uuid,
+        mode: ReadingMode
     )
 
     /**

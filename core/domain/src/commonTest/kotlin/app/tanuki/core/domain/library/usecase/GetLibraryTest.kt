@@ -179,6 +179,7 @@ private class FakeMangaRepository(
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
 
     override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) = error("unused")
+    override suspend fun setReadingMode(mangaId: Uuid, mode: ReadingMode) = error("unused")
 
     override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
 

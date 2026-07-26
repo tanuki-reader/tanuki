@@ -10,11 +10,13 @@ import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
+import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
 import app.tanuki.core.domain.manga.usecase.ObserveManga
 import app.tanuki.core.domain.manga.usecase.RemoveMangaFromLibrary
 import app.tanuki.core.domain.manga.usecase.SetFilteredScanlators
+import app.tanuki.core.domain.manga.usecase.SetReadingMode
 import app.tanuki.core.domain.manga.usecase.SetReadingStatus
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
@@ -74,6 +76,7 @@ class MangaViewModel(
     private val addToLibrary: AddToLibrary,
     private val removeMangaFromLibrary: RemoveMangaFromLibrary,
     private val setReadingStatus: SetReadingStatus,
+    private val setReadingMode: SetReadingMode,
     private val setFilteredScanlators: SetFilteredScanlators,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
@@ -197,6 +200,22 @@ class MangaViewModel(
         viewModelScope.launch {
             withContext(dispatcher.io) {
                 setReadingStatus(mangaId, status)
+            }
+        }
+    }
+
+    /**
+     * A reading mode was picked in the reading-mode sheet — record it (live-apply). Reading mode is a
+     * source-owned per-title preference on the manga row, so — unlike [onSetReadingStatus] — this never
+     * adds the manga to the library. The reactive pipeline re-emits with the new [Manga.readingMode], and
+     * the reader reads it back when opening a chapter.
+     */
+    fun onSetReadingMode(mode: ReadingMode) {
+        val content = uiState.value as? Content ?: return
+        if (content.manga.readingMode == mode) return
+        viewModelScope.launch {
+            withContext(dispatcher.io) {
+                setReadingMode(mangaId, mode)
             }
         }
     }
