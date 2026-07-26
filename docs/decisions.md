@@ -6,29 +6,34 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
-## 2026-07-26 — MangaFire source scaffolded; JSON API (not scraping), blocked on VRF transcription
+## 2026-07-26 — MangaFire source built (JSON API + VRF signing wired)
 
-**Decision:** started the MangaFire guest (`native/sources/mangafire/`). Key finding while researching the
-real keiyoushi extension: **current MangaFire is a clean JSON API** (`/api/titles`,
-`/api/titles/{hid}`, `/api/titles/{hid}/chapters`, `/api/chapters/{id}`) — **no HTML scraping, no CSS
-selectors, no AJAX** — so the guest is structurally like MangaDex (serde over JSON), and needs no
-in-wasm HTML parser. Page images are direct URLs that require a `Referer`, carried via the ABI's new
-per-page `headers`. All five exports and `meta()` are implemented; the source loads and runs on both
-engines (`MangaFireSourceEngineTest`, green on Chicory + wasmi).
+**Decision:** built the MangaFire guest (`native/sources/mangafire/`). Key finding: **current MangaFire
+is a clean JSON API** (`/api/titles`, `/api/titles/{hid}`, `/api/titles/{hid}/chapters`,
+`/api/chapters/{id}`) — **no HTML scraping, no CSS selectors, no AJAX** — so the guest is serde-over-JSON
+like MangaDex, no in-wasm HTML parser. Page images are direct URLs needing a `Referer`, carried via the
+ABI's per-page `headers`. All five exports + `meta()` implemented.
 
-**Blocked (needs verbatim transcription from the reference — not reliably obtainable via web fetch):**
-- **VRF signing** (`vrf.rs`) — MangaFire rejects any `/api/*` call without a valid `vrf` token, produced
-  by a 3-stage substitution cipher keyed by **six large base64 constants** (three 256-byte S-boxes +
-  three keys) plus the exact *signed input*. Transcribing those wrong would silently 403 every request,
-  so the cipher is implemented but its constants are zeroed placeholders behind `vrf::CONFIGURED = false`;
-  every API export fails **loudly** with a `"config"` `AbiError` until they're filled from `VrfSigner.kt`.
-- **A few DTO details** marked `TODO(dto)`: poster/author field names, `createdAt` unit (assumed epoch
-  seconds → ms), the manga permalink scheme, status-name mapping, and whether responses are wrapped.
-  Confirm against `Dto.kt` or a live response.
+**VRF signing (`vrf.rs`) — now wired** from the reference `VrfSigner.kt`: a 3-stage substitution cipher
+(`prev = TABLE[(data[i] ^ KEY[i%len] ^ prev) & 0xFF]`, IVs `0x5A/0x35/0xBA`), keyed by six base64
+constants stored verbatim and decoded at runtime (as the reference does — no hand-transcription of
+bytes). The **signed input** is the `/api`-stripped path + params **sorted by key** with `key[]`→`key[i]`
+indexing over **decoded** values; the wire request re-emits encoded values + the `vrf` token.
 
-**To finish (fastest path):** paste the reference `VrfSigner.kt` (constants + signed-input construction)
-and `Dto.kt`; then wire the constants, flip `CONFIGURED`, confirm the DTO fields, and add canned-response
-parsing tests like MangaDex's. Live challenge testing then also tunes the WebView/WKWebView solvers.
+**DTOs** confirmed against the real `Dto.kt`: `PosterDto{small,medium,large}` (cover = large→medium→small),
+`EntityDto{title}` (authors joined), details/pages wrapped in `{data:…}` (lists are `{items,meta}`),
+`meta.hasNext` drives pagination, `createdAt` epoch seconds ×1000, permalink `/title/{hid}-{slug}`, status
+`releasing/finished/on_hiatus/discontinued` → ongoing/completed/hiatus/cancelled. Synopsis HTML is
+tag-stripped in-guest (no DOM parser in wasm).
+
+**Verified:** `MangaFireSourceEngineTest` (canned JSON, CapturingHost) exercises meta + a signed
+`manga_list` (asserts the `order[views_30d]` param + a `vrf` token + parsing) + `chapter_pages` (asserts
+the `Referer` header) — green on **Chicory and wasmi**.
+
+**Remaining (needs the live site — the project doesn't hit live services in tests):** confirm the `vrf`
+token is accepted by the server (only checkable live) and tune the WebView/WKWebView Cloudflare solvers
+against a real challenge. Smaller follow-ups: list volumes (`/api/titles/{hid}/volumes`), a raster
+`icon_url`, and whether `type` is the right `scanlator` stand-in.
 
 ---
 
