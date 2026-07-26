@@ -1,6 +1,7 @@
 package app.tanuki.core.data.repository.chapter
 
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.core.domain.chapter.model.ReadingProgress
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import dev.zacsweers.metro.AppScope
@@ -39,6 +40,14 @@ class ChapterRepositoryImp(
 
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> =
         withContext(dispatcherProvider.io) { chapterDao.getChapters(mangaId).toDomain() }
+
+    override suspend fun getChapter(chapterId: Uuid): Chapter? =
+        withContext(dispatcherProvider.io) { chapterDao.getChapter(chapterId)?.toDomain() }
+
+    override suspend fun updateProgress(
+        chapterId: Uuid,
+        progress: ReadingProgress
+    ) = withContext(dispatcherProvider.io) { chapterDao.upsertProgress(progress.toEntity(chapterId)) }
 
     override suspend fun upsertChapter(chapter: Chapter) =
         chapterDao.upsertWithProgress(chapter.toEntity(), chapter.toProgressEntity())

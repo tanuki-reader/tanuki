@@ -223,6 +223,8 @@ private class FakeChapterRepository(private val existing: List<Chapter> = emptyL
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(existing)
     override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
+    override suspend fun getChapter(chapterId: Uuid): Chapter? = existing.firstOrNull { it.id == chapterId }
+    override suspend fun updateProgress(chapterId: Uuid, progress: ReadingProgress) = error("the sync never writes progress")
     override suspend fun upsertChapter(chapter: Chapter) = error("the sync writes in bulk")
     override suspend fun deleteChapter(chapterId: Uuid) = error("the sync deletes in bulk")
 }

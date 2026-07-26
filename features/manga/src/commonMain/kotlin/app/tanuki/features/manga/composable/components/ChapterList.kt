@@ -36,6 +36,7 @@ import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_chapter_date
 import app.tanuki.features.manga.resources.manga_chapter_meta
 import app.tanuki.features.manga.resources.manga_chapter_number
+import app.tanuki.features.manga.resources.manga_chapter_page
 import app.tanuki.features.manga.resources.manga_chapter_untitled
 import app.tanuki.features.manga.resources.manga_chapters_filter
 import app.tanuki.features.manga.resources.manga_chapters_sort
@@ -196,7 +197,16 @@ private fun ChapterRow(
     onClick: () -> Unit
 ) {
     val spacing = TanukiTheme.spacing
-    val read = chapter.progress?.alreadyRead == true
+    val progress = chapter.progress
+    val read = progress?.alreadyRead == true
+    // A chapter the user opened but hasn't finished, and got past the first page: worth showing where
+    // they stopped. lastPageRead is a zero-based index, so the visible page is +1.
+    val resumePage =
+        progress
+            ?.takeIf { !read && it.lastPageRead > 0u }
+            ?.lastPageRead
+            ?.toInt()
+            ?.plus(1)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.md),
@@ -215,7 +225,7 @@ private fun ChapterRow(
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(spacing.xxs),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.weight(1f)
         ) {
             Text(
                 text = chapter.title(),
@@ -243,6 +253,14 @@ private fun ChapterRow(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+        resumePage?.let { page ->
+            Text(
+                text = stringResource(Res.string.manga_chapter_page, page),
+                style = TanukiTheme.typography.caption,
+                color = TanukiTheme.colors.accent,
+                maxLines = 1
+            )
         }
     }
 }

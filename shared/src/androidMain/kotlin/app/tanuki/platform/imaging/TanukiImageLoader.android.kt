@@ -13,3 +13,9 @@ internal actual fun coverCacheDirectory(context: PlatformContext): Path =
         .resolve("cover_cache")
         .absolutePath
         .toPath()
+
+internal actual fun pageCacheDirectory(context: PlatformContext): Path =
+    context.cacheDir
+        .resolve("page_cache")
+        .absolutePath
+        .toPath()

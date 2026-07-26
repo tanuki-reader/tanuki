@@ -31,6 +31,9 @@
     <!-- A chapter's upload date. %1$s is the abbreviated month, %2$d the day, %3$d the year.
          Reorder the placeholders to match how dates read in this language. -->
     <string name="manga_chapter_date">%1$s %2$d, %3$d</string>
+    <!-- In-progress marker on a partially-read chapter row: the 1-based page the user stopped on.
+         %1$d is that page number. -->
+    <string name="manga_chapter_page">Page %1$d</string>
 
     <!-- Abbreviated month names for the chapter upload date. -->
     <string name="manga_month_jan">Jan</string>

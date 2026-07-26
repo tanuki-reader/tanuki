@@ -30,6 +30,9 @@
     <string name="manga_chapter_meta">%1$s · %2$s</string>
     <!-- Data de publicação do capítulo. %1$s é o mês abreviado, %2$d o dia, %3$d o ano. -->
     <string name="manga_chapter_date">%2$d de %1$s de %3$d</string>
+    <!-- Marcador de leitura em andamento na linha do capítulo: a página (base 1) onde o usuário parou.
+         %1$d é esse número de página. -->
+    <string name="manga_chapter_page">Página %1$d</string>
 
     <!-- Meses abreviados para a data de publicação do capítulo. -->
     <string name="manga_month_jan">jan</string>

@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ArrowDownwardIcon
 import app.tanuki.assets.designSystem.component.ArrowUpwardIcon
-import app.tanuki.assets.designSystem.component.MangaCover
+import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.core.domain.history.model.MostReadManga
 import app.tanuki.core.domain.history.model.MostReadManga.ReadTrend
 
@@ -56,9 +56,14 @@ internal fun MostReadRow(
             textAlign = TextAlign.Center,
             modifier = Modifier.width(RANK_WIDTH)
         )
-        MangaCover(
+        MangaCoverTile(
             seed = item.manga.id.toString(),
-            modifier = Modifier.width(COVER_WIDTH).clickable { onOpenSeries(item) }
+            title = "",
+            coverUrl =
+                item.manga.cover.url
+                    ?.value,
+            onClick = { onOpenSeries(item) },
+            modifier = Modifier.width(COVER_WIDTH)
         )
         Column(
             modifier = Modifier.weight(1f).clickable { onOpenSeries(item) },

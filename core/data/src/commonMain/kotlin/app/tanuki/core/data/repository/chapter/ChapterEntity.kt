@@ -135,11 +135,17 @@ fun Chapter.toEntity(): ChapterEntity =
     )
 
 fun Chapter.toProgressEntity(): ReadingProgressEntity? =
-    progress?.let {
-        ReadingProgressEntity(
-            chapterId = id,
-            hasBookmark = it.hasBookmark,
-            lastPageRead = it.lastPageRead.toLong(),
-            alreadyRead = it.alreadyRead,
-        )
-    }
+    progress?.let { it.toEntity(id) }
+
+/**
+ * Maps a standalone [ReadingProgress] to its row for a given [chapterId] — the reader's write path,
+ * where progress is updated on its own (the chapter row is source-owned and untouched), unlike
+ * [Chapter.toProgressEntity] which derives the row from a whole chapter.
+ */
+fun ReadingProgress.toEntity(chapterId: Uuid): ReadingProgressEntity =
+    ReadingProgressEntity(
+        chapterId = chapterId,
+        hasBookmark = hasBookmark,
+        lastPageRead = lastPageRead.toLong(),
+        alreadyRead = alreadyRead,
+    )

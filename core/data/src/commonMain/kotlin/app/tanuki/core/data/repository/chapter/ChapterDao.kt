@@ -49,6 +49,17 @@ interface ChapterDao {
     )
     suspend fun getChapters(mangaId: Uuid): List<ChapterWithProgress>
 
+    @Query(
+        """
+        SELECT chapters.*,
+               reading_progress.has_bookmark, reading_progress.last_page_read, reading_progress.already_read
+        FROM chapters
+        LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+        WHERE chapters.id = :chapterId
+        """,
+    )
+    suspend fun getChapter(chapterId: Uuid): ChapterWithProgress?
+
     @Upsert
     suspend fun upsertChapter(chapter: ChapterEntity)
 

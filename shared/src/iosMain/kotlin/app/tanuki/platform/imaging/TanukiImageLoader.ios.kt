@@ -17,3 +17,9 @@ internal actual fun coverCacheDirectory(context: PlatformContext): Path {
         .first() as String
     return caches.toPath() / "cover_cache"
 }
+
+internal actual fun pageCacheDirectory(context: PlatformContext): Path {
+    val caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true)
+        .first() as String
+    return caches.toPath() / "page_cache"
+}

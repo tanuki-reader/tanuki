@@ -46,7 +46,6 @@ kotlin {
             implementation(projects.core.domain)
             implementation(projects.assets.designSystem)
             implementation(libs.kotlinx.coroutines.core)
-            // Chapter rows render the upload date in the viewer's locale.
             implementation(libs.kotlinx.datetime)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
@@ -56,8 +55,6 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
-            // Cover art for the detail hero (foreground cover + blurred backdrop), via the app's
-            // singleton ImageLoader configured in App.kt.
             implementation(libs.coil.compose)
         }
         commonTest.dependencies {

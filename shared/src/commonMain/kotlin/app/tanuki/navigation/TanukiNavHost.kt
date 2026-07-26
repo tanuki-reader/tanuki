@@ -10,19 +10,14 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -45,6 +40,7 @@ import app.tanuki.features.activity.ActivityRoute
 import app.tanuki.features.home.HomeRoute
 import app.tanuki.features.library.LibraryRoute
 import app.tanuki.features.manga.MangaRoute
+import app.tanuki.features.reader.ReaderRoute
 import app.tanuki.features.settings.SettingsRoute
 import app.tanuki.features.settings.appearance.AppearanceRoute
 import app.tanuki.features.settings.categories.CategoriesRoute
@@ -241,7 +237,6 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                     onBack = { navController.popBackStack() }
                 )
             }
-            // Placeholder until the Reader feature lands, so Manga → Reader taps traverse instead of crashing.
             composable<Reader>(
                 typeMap = uuidTypeMap,
                 enterTransition = leafEnter,
@@ -249,16 +244,24 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
             ) { entry ->
-                ReaderPlaceholder(chapterId = entry.toRoute<Reader>().chapterId)
+                val route = entry.toRoute<Reader>()
+                ReaderRoute(
+                    mangaId = route.mangaId,
+                    chapterId = route.chapterId,
+                    // Paging across chapters REPLACES the current reader rather than stacking a new one,
+                    // so there is only ever one Reader entry above the screen that opened it. Without this
+                    // popUpTo, reading N chapters would leave N reader entries and back would step through
+                    // every one; with it, back (and the system/gesture back) returns straight to the
+                    // opener — MangaDetail in the usual flow. ReaderViewModel only ever navigates to an
+                    // adjacent Reader, so popping to Reader inclusive always targets the current one.
+                    onNavigate = { destination ->
+                        navController.navigate(destination) {
+                            popUpTo<Reader> { inclusive = true }
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
-    }
-}
-
-// TODO: replace with the Reader feature screen (`features/reader`) once it exists.
-@Composable
-private fun ReaderPlaceholder(chapterId: Uuid) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Reader: $chapterId", color = MaterialTheme.colorScheme.onBackground)
     }
 }

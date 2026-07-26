@@ -6,14 +6,18 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.di.AppGraph
+import app.tanuki.features.reader.LocalPageImageLoader
 import app.tanuki.navigation.TanukiNavHost
 import app.tanuki.platform.SystemBarsEffect
 import app.tanuki.platform.imaging.newTanukiImageLoader
+import app.tanuki.platform.imaging.newTanukiPageImageLoader
+import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
 import dev.zacsweers.metrox.viewmodel.LocalMetroViewModelFactory
 import kotlinx.coroutines.launch
@@ -51,9 +55,15 @@ fun App(appGraph: AppGraph) {
             ThemePreference.Light -> false
             ThemePreference.Dark -> true
         }
+    // The reader's page loader — one process-lived instance, built here and handed down to the reader.
+    // Separate from the singleton cover loader set above (see newTanukiPageImageLoader for why).
+    val platformContext = LocalPlatformContext.current
+    val pageImageLoader = remember(platformContext) { newTanukiPageImageLoader(platformContext) }
+
     CompositionLocalProvider(
         LocalAppGraph provides appGraph,
-        LocalMetroViewModelFactory provides appGraph.metroViewModelFactory
+        LocalMetroViewModelFactory provides appGraph.metroViewModelFactory,
+        LocalPageImageLoader provides pageImageLoader
     ) {
         // Keep the status/navigation bar glyphs legible against the theme (the UI is edge-to-edge).
         SystemBarsEffect(darkTheme)

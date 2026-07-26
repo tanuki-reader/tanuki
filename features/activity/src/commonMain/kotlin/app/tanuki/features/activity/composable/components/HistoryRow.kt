@@ -17,7 +17,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
-import app.tanuki.assets.designSystem.component.MangaCover
+import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.features.activity.resources.Res
 import app.tanuki.features.activity.resources.activity_cover_content_description
@@ -60,8 +60,13 @@ internal fun HistoryRow(
     ) {
         val coverDescription =
             stringResource(Res.string.activity_cover_content_description, entry.manga.title.value)
-        MangaCover(
+        MangaCoverTile(
             seed = entry.manga.id.toString(),
+            title = "",
+            coverUrl =
+                entry.manga.cover.url
+                    ?.value,
+            onClick = onClick,
             modifier =
                 Modifier
                     .width(COVER_WIDTH)
@@ -112,10 +117,22 @@ private fun relativeReadAt(
     val hours = elapsed.inWholeHours
     val days = elapsed.inWholeDays
     return when {
-        minutes < 1 -> stringResource(Res.string.activity_time_just_now)
-        minutes < 60 -> pluralStringResource(Res.plurals.activity_time_minutes, minutes.toInt(), minutes.toInt())
-        hours < 24 -> pluralStringResource(Res.plurals.activity_time_hours, hours.toInt(), hours.toInt())
-        days < 7 -> pluralStringResource(Res.plurals.activity_time_days, days.toInt(), days.toInt())
+        minutes < 1 -> {
+            stringResource(Res.string.activity_time_just_now)
+        }
+
+        minutes < 60 -> {
+            pluralStringResource(Res.plurals.activity_time_minutes, minutes.toInt(), minutes.toInt())
+        }
+
+        hours < 24 -> {
+            pluralStringResource(Res.plurals.activity_time_hours, hours.toInt(), hours.toInt())
+        }
+
+        days < 7 -> {
+            pluralStringResource(Res.plurals.activity_time_days, days.toInt(), days.toInt())
+        }
+
         else -> {
             val weeks = (days / 7).toInt()
             pluralStringResource(Res.plurals.activity_time_weeks, weeks, weeks)
