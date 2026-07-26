@@ -1,6 +1,8 @@
 package app.tanuki.core.source.di
 
-import app.tanuki.core.source.net.platformHttpClient
+import app.tanuki.core.source.net.cloudflare.CloudflareChallengeSolver
+import app.tanuki.core.source.net.cloudflare.CloudflareCookieStore
+import app.tanuki.core.source.net.platformSourceHttpClient
 import app.tanuki.core.source.runtime.WasmEngine
 import app.tanuki.core.source.runtime.provideWasmEngine
 import dev.zacsweers.metro.AppScope
@@ -17,17 +19,26 @@ import io.ktor.client.HttpClient
  * [app.tanuki.core.source.WasmSourceLoader] (→ `SourceLoader`) and
  * [app.tanuki.core.source.runtime.KtorSourceHost] (→ `SourceHost`) via `@ContributesBinding`.
  *
- * The [SourceBundleStore][app.tanuki.core.domain.source.SourceBundleStore] needs a platform on-disk
- * location, so it is provided in each target's own binding container (`PlatformSourceBindings`).
+ * The [SourceBundleStore][app.tanuki.core.domain.source.SourceBundleStore] and the
+ * [CloudflareChallengeSolver] both need a platform (on-disk location / browser engine), so they are
+ * provided in each target's own binding container (`PlatformSourceBindings`).
  *
- * Both singletons: one HTTP client and one engine per process, shared by every loaded source.
+ * All singletons: one HTTP client, one engine, and one clearance store per process, shared by every
+ * loaded source — so a Cloudflare challenge is solved once per host and replayed everywhere.
  */
 @BindingContainer
 @ContributesTo(AppScope::class)
 object SourceBindings {
     @Provides
     @SingleIn(AppScope::class)
-    fun provideHttpClient(): HttpClient = platformHttpClient()
+    fun provideCloudflareCookieStore(): CloudflareCookieStore = CloudflareCookieStore()
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideHttpClient(
+        solver: CloudflareChallengeSolver,
+        cookieStore: CloudflareCookieStore,
+    ): HttpClient = platformSourceHttpClient(solver, cookieStore)
 
     @Provides
     @SingleIn(AppScope::class)

@@ -2,6 +2,8 @@ package app.tanuki.core.source.di
 
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.source.SourceBundleStore
+import app.tanuki.core.source.net.cloudflare.CloudflareChallengeSolver
+import app.tanuki.core.source.net.cloudflare.WkWebViewCloudflareSolver
 import app.tanuki.core.source.store.FileSystemSourceBundleStore
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.BindingContainer
@@ -32,6 +34,12 @@ object PlatformSourceBindings {
         directory = "${applicationSupportDirectory()}/sources".toPath(),
         dispatchers = dispatcherProvider,
     )
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun provideCloudflareSolver(
+        dispatcherProvider: DispatcherProvider,
+    ): CloudflareChallengeSolver = WkWebViewCloudflareSolver(dispatcherProvider)
 
     @OptIn(ExperimentalForeignApi::class)
     private fun applicationSupportDirectory(): String {

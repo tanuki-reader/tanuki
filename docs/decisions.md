@@ -6,6 +6,35 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-07-26 — Cloudflare interceptor scaffolded (ahead of MangaFire)
+
+**Decision:** built the Cloudflare interceptor as a **Ktor client plugin** on the one shared source
+client (`core/source/net/cloudflare/`), with the browser-engine challenge solver behind an
+`expect`/`actual`-style DI seam (`CloudflareChallengeSolver`): Android `WebView`, iOS headless
+`WKWebView`. Reverses the 2026-07-22 deferral now that it's the agreed next step. Flow: attach any stored
+`cf_clearance` for the host → send → on a `403`/`503` Cloudflare challenge, the solver opens a WebView,
+extracts `cf_clearance`, the plugin stores it per host and replays **once**. The `cf_clearance` is bound
+to the User-Agent, so the solved UA is part of the clearance and replayed with it.
+
+**Verified:** the common interceptor logic (detect → solve → retry, replay-without-resolve,
+unsolved→surface) is covered by `CloudflareInterceptorTest` (MockEngine + fake solver), green on Chicory
+**and** wasmi; androidMain/iosMain compile; the full Android app assembles (Metro graph resolves the new
+bindings). Solvers use the common `DispatcherProvider.main` (WebView/WKWebView are main-thread-only —
+`io` would crash), not a hardcoded `Dispatchers.Main`.
+
+**Scaffold, not done — needs a live Cloudflare target (MangaFire) to finish/verify:**
+- The WebView/WKWebView solvers' challenge *timing* (poll interval/timeout) and whether a challenge needs
+  interaction are first estimates; a managed-challenge/Turnstile can only be tuned live.
+- iOS doesn't yet read WebKit's real default UA (needs an `evaluateJavaScript("navigator.userAgent")`
+  round-trip); today it replays the handed UA or `null`.
+- `CloudflareCookieStore` is in-memory (process-lived); persisting per host with the cookie's expiry is a
+  later upgrade if cold-start challenge latency bites.
+- **Image loaders still bypass it.** The cover/page Coil loaders (`TanukiImageLoader`, `LocalPageImageLoader`
+  in `:shared`) use their own client; routing them through this interceptor-carrying client is the
+  remaining wiring for CF-protected images (the page-image `headers` change lands with it — see below).
+
+---
+
 ## 2026-07-26 — Page descrambling is an app-applied descriptor, not guest-processed bytes
 
 **Decision:** for scrambled page images (MangaFire), the guest emits a **closed-vocabulary transform
