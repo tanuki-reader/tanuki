@@ -29,9 +29,12 @@ bindings). Solvers use the common `DispatcherProvider.main` (WebView/WKWebView a
   round-trip); today it replays the handed UA or `null`.
 - `CloudflareCookieStore` is in-memory (process-lived); persisting per host with the cookie's expiry is a
   later upgrade if cold-start challenge latency bites.
-- **Image loaders still bypass it.** The cover/page Coil loaders (`TanukiImageLoader`, `LocalPageImageLoader`
-  in `:shared`) use their own client; routing them through this interceptor-carrying client is the
-  remaining wiring for CF-protected images (the page-image `headers` change lands with it — see below).
+- ~~Image loaders bypass it.~~ **Done (2026-07-26):** the cover and page Coil loaders
+  (`newTanukiImageLoader` / `newTanukiPageImageLoader`) now fetch over the shared client via
+  `KtorNetworkFetcherFactory(httpClient = …)`, wired from `AppGraph.sourceHttpClient` in `App.kt`, so
+  image fetches inherit the `cf_clearance` a source's API calls solved for the same host. The remaining
+  image-path item is the page-image `headers` ABI field (the per-page `Referer`) — see the page-image
+  decision below.
 
 ---
 

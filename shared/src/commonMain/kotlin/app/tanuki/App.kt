@@ -28,9 +28,12 @@ val LocalAppGraph: ProvidableCompositionLocal<AppGraph> =
 
 @Composable
 fun App(appGraph: AppGraph) {
+    // The shared, Cloudflare-interceptor-carrying client both image loaders fetch over, so covers/pages
+    // inherit the cf_clearance source API calls solve (see AppGraph.sourceHttpClient).
+    val httpClient = appGraph.sourceHttpClient
     // One image loader for the whole app, both platforms — memory + disk cache and Ktor fetching are
     // configured in newTanukiImageLoader (covers are immutable, so both tiers are sized to keep them).
-    setSingletonImageLoaderFactory(::newTanukiImageLoader)
+    setSingletonImageLoaderFactory { context -> newTanukiImageLoader(context, httpClient) }
 
 //    // Dev-only: fill an empty library with sample manga so covers render before real sources exist.
 //    // No-op once the library has any entry; runs on the app scope so it isn't cancelled by recomposition.
@@ -58,7 +61,8 @@ fun App(appGraph: AppGraph) {
     // The reader's page loader — one process-lived instance, built here and handed down to the reader.
     // Separate from the singleton cover loader set above (see newTanukiPageImageLoader for why).
     val platformContext = LocalPlatformContext.current
-    val pageImageLoader = remember(platformContext) { newTanukiPageImageLoader(platformContext) }
+    val pageImageLoader =
+        remember(platformContext, httpClient) { newTanukiPageImageLoader(platformContext, httpClient) }
 
     CompositionLocalProvider(
         LocalAppGraph provides appGraph,

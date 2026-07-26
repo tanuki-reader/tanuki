@@ -2,10 +2,12 @@ package app.tanuki.platform.imaging
 
 import coil3.ImageLoader
 import coil3.PlatformContext
+import coil3.annotation.ExperimentalCoilApi
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import coil3.request.crossfade
+import io.ktor.client.HttpClient
 import okio.Path
 
 /**
@@ -20,16 +22,22 @@ import okio.Path
  *  - **Disk cache** — up to [DISK_CACHE_MAX_BYTES] under a per-platform cache dir ([coverCacheDirectory]);
  *    survives process death and app restarts, LRU-evicted once the budget is exceeded.
  *
- * Fetches run over Ktor 3 so the image stack matches the source HTTP layer; crossfade softens the
- * gradient-placeholder → cover swap.
+ * Fetches run over the app's **shared, Cloudflare-interceptor-carrying** Ktor client ([httpClient]) — the
+ * same instance a source's API calls use — so a cover from a protected host inherits the `cf_clearance`
+ * already solved for it and no cover fetch bypasses the interceptor (CLAUDE.md → "Cloudflare Bypass").
+ * Crossfade softens the gradient-placeholder → cover swap.
  *
- * TODO(cloudflare): rebuild on the shared, interceptor-carrying Ktor client once that lands, so cover
- *  fetches inherit `cf_clearance` the way source requests will (CLAUDE.md → "Cloudflare Bypass").
+ * @param httpClient the shared source client; not owned here (a process-lived DI singleton), so this
+ *   loader never closes it out from under the source layer.
  */
-fun newTanukiImageLoader(context: PlatformContext): ImageLoader =
+@OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) is @ExperimentalCoilApi.
+fun newTanukiImageLoader(
+    context: PlatformContext,
+    httpClient: HttpClient,
+): ImageLoader =
     ImageLoader
         .Builder(context)
-        .components { add(KtorNetworkFetcherFactory()) }
+        .components { add(KtorNetworkFetcherFactory(httpClient = httpClient)) }
         .memoryCache {
             MemoryCache
                 .Builder()
@@ -60,13 +68,21 @@ private const val DISK_CACHE_MAX_BYTES = 256L * 1024 * 1024
  * keeping between sessions) and a **smaller** memory fraction, so a handful of decoded full-size
  * bitmaps can't crowd out the rest of the app. Sharing one loader would force one policy on both.
  *
- * TODO(cloudflare): rebuild on the shared, interceptor-carrying Ktor client once that lands, so page
- *  fetches inherit `cf_clearance` the way source requests will (CLAUDE.md → "Cloudflare Bypass").
+ * Fetches run over the app's **shared, Cloudflare-interceptor-carrying** Ktor client ([httpClient]) — the
+ * same instance source API calls use — so a page from a protected host (the reader's real Cloudflare
+ * case) inherits the solved `cf_clearance` and no page fetch bypasses the interceptor.
+ *
+ * @param httpClient the shared source client; not owned here (a process-lived DI singleton), so this
+ *   loader never closes it out from under the source layer.
  */
-fun newTanukiPageImageLoader(context: PlatformContext): ImageLoader =
+@OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) is @ExperimentalCoilApi.
+fun newTanukiPageImageLoader(
+    context: PlatformContext,
+    httpClient: HttpClient,
+): ImageLoader =
     ImageLoader
         .Builder(context)
-        .components { add(KtorNetworkFetcherFactory()) }
+        .components { add(KtorNetworkFetcherFactory(httpClient = httpClient)) }
         .memoryCache {
             MemoryCache
                 .Builder()
