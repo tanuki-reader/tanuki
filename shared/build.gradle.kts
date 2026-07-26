@@ -115,7 +115,7 @@ dependencies {
 // config block, never over a top-level script `val`.
 
 /** Source crates under native/sources to build. Add a directory name here and it gets bundled. */
-val devSourceCrates = listOf("hello", "mangadex")
+val devSourceCrates = listOf("hello", "mangadex", "mangafire")
 
 val wasmTarget = "wasm32-unknown-unknown"
 val nativeSourcesDir = rootProject.layout.projectDirectory.dir("native/sources")
