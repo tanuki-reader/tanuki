@@ -33,6 +33,10 @@ coil = "3.5.0"
 # DataStore — multiplatform key-value preference store (theme + other app-level scalars). The
 # `-core` artifact is engine-agnostic and backs onto okio, so the same store works on Android and iOS.
 datastore = "1.1.7"
+# Telephoto — the multiplatform `zoomable` gesture module only (pinch/pan/double-tap + pager/scroll
+# arbitration). Its higher-level `zoomable-image*`/`ZoomableAsyncImage` drop-ins publish Android-only
+# variants, so we attach `Modifier.zoomable()` to our own Coil `AsyncImage` to keep iOS building.
+telephoto = "0.19.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -53,6 +57,7 @@ chicory-runtime = { module = "com.dylibso.chicory:runtime", version.ref = "chico
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-core = { module = "io.coil-kt.coil3:coil-network-core", version.ref = "coil" }
 coil-network-ktor3 = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+telephoto-zoomable = { module = "me.saket.telephoto:zoomable", version.ref = "telephoto" }
 androidx-datastore-preferences-core = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

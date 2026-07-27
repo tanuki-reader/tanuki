@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -26,6 +27,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.assets.designSystem.TanukiRadii
@@ -136,3 +138,11 @@ private val PROGRESS_BAR_HEIGHT = 3.dp
 
 /** How long the chapter-change pill lingers before fading out. */
 private const val CHAPTER_PILL_VISIBLE_MS = 2200L
+
+@Preview(showBackground = true)
+@Composable
+private fun ChapterProgressBarPreview() {
+    Box(Modifier.fillMaxSize().background(Color.Black)) {
+        ChapterProgressBar(currentPage = 3, pageCount = 10, reversed = false, visible = true)
+    }
+}

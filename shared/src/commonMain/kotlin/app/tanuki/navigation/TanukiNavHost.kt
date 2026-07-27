@@ -245,9 +245,6 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popExitTransition = leafPopExit
             ) { entry ->
                 val route = entry.toRoute<Reader>()
-                // The reader pages across chapters *in place* (one continuous scroll, no per-chapter
-                // navigation), so there is only ever this one Reader entry above the opener and back
-                // returns straight to it — MangaDetail in the usual flow.
                 ReaderRoute(
                     mangaId = route.mangaId,
                     chapterId = route.chapterId,

@@ -82,7 +82,7 @@ class MangaViewModel(
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
     private val dispatcher: DispatcherProvider,
-    private val logger: Logger,
+    private val logger: Logger
 ) : ViewModel() {
     val uiState: StateFlow<MangaState>
         field = MutableStateFlow<MangaState>(Loading)
@@ -122,7 +122,7 @@ class MangaViewModel(
                     chapterSortAscending = ascending,
                     categories = categoryChips,
                     scanlators = ordered.scanlatorChips(hidden),
-                    source = source,
+                    source = source
                 )
             }
         }.flowOn(dispatcher.default)
@@ -313,8 +313,8 @@ class MangaViewModel(
     private fun resumeChapter(chapters: List<Chapter>): Chapter? {
         val lastRead =
             chapters
-                .filter { it.progress?.alreadyRead == true }
-                .maxByOrNull { it.chapterNumber?.value ?: Double.NEGATIVE_INFINITY }
+                .filter { it.progress == null || it.progress?.alreadyRead == false }
+                .minByOrNull { it.chapterNumber?.value ?: Double.MAX_VALUE }
         return lastRead ?: chapters.minByOrNull { it.chapterNumber?.value ?: Double.MAX_VALUE }
     }
 
