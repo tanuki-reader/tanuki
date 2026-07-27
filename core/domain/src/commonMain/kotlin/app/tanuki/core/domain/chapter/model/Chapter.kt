@@ -95,3 +95,13 @@ data class Chapter(
             )
     }
 }
+
+/**
+ * Whether this chapter is hidden by a manga's scanlator filter — its [scanlator] group is one the user
+ * chose to hide (see [app.tanuki.core.domain.manga.model.Manga.filteredScanlators]). The single source of
+ * truth for "is this chapter filtered out", so the chapter list, the reader's cross-chapter paging, and
+ * any chapter count all hide the same chapters. A chapter with no [scanlator] is never hidden — there is
+ * no group to filter it by.
+ */
+fun Chapter.isHiddenBy(filteredScanlators: Set<String>): Boolean =
+    scanlator?.value in filteredScanlators

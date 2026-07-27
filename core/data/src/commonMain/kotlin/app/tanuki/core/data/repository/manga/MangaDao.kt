@@ -19,7 +19,11 @@ import kotlin.uuid.Uuid
  * `reading_status`) and the derived `last_read`; `GROUP BY manga.id` collapses the per-chapter
  * history rows. `unread_count` is a correlated subquery over `chapters` / `reading_progress` (a
  * chapter counts as unread when it has no progress row or `already_read = 0`), kept out of the
- * `GROUP BY` so it never fans out the history join.
+ * `GROUP BY` so it never fans out the history join. It also excludes chapters whose `scanlator` is in
+ * the manga's newline-encoded `filtered_scanlators` (matched delimited by `char(10)` so a group name is
+ * never a partial match of another), so the badge counts only the chapters the detail screen shows —
+ * the same filter the chapter list and the reader apply. A chapter with a `NULL` scanlator is never
+ * hidden.
  */
 @Dao
 interface MangaDao {
@@ -30,7 +34,14 @@ interface MangaDao {
                    SELECT COUNT(*)
                    FROM chapters
                    LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
-                   WHERE chapters.manga_id = manga.id AND COALESCE(reading_progress.already_read, 0) = 0
+                   WHERE chapters.manga_id = manga.id
+                     AND COALESCE(reading_progress.already_read, 0) = 0
+                     AND (
+                         chapters.scanlator IS NULL
+                         OR manga.filtered_scanlators IS NULL
+                         OR instr(char(10) || manga.filtered_scanlators || char(10),
+                                  char(10) || chapters.scanlator || char(10)) = 0
+                     )
                ) AS unread_count
         FROM manga
         LEFT JOIN history ON history.manga_id = manga.id
@@ -49,7 +60,14 @@ interface MangaDao {
                    SELECT COUNT(*)
                    FROM chapters
                    LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
-                   WHERE chapters.manga_id = manga.id AND COALESCE(reading_progress.already_read, 0) = 0
+                   WHERE chapters.manga_id = manga.id
+                     AND COALESCE(reading_progress.already_read, 0) = 0
+                     AND (
+                         chapters.scanlator IS NULL
+                         OR manga.filtered_scanlators IS NULL
+                         OR instr(char(10) || manga.filtered_scanlators || char(10),
+                                  char(10) || chapters.scanlator || char(10)) = 0
+                     )
                ) AS unread_count
         FROM library
         JOIN manga ON manga.id = library.id
@@ -68,7 +86,14 @@ interface MangaDao {
                    SELECT COUNT(*)
                    FROM chapters
                    LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
-                   WHERE chapters.manga_id = manga.id AND COALESCE(reading_progress.already_read, 0) = 0
+                   WHERE chapters.manga_id = manga.id
+                     AND COALESCE(reading_progress.already_read, 0) = 0
+                     AND (
+                         chapters.scanlator IS NULL
+                         OR manga.filtered_scanlators IS NULL
+                         OR instr(char(10) || manga.filtered_scanlators || char(10),
+                                  char(10) || chapters.scanlator || char(10)) = 0
+                     )
                ) AS unread_count
         FROM manga
         LEFT JOIN history ON history.manga_id = manga.id

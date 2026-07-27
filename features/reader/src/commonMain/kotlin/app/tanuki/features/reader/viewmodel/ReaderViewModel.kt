@@ -3,6 +3,7 @@ package app.tanuki.features.reader.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.core.domain.chapter.model.isHiddenBy
 import app.tanuki.core.domain.chapter.usecase.GetChapterPages
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
 import app.tanuki.core.domain.chapter.usecase.UpdateReadingProgress
@@ -135,14 +136,20 @@ class ReaderViewModel(
     private fun load() {
         uiState.value = Loading
         viewModelScope.launch {
+            val manga = runCatching { observeManga(mangaId).first() }.getOrNull()
+            readingMode = manga?.readingMode ?: ReadingMode.RIGHT_TO_LEFT
+
+            // Page only through the chapters the detail screen actually shows: hide the groups the user
+            // filtered out (see Manga.filteredScanlators), so continuous reading never flows into a
+            // duplicate chapter from a hidden scanlator. The opened chapter itself is always kept — the
+            // user navigated straight to it (from history, say), even if its group is otherwise hidden.
+            val hidden = manga?.filteredScanlators.orEmpty()
             siblings =
                 runCatching { observeChapters(mangaId).first() }
                     .getOrDefault(emptyList())
+                    .filter { it.id == initialChapterId || !it.isHiddenBy(hidden) }
                     .sortedWith(compareBy(nullsLast()) { it.chapterNumber })
             currentIndex = siblings.indexOfFirst { it.id == initialChapterId }
-            readingMode =
-                runCatching { observeManga(mangaId).first()?.readingMode }.getOrNull()
-                    ?: ReadingMode.RIGHT_TO_LEFT
 
             if (currentIndex < 0) {
                 uiState.value = Error

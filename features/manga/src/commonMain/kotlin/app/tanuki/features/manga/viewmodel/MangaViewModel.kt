@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.category.usecase.SetMangaCategories
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.core.domain.chapter.model.isHiddenBy
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
 import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
@@ -109,7 +110,7 @@ class MangaViewModel(
             } else {
                 val ordered = chapters.sortedByNumber(ascending)
                 val hidden = manga.filteredScanlators
-                val visible = ordered.filterNot { it.scanlator?.value in hidden }
+                val visible = ordered.filterNot { it.isHiddenBy(hidden) }
                 val categoryChips = categories.map { MangaCategoryChip(it, mangaId in it.associatedMangas) }
                 val source = sources.firstOrNull { it.id == manga.source }
                 Content(
