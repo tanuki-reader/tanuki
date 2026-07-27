@@ -89,15 +89,11 @@ private fun ReaderPage(
     fillHeight: Boolean = true
 ) {
     val context = LocalPlatformContext.current
-    // An ImageRequest (not a bare URL) so the source's per-page headers ride along — e.g. a Referer a
-    // hotlink-guarded host requires. The fetch runs on the Cloudflare-carrying page loader.
     val request = remember(context, page) { page.toImageRequest(context) }
     val painter =
         rememberAsyncImagePainter(model = request, imageLoader = LocalPageImageLoader.current)
     val zoomState = rememberZoomableState()
 
-    // Once the page decodes, its true pixel size defines the zoom/pan bounds. Until then the state has no
-    // content location and simply renders nothing to scale.
     val painterState by painter.state.collectAsState()
     val intrinsic: Size? =
         (painterState as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize
@@ -111,8 +107,6 @@ private fun ReaderPage(
         if (fillHeight) {
             Modifier.fillMaxSize()
         } else {
-            // Strip pages are width-filled; reserve height from the page's aspect ratio so the list item
-            // measures to the page instead of collapsing. A portrait default holds space until it decodes.
             val ratio =
                 intrinsic?.takeIf { it.isSpecified && it.height > 0f }?.let { it.width / it.height }
                     ?: DEFAULT_PAGE_ASPECT_RATIO

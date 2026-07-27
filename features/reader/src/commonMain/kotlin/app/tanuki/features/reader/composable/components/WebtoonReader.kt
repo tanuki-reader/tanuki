@@ -1,5 +1,6 @@
 package app.tanuki.features.reader.composable.components
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
@@ -7,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import app.tanuki.features.reader.viewmodel.ReaderItem
 
 /** Long-strip layout (webtoons): items stacked in a continuous scroll, no per-item snapping. Transition
@@ -18,7 +20,14 @@ internal fun WebtoonReader(
     listState: LazyListState,
     onToggleChrome: () -> Unit
 ) {
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+    // Each page is a whole-pixel-tall slot but its image fits at a fractional height, leaving a
+    // sub-pixel band of background between pages — a faint seam. Overlapping the items by a hair lets
+    // each page cover the seam above it, so the strip reads as one continuous image.
+    LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy((-1).dp)
+    ) {
         items(items, key = { it.key }) { item ->
             ReaderItemContent(
                 item = item,
