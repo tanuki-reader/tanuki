@@ -7,4 +7,14 @@
     <string name="reader_error_message">Couldn't load this chapter</string>
     <string name="reader_retry">Retry</string>
     <string name="reader_no_pages">This chapter has no pages</string>
+    <!-- Chapter transition slide: overline above the chapter the reader just finished. -->
+    <string name="reader_transition_finished">Finished</string>
+    <!-- Chapter transition slide: overline above the chapter coming up. -->
+    <string name="reader_transition_up_next">Up next</string>
+    <!-- Chapter transition slide: hint that swiping continues into the next chapter. -->
+    <string name="reader_transition_swipe_hint">Swipe to continue</string>
+    <!-- Terminal slide after the last page of the last chapter. -->
+    <string name="reader_end_title">No more chapters</string>
+    <!-- Terminal slide subtitle: reassures the reader they've read everything available. -->
+    <string name="reader_end_subtitle">You're all caught up</string>
 </resources>

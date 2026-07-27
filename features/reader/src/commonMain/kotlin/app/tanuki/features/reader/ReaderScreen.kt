@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -37,7 +38,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -48,9 +48,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ChevronRightIcon
+import app.tanuki.assets.designSystem.component.EmptyLibraryIcon
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
@@ -59,14 +61,20 @@ import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.source.model.Page
-import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_chapter_number
+import app.tanuki.features.reader.resources.reader_end_subtitle
+import app.tanuki.features.reader.resources.reader_end_title
 import app.tanuki.features.reader.resources.reader_error_message
 import app.tanuki.features.reader.resources.reader_no_pages
 import app.tanuki.features.reader.resources.reader_page_indicator
 import app.tanuki.features.reader.resources.reader_retry
+import app.tanuki.features.reader.resources.reader_transition_finished
+import app.tanuki.features.reader.resources.reader_transition_swipe_hint
+import app.tanuki.features.reader.resources.reader_transition_up_next
+import app.tanuki.features.reader.viewmodel.ReaderCommand
+import app.tanuki.features.reader.viewmodel.ReaderItem
 import app.tanuki.features.reader.viewmodel.ReaderState
 import app.tanuki.features.reader.viewmodel.ReaderViewModel
 import coil3.compose.AsyncImage
@@ -75,27 +83,26 @@ import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.Flow
 import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
 import kotlin.uuid.Uuid
 
 /**
  * Stateful entry point for the reader. Resolves the [ReaderViewModel] from Metro — assisted with the
- * [mangaId] and [chapterId] the route carried — collects its state, and forwards its screen-scoped
- * [NavEvent]s: a [NavEvent.NavTo] (page into an adjacent chapter) to [onNavigate], a [NavEvent.NavBack]
- * to [onBack]. The only place the feature touches navigation mechanics; the composables below are pure UI.
+ * [mangaId] and [chapterId] the route carried — collects its state, and forwards its one back intent.
+ *
+ * The reader reads continuously across chapters *in place*: paging past the last chapter no longer
+ * navigates to a fresh route, so the only screen-scoped navigation left is [NavEvent.NavBack].
  *
  * @param mangaId the series being read — so the reader can page across sibling chapters.
  * @param chapterId the chapter to open — decoded from the route by the host `NavHost`.
- * @param onNavigate invoked with the [Destination] a [NavEvent.NavTo] targets (the adjacent chapter).
  * @param onBack invoked when navigation should pop back to the previous screen.
  */
 @Composable
 fun ReaderRoute(
     mangaId: Uuid,
     chapterId: Uuid,
-    onNavigate: (Destination) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -104,10 +111,7 @@ fun ReaderRoute(
 
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
-            when (event) {
-                is NavEvent.NavTo -> onNavigate(event.destination)
-                NavEvent.NavBack -> onBack()
-            }
+            if (event is NavEvent.NavBack) onBack()
         }
     }
 
@@ -136,11 +140,13 @@ private fun ReaderScreen(
             is ReaderState.Content -> {
                 ReaderContent(
                     content = current,
-                    onPageChanged = viewModel::onPageChanged,
+                    commands = viewModel.commands,
+                    onItemFocused = viewModel::onItemFocused,
                     onToggleChrome = viewModel::onToggleChrome,
                     onBack = viewModel::onBack,
                     onPreviousChapter = viewModel::onPreviousChapter,
-                    onNextChapter = viewModel::onNextChapter
+                    onNextChapter = viewModel::onNextChapter,
+                    onScrubToPage = viewModel::onScrubToPage
                 )
             }
         }
@@ -171,16 +177,29 @@ private fun ReaderError(
     }
 }
 
+/**
+ * The reader surface. It renders [ReaderState.Content.items] — the concatenated pages of the loaded
+ * chapters with transition slides between them — in one pager or long-strip, and wires the two halves of
+ * the continuous-reading contract:
+ *
+ * - **report:** the settled item index is pushed to [onItemFocused]; the ViewModel derives the chapter,
+ *   persists progress, and preloads the next chapter as boundaries approach.
+ * - **command:** the ViewModel drives the viewport back via [commands] — a [ReaderCommand.Reanchor] to
+ *   hold position when the loaded range grows above the current page (paged layouts only; the strip
+ *   anchors by item key), and a [ReaderCommand.Jump] for the scrubber and prev/next-chapter buttons.
+ */
 @Composable
 private fun ReaderContent(
     content: ReaderState.Content,
-    onPageChanged: (Int) -> Unit,
+    commands: Flow<ReaderCommand>,
+    onItemFocused: (Int) -> Unit,
     onToggleChrome: () -> Unit,
     onBack: () -> Unit,
     onPreviousChapter: () -> Unit,
-    onNextChapter: () -> Unit
+    onNextChapter: () -> Unit,
+    onScrubToPage: (Int) -> Unit
 ) {
-    if (content.pages.isEmpty()) {
+    if (content.items.isEmpty()) {
         TanukiEmptyState(
             message = stringResource(Res.string.reader_no_pages),
             modifier = Modifier.fillMaxSize().padding(TanukiTheme.spacing.gutter)
@@ -188,34 +207,59 @@ private fun ReaderContent(
         return
     }
 
-    // Warm the next few pages into the page cache so a swipe shows an already-decoded image instead of
-    // a spinner. Keyed on the current page, so prefetch advances as the user reads.
-    PagePrefetch(content.pages, content.currentPage)
-
-    // The scroll state is hoisted here (not owned inside each layout) so the chrome's scrubber can
-    // command it: the layout reflects the state, and `onScrubToPage` drives it from the slider.
-    val scope = rememberCoroutineScope()
     val paged = content.readingMode != ReadingMode.WEBTOON && content.readingMode != ReadingMode.CONTINUOUS_VERTICAL
 
     Box(Modifier.fillMaxSize()) {
-        val onScrubToPage: (Int) -> Unit
         if (paged) {
-            val pagerState = rememberPagerState(initialPage = content.currentPage) { content.pages.size }
-            LaunchedEffect(pagerState) { snapshotFlow { pagerState.currentPage }.collect(onPageChanged) }
+            val pagerState = rememberPagerState(initialPage = content.initialItemIndex) { content.items.size }
+            LaunchedEffect(pagerState) {
+                snapshotFlow { pagerState.currentPage }.collect(onItemFocused)
+            }
+            // A pager doesn't anchor by key, so it honours both re-anchors and explicit jumps.
+            LaunchedEffect(pagerState, commands) {
+                commands.collect { command -> pagerState.scrollToPage(command.index) }
+            }
+            PagePrefetch(content.items, pagerState.currentPage)
             PagedReader(
-                pages = content.pages,
+                items = content.items,
                 pagerState = pagerState,
                 vertical = content.readingMode == ReadingMode.VERTICAL,
                 reverse = content.readingMode == ReadingMode.RIGHT_TO_LEFT,
                 onToggleChrome = onToggleChrome
             )
-            onScrubToPage = { page -> scope.launch { pagerState.scrollToPage(page) } }
         } else {
-            val listState = rememberLazyListState(initialFirstVisibleItemIndex = content.currentPage)
-            LaunchedEffect(listState) { snapshotFlow { listState.firstVisibleItemIndex }.collect(onPageChanged) }
-            WebtoonReader(pages = content.pages, listState = listState, onToggleChrome = onToggleChrome)
-            onScrubToPage = { page -> scope.launch { listState.scrollToItem(page) } }
+            val listState = rememberLazyListState(initialFirstVisibleItemIndex = content.initialItemIndex)
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.firstVisibleItemIndex }.collect(onItemFocused)
+            }
+            // The strip keeps its visible item anchored by key when the list grows above it, so a
+            // re-anchor is a no-op here; only explicit jumps need to be applied.
+            LaunchedEffect(listState, commands) {
+                commands.collect { command ->
+                    if (command is ReaderCommand.Jump) listState.scrollToItem(command.index)
+                }
+            }
+            PagePrefetch(content.items, listState.firstVisibleItemIndex)
+            WebtoonReader(
+                items = content.items,
+                listState = listState,
+                onToggleChrome = onToggleChrome
+            )
         }
+
+        // Ambient orientation while immersed: a progress hairline and a brief chapter-change pill, both
+        // shown only when the chrome is hidden (the chrome carries the same information when open).
+        ChapterProgressBar(
+            currentPage = content.currentPage,
+            pageCount = content.currentPageCount,
+            reversed = content.readingMode == ReadingMode.RIGHT_TO_LEFT,
+            visible = !content.chromeVisible
+        )
+        ChapterChangeIndicator(
+            chapterId = content.currentChapterId,
+            title = chapterTitle(content.chapterNumber, content.chapterName),
+            chromeVisible = content.chromeVisible
+        )
 
         ReaderChrome(
             content = content,
@@ -227,43 +271,68 @@ private fun ReaderContent(
     }
 }
 
-/** Paged layouts (L→R, R→L, one-page vertical): one page per swipe, snapping to page bounds. The
- *  [pagerState] is owned by [ReaderContent] so the chrome's scrubber can drive it. */
+/** Paged layouts (L→R, R→L, one-page vertical): one item per swipe, snapping to bounds. Each item is a
+ *  full-screen page or a full-screen transition slide, so crossing a chapter boundary is one more swipe. */
 @Composable
 private fun PagedReader(
-    pages: List<Page>,
+    items: List<ReaderItem>,
     pagerState: PagerState,
     vertical: Boolean,
     reverse: Boolean,
     onToggleChrome: () -> Unit
 ) {
+    val slot: @Composable (Int) -> Unit = { index ->
+        ReaderItemContent(
+            item = items[index],
+            onToggleChrome = onToggleChrome,
+            transitionModifier = Modifier.fillMaxSize()
+        )
+    }
     if (vertical) {
-        VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-            ReaderPage(pages[page], onToggleChrome)
-        }
+        VerticalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { index -> slot(index) }
     } else {
         HorizontalPager(
             state = pagerState,
             reverseLayout = reverse,
             modifier = Modifier.fillMaxSize()
-        ) { page ->
-            ReaderPage(pages[page], onToggleChrome)
-        }
+        ) { index -> slot(index) }
     }
 }
 
-/** Long-strip layout (webtoons): pages stacked in a continuous scroll, no per-page snapping. The
- *  [listState] is owned by [ReaderContent] so the chrome's scrubber can drive it. */
+/** Long-strip layout (webtoons): items stacked in a continuous scroll, no per-item snapping. Transition
+ *  slides fill the viewport, so scrolling past a chapter's last page lands on a full "up next" panel and
+ *  scrolling on flows into the following chapter. */
 @Composable
 private fun WebtoonReader(
-    pages: List<Page>,
+    items: List<ReaderItem>,
     listState: LazyListState,
     onToggleChrome: () -> Unit
 ) {
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-        items(pages, key = { it.index.toLong() }) { page ->
-            ReaderPage(page, onToggleChrome, fillHeight = false)
+        items(items, key = { it.key }) { item ->
+            ReaderItemContent(
+                item = item,
+                onToggleChrome = onToggleChrome,
+                fillHeight = false,
+                transitionModifier = Modifier.fillParentMaxHeight().fillMaxWidth()
+            )
         }
+    }
+}
+
+/** Renders one [ReaderItem]: a chapter page image, or a chapter transition slide. The [transitionModifier]
+ *  sizes the slide to its host (full screen in a pager, full viewport in the strip). */
+@Composable
+private fun ReaderItemContent(
+    item: ReaderItem,
+    onToggleChrome: () -> Unit,
+    fillHeight: Boolean = true,
+    transitionModifier: Modifier = Modifier
+) {
+    when (item) {
+        is ReaderItem.PageItem -> ReaderPage(item.page, onToggleChrome, fillHeight)
+        is ReaderItem.Transition -> ChapterTransition(item, onToggleChrome, transitionModifier)
+        ReaderItem.End -> EndOfSeries(onToggleChrome, transitionModifier)
     }
 }
 
@@ -318,31 +387,149 @@ private fun Page.toImageRequest(context: coil3.PlatformContext): ImageRequest =
         ).build()
 
 /**
- * Enqueues the next [PAGE_PREFETCH_AHEAD] pages after [currentPage] into the page cache with no target,
- * so paging forward hits a warm cache. Uses the same [LocalPageImageLoader] the pages render through,
- * so a prefetched image is the exact one [ReaderPage] later requests. Fire-and-forget: a prefetch that
- * doesn't finish before the user arrives simply becomes a normal load.
+ * Enqueues the next [PAGE_PREFETCH_AHEAD] page images after the focused item into the page cache, so
+ * paging forward hits a warm cache. Walks past transition slides and across chapter boundaries, so the
+ * first pages of the next chapter warm up before the reader reaches them. Fire-and-forget: a prefetch
+ * that doesn't finish before the user arrives simply becomes a normal load.
  */
 @Composable
 private fun PagePrefetch(
-    pages: List<Page>,
-    currentPage: Int
+    items: List<ReaderItem>,
+    focusedIndex: Int
 ) {
     val imageLoader = LocalPageImageLoader.current
     val context = LocalPlatformContext.current
-    LaunchedEffect(currentPage, pages) {
-        val start = currentPage + 1
-        val end = minOf(start + PAGE_PREFETCH_AHEAD, pages.size)
-        for (index in start until end) {
-            val page = pages[index]
-            if (page.imageUrl == null && page.url == null) continue
-            imageLoader.enqueue(page.toImageRequest(context))
+    LaunchedEffect(focusedIndex, items) {
+        var warmed = 0
+        var index = focusedIndex + 1
+        while (index < items.size && warmed < PAGE_PREFETCH_AHEAD) {
+            val item = items[index]
+            if (item is ReaderItem.PageItem && (item.page.imageUrl != null || item.page.url != null)) {
+                imageLoader.enqueue(item.page.toImageRequest(context))
+                warmed++
+            }
+            index++
         }
     }
 }
 
-/** How many pages ahead of the current one to warm into the cache. */
+/** How many page images ahead of the current one to warm into the cache. */
 private const val PAGE_PREFETCH_AHEAD = 3
+
+/**
+ * The full-surface slide between two chapters: [ReaderItem.Transition.from] just finished, and
+ * [ReaderItem.Transition.to] is up next. It is purely a boundary marker — the next chapter's pages sit
+ * right after it, so the reader continues with one more swipe (a spinner shows while those pages are
+ * still loading). Tapping toggles the chrome like a page does, so nothing on this slide can trigger an
+ * accidental chapter jump.
+ */
+@Composable
+private fun ChapterTransition(
+    item: ReaderItem.Transition,
+    onToggleChrome: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier =
+            modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onToggleChrome
+                ).padding(TanukiTheme.spacing.x3l),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.lg, Alignment.CenterVertically)
+    ) {
+        TransitionSection(
+            label = stringResource(Res.string.reader_transition_finished),
+            title = chapterTitle(item.from.number, item.from.name),
+            emphasized = false
+        )
+        TransitionSection(
+            label = stringResource(Res.string.reader_transition_up_next),
+            title = chapterTitle(item.to.number, item.to.name),
+            emphasized = true
+        )
+        Spacer(Modifier.height(TanukiTheme.spacing.xs))
+        if (item.loading) {
+            TanukiLoadingIndicator()
+        } else {
+            Text(
+                text = stringResource(Res.string.reader_transition_swipe_hint),
+                style = TanukiTheme.typography.caption,
+                color = TanukiTheme.colors.textFaint,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * The terminal slide after the last page of the last chapter: an open-book mark over a "no more chapters"
+ * message, reassuring the reader they've reached the end of everything available rather than hitting a
+ * silent dead-end. There is nothing to swipe into past it. Tapping toggles the chrome like a page.
+ */
+@Composable
+private fun EndOfSeries(
+    onToggleChrome: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier =
+            modifier
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onToggleChrome
+                ).padding(TanukiTheme.spacing.x3l),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.md, Alignment.CenterVertically)
+    ) {
+        EmptyLibraryIcon(tint = TanukiTheme.colors.textFaint, size = 56.dp)
+        Text(
+            text = stringResource(Res.string.reader_end_title),
+            style = TanukiTheme.typography.headline,
+            color = Color.White,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = stringResource(Res.string.reader_end_subtitle),
+            style = TanukiTheme.typography.caption,
+            color = TanukiTheme.colors.textFaint,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * A labelled chapter reference on a [ChapterTransition] slide: a small overline over the chapter title.
+ * [emphasized] marks the chapter being moved *toward* (accent overline, bright title); the un-emphasized
+ * form dims the chapter being left behind so the eye lands on where reading continues.
+ */
+@Composable
+private fun TransitionSection(
+    label: String,
+    title: String,
+    emphasized: Boolean
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.xxs)
+    ) {
+        Text(
+            text = label,
+            style = TanukiTheme.typography.label,
+            color = if (emphasized) TanukiTheme.colors.accent else TanukiTheme.colors.textFaint,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = title,
+            style = if (emphasized) TanukiTheme.typography.headline else TanukiTheme.typography.title,
+            color = if (emphasized) Color.White else Color.White.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
+        )
+    }
+}
 
 /** Immersive top/bottom chrome, shown when [ReaderState.Content.chromeVisible] and hidden on tap. */
 @Composable
@@ -401,7 +588,7 @@ private fun BoxScope.ReaderChrome(
         ) {
             PageScrubber(
                 currentPage = content.currentPage,
-                pageCount = content.pages.size,
+                pageCount = content.currentPageCount,
                 reversed = content.readingMode == ReadingMode.RIGHT_TO_LEFT,
                 hasPreviousChapter = content.hasPreviousChapter,
                 hasNextChapter = content.hasNextChapter,
@@ -414,13 +601,16 @@ private fun BoxScope.ReaderChrome(
 }
 
 /**
- * The bottom-chrome page control: a page count over a `[prev chapter] — slider — [next chapter]` row.
+ * The bottom-chrome page control: a page count over a `[prev chapter] — slider — [next chapter]` row. The
+ * page count and slider track the chapter the visible page belongs to, so they update as the reader flows
+ * across boundaries. The prev/next buttons jump to the start of the adjacent chapter (loading it first if
+ * needed).
  *
  * Dragging the slider jumps to any page. While dragging it follows the finger and the label previews the
  * target page ([scrubValue]); the actual scroll fires once on release, so the pager/list isn't churned
- * every frame. The slider is continuous (no tick marks — a long chapter would be a picket fence) and
- * its value is rounded to a page. In right-to-left mode it is mirrored (page 1 on the right, filling
- * leftward) so its direction matches the reading direction.
+ * every frame. The slider is continuous (no tick marks — a long chapter would be a picket fence) and its
+ * value is rounded to a page. In right-to-left mode it is mirrored (page 1 on the right, filling leftward)
+ * so its direction matches the reading direction.
  */
 @Composable
 private fun ColumnScope.PageScrubber(

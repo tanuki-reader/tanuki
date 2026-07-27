@@ -245,20 +245,12 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popExitTransition = leafPopExit
             ) { entry ->
                 val route = entry.toRoute<Reader>()
+                // The reader pages across chapters *in place* (one continuous scroll, no per-chapter
+                // navigation), so there is only ever this one Reader entry above the opener and back
+                // returns straight to it — MangaDetail in the usual flow.
                 ReaderRoute(
                     mangaId = route.mangaId,
                     chapterId = route.chapterId,
-                    // Paging across chapters REPLACES the current reader rather than stacking a new one,
-                    // so there is only ever one Reader entry above the screen that opened it. Without this
-                    // popUpTo, reading N chapters would leave N reader entries and back would step through
-                    // every one; with it, back (and the system/gesture back) returns straight to the
-                    // opener — MangaDetail in the usual flow. ReaderViewModel only ever navigates to an
-                    // adjacent Reader, so popping to Reader inclusive always targets the current one.
-                    onNavigate = { destination ->
-                        navController.navigate(destination) {
-                            popUpTo<Reader> { inclusive = true }
-                        }
-                    },
                     onBack = { navController.popBackStack() }
                 )
             }
