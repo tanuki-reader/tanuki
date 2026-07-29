@@ -6,7 +6,6 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,10 +29,14 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.dp
 import app.tanuki.features.reader.viewmodel.ReaderItem
+import kotlin.math.abs
+import kotlin.math.sign
 import kotlinx.coroutines.launch
 
 /** Long-strip layout (webtoons): items stacked in a continuous scroll, no per-item snapping. Transition
@@ -45,7 +48,11 @@ import kotlinx.coroutines.launch
  *  the strip stays continuous. (Zooming a single page in place would only enlarge that page and shove the
  *  ones after it out of alignment.) Because the layer is scaled rather than re-laid-out, the list still
  *  measures at viewport size and scrolls normally — Compose maps pointer positions through the layer, so a
- *  drag moves the content exactly under the finger at any zoom level. */
+ *  drag moves the content exactly under the finger at any zoom level.
+ *
+ *  While zoomed a drag moves the page **freely, in both axes at once**: the list scrolls it vertically and
+ *  [detectStripPan] walks it sideways from the same unconsumed events, so a diagonal drag travels diagonally
+ *  rather than being locked to whichever axis claimed the gesture first. */
 @Composable
 internal fun WebtoonReader(
     items: List<ReaderItem>,
@@ -95,17 +102,6 @@ internal fun WebtoonReader(
             .clipToBounds()
             .onSizeChanged { viewportWidth = it.width.toFloat() }
             .pointerInput(Unit) { detectStripZoom(::transform) }
-            // Once zoomed, a sideways drag walks across the page. It sits above the list's vertical drag,
-            // so whichever axis crosses its touch slop first claims the gesture; at rest the detector is
-            // off entirely and every drag belongs to the list.
-            .pointerInput(scale > 1f) {
-                if (scale > 1f) {
-                    detectHorizontalDragGestures { change, amount ->
-                        offsetX = panX(offsetX + amount, scale)
-                        change.consume()
-                    }
-                }
-            }
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = { toggleChrome() },
@@ -120,6 +116,11 @@ internal fun WebtoonReader(
                         }
                     }
                 )
+            }
+            // Last in the chain, so it reads each event before the tap detector does and can mark a
+            // finished pan as spent (see [detectStripPan]).
+            .pointerInput(Unit) {
+                detectStripPan(zoomed = { scale > 1f }) { dx -> offsetX = panX(offsetX + dx, scale) }
             }
     ) {
         // Each page is a whole-pixel-tall slot but its image fits at a fractional height, leaving a
@@ -149,6 +150,53 @@ internal fun WebtoonReader(
                 )
             }
         }
+    }
+}
+
+/**
+ * Reports the horizontal travel of a one-finger drag while the strip is [zoomed], so the page can be walked
+ * sideways.
+ *
+ * It deliberately **never consumes the drag**, which is what makes diagonal movement work: the `LazyColumn`
+ * underneath reads the very same events and keeps scrolling vertically with its own physics — fling,
+ * overscroll, item reporting — while this adds the horizontal component on top. Consuming (or letting a
+ * built-in `detectHorizontalDragGestures` consume) would cancel the list's drag, which is why a gesture used
+ * to resolve to one axis or the other and never both.
+ *
+ * Movement has to clear the touch slop before it pans, so the sideways jitter in a vertical flick doesn't
+ * drift the page. Once a pan has happened the lift *is* consumed: this detector sits after the tap detector
+ * in the modifier chain, so it sees the event first, and marking the finger-up as consumed is what stops the
+ * end of a pan from registering as a tap on the page. Multi-touch is left alone entirely — [detectStripZoom]
+ * owns pinches, including their pan.
+ */
+private suspend fun PointerInputScope.detectStripPan(
+    zoomed: () -> Boolean,
+    onPan: (Float) -> Unit
+) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        var travel = 0f
+        var panning = false
+        var pinched = false
+        do {
+            val event = awaitPointerEvent()
+            val pressed = event.changes.filter { it.pressed }
+            pinched = pinched || pressed.size > 1
+
+            if (!pinched && zoomed()) {
+                val dx = pressed.singleOrNull()?.positionChangeIgnoreConsumed()?.x ?: 0f
+                if (panning) {
+                    onPan(dx)
+                } else {
+                    travel += dx
+                    if (abs(travel) > viewConfiguration.touchSlop) {
+                        panning = true
+                        onPan(travel - viewConfiguration.touchSlop * sign(travel))
+                    }
+                }
+            }
+            if (panning) event.changes.forEach { if (it.changedToUp()) it.consume() }
+        } while (event.changes.any { it.pressed })
     }
 }
 
