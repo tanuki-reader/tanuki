@@ -10,6 +10,11 @@ import io.ktor.client.request.get
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -97,6 +102,30 @@ class CloudflareInterceptorTest {
         assertEquals(1, challengesServed, "only the first request should ever see a challenge")
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class) // advanceUntilIdle
+    @Test
+    fun `concurrent challenges for one host open only one solver`() = runTest {
+        // The solver parks until released, so every request piles onto the challenge at once — the burst
+        // the reader's page prefetch produces against a host nobody has solved yet.
+        val released = CompletableDeferred<Unit>()
+        val solver = FakeSolver(CLEARANCE, parkUntil = released)
+        val client = clientWith(solver) { request ->
+            if (request.headers[HttpHeaders.Cookie]?.contains("cf_clearance=TOKEN") == true) {
+                respond("ok", HttpStatusCode.OK)
+            } else {
+                respondChallenge()
+            }
+        }
+
+        val requests = List(4) { index -> async { client.get("https://protected.example/page-$index") } }
+        advanceUntilIdle() // let all four reach the challenge and queue behind the gate
+        released.complete(Unit)
+        val responses = requests.awaitAll()
+
+        assertTrue(responses.all { it.status == HttpStatusCode.OK }, "every request should end up served")
+        assertEquals(1, solver.calls, "one browser engine for the host, not one per concurrent request")
+    }
+
     private fun clientWith(
         solver: CloudflareChallengeSolver,
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
@@ -123,9 +152,11 @@ class CloudflareInterceptorTest {
     }
 }
 
-/** A [CloudflareChallengeSolver] that returns a scripted [result] and records how it was called. */
+/** A [CloudflareChallengeSolver] that returns a scripted [result] and records how it was called. When
+ *  [parkUntil] is given the solve suspends on it, so a test can hold the gate open and let requests pile up. */
 private class FakeSolver(
     private val result: CfClearance?,
+    private val parkUntil: CompletableDeferred<Unit>? = null,
 ) : CloudflareChallengeSolver {
     var calls = 0
         private set
@@ -135,6 +166,7 @@ private class FakeSolver(
     override suspend fun solve(challenge: CloudflareChallenge): CfClearance? {
         calls++
         lastChallenge = challenge
+        parkUntil?.await()
         return result
     }
 }
