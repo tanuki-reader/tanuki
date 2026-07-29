@@ -14,6 +14,7 @@ import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.features.reader.composable.components.PagePrefetch
 import app.tanuki.features.reader.composable.components.PagedReader
+import app.tanuki.features.reader.composable.components.rememberPageAspectRatios
 import app.tanuki.features.reader.composable.components.WebtoonReader
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_no_pages
@@ -53,6 +54,9 @@ internal fun ReaderContent(
     }
 
     val paged = content.readingMode != ReadingMode.WEBTOON && content.readingMode != ReadingMode.CONTINUOUS_VERTICAL
+    // Held here rather than inside the strip so that warming a page teaches its proportions even before the
+    // strip composes that item, and so switching reading mode doesn't throw the measurements away.
+    val ratios = rememberPageAspectRatios()
 
     Box(Modifier.fillMaxSize()) {
         if (paged) {
@@ -64,7 +68,7 @@ internal fun ReaderContent(
             LaunchedEffect(pagerState, commands) {
                 commands.collect { command -> pagerState.scrollToPage(command.index) }
             }
-            PagePrefetch(content.items, pagerState.currentPage)
+            PagePrefetch(content.items, pagerState.currentPage, ratios)
             PagedReader(
                 items = content.items,
                 pagerState = pagerState,
@@ -84,10 +88,11 @@ internal fun ReaderContent(
                     if (command is ReaderCommand.Jump) listState.scrollToItem(command.index)
                 }
             }
-            PagePrefetch(content.items, listState.firstVisibleItemIndex)
+            PagePrefetch(content.items, listState.firstVisibleItemIndex, ratios)
             WebtoonReader(
                 items = content.items,
                 listState = listState,
+                ratios = ratios,
                 onToggleChrome = onToggleChrome
             )
         }

@@ -19,8 +19,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -47,46 +47,69 @@ import me.saket.telephoto.zoomable.zoomable
 import org.jetbrains.compose.resources.stringResource
 
 /** Renders one [ReaderItem]: a chapter page image, or a chapter transition slide. The [transitionModifier]
- *  sizes the slide to its host (full screen in a pager, full viewport in the strip). */
+ *  sizes the slide to its host (full screen in a pager, full viewport in the strip). [zoomable] says whether
+ *  a page owns its zoom gestures — true in a pager, where a page *is* the viewport; false in the long strip,
+ *  which zooms every visible page together from the [WebtoonReader] level and handles taps itself. [ratios]
+ *  is the strip's memory of page proportions (see [PageAspectRatios]); a pager sizes pages by the viewport
+ *  and doesn't need one. */
 @Composable
 internal fun ReaderItemContent(
     item: ReaderItem,
     onToggleChrome: () -> Unit,
     fillHeight: Boolean = true,
+    zoomable: Boolean = true,
+    ratios: PageAspectRatios? = null,
     transitionModifier: Modifier = Modifier
 ) {
     when (item) {
-        is ReaderItem.PageItem -> ReaderPage(item.page, onToggleChrome, fillHeight)
-        is ReaderItem.Transition -> ChapterTransition(item, onToggleChrome, transitionModifier)
-        ReaderItem.End -> EndOfSeries(onToggleChrome, transitionModifier)
+        is ReaderItem.PageItem -> {
+            ReaderPage(item.page, item.key, onToggleChrome, fillHeight, zoomable, ratios)
+        }
+
+        is ReaderItem.Transition -> {
+            ChapterTransition(item, onToggleChrome, transitionModifier)
+        }
+
+        ReaderItem.End -> {
+            EndOfSeries(onToggleChrome, transitionModifier)
+        }
     }
 }
-
 
 /**
  * A single page's image. Fetched through the reader's dedicated page [LocalPageImageLoader] (not the
  * singleton cover loader) from the page's direct [Page.imageUrl], falling back to its [Page.url] for
  * sources that address pages by URL.
  *
- * The image is wrapped in Telephoto's [zoomable] gesture layer, so every reading mode gets pinch-to-zoom,
- * double-tap-to-zoom, and pan. Telephoto owns the fit transform ([rememberZoomableState] with
- * `autoApplyTransformations`), so the [Image] draws at natural size ([ContentScale.Inside]) and the state
- * scales it into the viewport; the decoded page's real size is handed to the state via [setContentLocation]
- * so pan/zoom bounds hug the image. The gesture layer only consumes drags while zoomed in, handing swipe
- * (pager) and scroll (strip) back through at rest, so paging and long-strip scrolling are unaffected.
+ * When [zoomable] (the paged modes), the image is wrapped in Telephoto's [zoomable] gesture layer, so the
+ * page gets pinch-to-zoom, double-tap-to-zoom, and pan. Telephoto owns the fit transform
+ * ([rememberZoomableState] with `autoApplyTransformations`), so the [Image] draws at natural size
+ * ([ContentScale.Inside]) and the state scales it into the viewport; the decoded page's real size is handed
+ * to the state via [setContentLocation] so pan/zoom bounds hug the image. The gesture layer only consumes
+ * drags while zoomed in, handing the swipe back through at rest, so paging is unaffected. A single tap
+ * toggles the reader chrome (double-tap is reserved for zoom) — no ripple, since the whole surface is the
+ * target.
  *
- * A single tap toggles the reader chrome (double-tap is reserved for zoom) — no ripple, since the whole
- * surface is the target.
+ * In the long strip [zoomable] is false: a page there is one tile of a continuous image, so zooming it
+ * alone would misalign the pages around it. The strip scales all of its pages together and owns the tap and
+ * pinch gestures itself, leaving the page as a plain image.
  *
- * [fillHeight] distinguishes the two hosts: a pager page fills the screen and fits within it; a strip page
- * fills the width and takes its height from the page's aspect ratio (bounded so the [LazyColumn] item
- * measures correctly and zoom stays clipped to the page's slot).
+ * [fillHeight] distinguishes the two hosts. A pager page fills the screen and fits within it. A strip page
+ * fills the *width* — always, at any load state — and takes its height from [ratios], the reader's memory of
+ * page proportions: an item that has been seen or prefetched is measured at its true height straight away,
+ * so nothing resizes after the fact. Sizing the strip page with [ContentScale.FillWidth] rather than
+ * [ContentScale.Inside] is what keeps a not-yet-known ratio from *shrinking* the page: `Inside` would fit a
+ * tall page into a too-short placeholder slot and draw it inset, so it would sit narrower than the page
+ * above it — reading as if the two pages were at different zoom levels.
  */
 @Composable
 private fun ReaderPage(
     page: Page,
+    key: String,
     onToggleChrome: () -> Unit,
-    fillHeight: Boolean = true
+    fillHeight: Boolean = true,
+    zoomable: Boolean = true,
+    ratios: PageAspectRatios? = null
 ) {
     val context = LocalPlatformContext.current
     val request = remember(context, page) { page.toImageRequest(context) }
@@ -95,36 +118,50 @@ private fun ReaderPage(
     val zoomState = rememberZoomableState()
 
     val painterState by painter.state.collectAsState()
-    val intrinsic: Size? =
-        (painterState as? AsyncImagePainter.State.Success)?.painter?.intrinsicSize
-    LaunchedEffect(intrinsic) {
-        if (intrinsic != null && intrinsic.isSpecified) {
-            zoomState.setContentLocation(ZoomableContentLocation.scaledInsideAndCenterAligned(intrinsic))
+    // The page's true pixel size comes from the decoded result, never from `painter.intrinsicSize`: while
+    // Coil crossfades, the painter is a `CrossfadePainter` whose intrinsic size is the *max* of the
+    // outgoing and incoming images — the right proportions for neither, so a reused item can be measured
+    // against a blend of the page it used to show and the one it now shows.
+    val decoded: Size? =
+        (painterState as? AsyncImagePainter.State.Success)
+            ?.result
+            ?.image
+            ?.let { Size(it.width.toFloat(), it.height.toFloat()) }
+            ?.takeIf { it.width > 0f && it.height > 0f }
+    LaunchedEffect(decoded, zoomable) {
+        if (decoded == null) return@LaunchedEffect
+        ratios?.record(key, decoded.width, decoded.height)
+        if (zoomable) {
+            zoomState.setContentLocation(ZoomableContentLocation.scaledInsideAndCenterAligned(decoded))
         }
     }
 
-    val base =
-        if (fillHeight) {
-            Modifier.fillMaxSize()
-        } else {
-            val ratio =
-                intrinsic?.takeIf { it.isSpecified && it.height > 0f }?.let { it.width / it.height }
-                    ?: DEFAULT_PAGE_ASPECT_RATIO
-            Modifier.fillMaxWidth().aspectRatio(ratio)
-        }
+    if (fillHeight) {
+        Image(
+            painter = painter,
+            contentDescription = null,
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .let { if (zoomable) it.zoomable(zoomState, onClick = { onToggleChrome() }) else it },
+            contentScale = ContentScale.Inside,
+            alignment = Alignment.Center
+        )
+        return
+    }
 
+    val ratio =
+        decoded?.let { it.width / it.height }
+            ?: ratios?.of(key)
+            ?: DEFAULT_PAGE_ASPECT_RATIO
     Image(
         painter = painter,
         contentDescription = null,
-        modifier = base.zoomable(state = zoomState, onClick = { onToggleChrome() }),
-        contentScale = ContentScale.Inside,
-        alignment = Alignment.Center
+        modifier = Modifier.fillMaxWidth().aspectRatio(ratio).clipToBounds(),
+        contentScale = ContentScale.FillWidth,
+        alignment = Alignment.TopCenter
     )
 }
-
-/** Width:height of a typical portrait manga page, used to reserve a strip item's height until the real
- *  page decodes and its true aspect ratio is known. */
-private const val DEFAULT_PAGE_ASPECT_RATIO = 0.7f
 
 /**
  * The full-surface slide between two chapters: [ReaderItem.Transition.from] just finished, and

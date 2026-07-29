@@ -72,6 +72,11 @@ private const val DISK_CACHE_MAX_BYTES = 256L * 1024 * 1024
  * same instance source API calls use — so a page from a protected host (the reader's real Cloudflare
  * case) inherits the solved `cf_clearance` and no page fetch bypasses the interceptor.
  *
+ * Crossfade is on, as it is for covers. It is safe here only because nothing in the reader measures a page
+ * from its painter: while Coil crossfades it hands the UI a `CrossfadePainter` whose intrinsic size is the
+ * *max* of the outgoing and incoming images — proportions belonging to neither — so page slots are sized
+ * from the decoded result instead (see `ReaderPage`). Keep that indirection if this stays enabled.
+ *
  * @param httpClient the shared source client; not owned here (a process-lived DI singleton), so this
  *   loader never closes it out from under the source layer.
  */
