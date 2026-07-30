@@ -27,6 +27,9 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -39,7 +42,7 @@ import kotlinx.coroutines.withContext
  *
  * Every method dispatches its own engine work, so callers never wrap these calls — but *which*
  * dispatcher depends on whether the guest can reach the network:
- *  - [loadSource] and [listSources] only invoke the `SOURCE_META` export — interpretation and JSON
+ *  - [loadSource] and [observeInstalledSources] only invoke the `SOURCE_META` export — interpretation and JSON
  *    decode, genuinely CPU-bound — so they run on [DispatcherProvider.default]. (The bundle reads
  *    beneath them already hop to [DispatcherProvider.io] inside the [SourceBundleStore].)
  *  - The `fetch*` calls run guest code that issues HTTP through the `tanuki.http_request` import, and
@@ -52,7 +55,7 @@ import kotlinx.coroutines.withContext
  * version checked once) and concurrent calls don't double-instantiate. The shared [host] is bound to
  * every module's imports, so all source HTTP flows through one Ktor client.
  *
- * [listSources] and [fetchChapterPages] map straight to pre-persistence domain types. [fetchMangaList],
+ * [observeInstalledSources] and [fetchChapterPages] map straight to pre-persistence domain types. [fetchMangaList],
  * [fetchMangaDetails] and [fetchChapterList] return browse-shaped types ([MangaPage], [MangaListing],
  * [ChapterListing]) — no local identity, no user state; add-to-library and chapter-sync use cases
  * inflate the persisted `Manga`/`Chapter`. [loadSource] resolves the source's local [Source] identity,
@@ -100,17 +103,25 @@ class WasmSourceLoader(
         }
     }
 
-    override suspend fun listSources(): List<SourceMeta> = withContext(dispatchers.default) {
-        // Each installed bundle reports its own metadata via the SOURCE_META export. A source that fails
-        // to load (corrupt bundle, ABI mismatch) is skipped so one bad source can't break the whole list.
-        bundleStore.installedIds().mapNotNull { id ->
-            runCatching {
-                SourceCodec.decode<SourceMetaWire>(
-                    callModule(id, SourceAbi.Exports.SOURCE_META, EMPTY),
-                ).toDomain()
-            }.getOrNull()
-        }
-    }
+    override fun observeInstalledSources(): Flow<List<SourceMeta>> =
+        bundleStore
+            .observeInstalledIds()
+            .map { ids ->
+                // An uninstalled source leaves its instantiated module behind in the cache, where it would
+                // keep answering calls for a bundle that is no longer on disk. Drop those first, so what
+                // the enumeration below reports and what the loader will actually run agree.
+                evictModulesOutside(ids)
+                // Each installed bundle reports its own metadata via the SOURCE_META export. A source that
+                // fails to load (corrupt bundle, ABI mismatch) is skipped so one bad source can't break
+                // the whole list.
+                ids.mapNotNull { id ->
+                    runCatching {
+                        SourceCodec.decode<SourceMetaWire>(
+                            callModule(id, SourceAbi.Exports.SOURCE_META, EMPTY),
+                        ).toDomain()
+                    }.getOrNull()
+                }
+            }.flowOn(dispatchers.default)
 
     override suspend fun fetchMangaList(
         sourceId: String,
@@ -199,6 +210,23 @@ class WasmSourceLoader(
                 }
                 LoadedModule(module).also { modules[sourceId] = it }
             }
+        }
+    }
+
+    /**
+     * Drops every cached module whose source is no longer in [installed], closing each one so the engine
+     * releases its instance rather than leaking it for the life of the process.
+     *
+     * Only *removal* is handled here. A bundle rewritten in place keeps its id, so this cannot see it —
+     * today that is harmless, because the only writer is the dev installer and it runs at launch before
+     * anything is loaded. The real installer will know it is replacing a bundle and should evict that id
+     * directly.
+     */
+    private suspend fun evictModulesOutside(installed: List<String>) {
+        val keep = installed.toSet()
+        modulesLock.withLock {
+            val removed = modules.keys.filterNot { it in keep }
+            removed.forEach { id -> modules.remove(id)?.module?.close() }
         }
     }
 

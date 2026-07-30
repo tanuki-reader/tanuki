@@ -4,6 +4,7 @@ import app.tanuki.core.domain.source.model.SourceMeta
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.flow.first
 
 /**
  * Use case: resolve one installed source's [SourceMeta] by its source-native id, or `null` when no such
@@ -24,7 +25,9 @@ sealed interface GetSourceMeta {
     class Default(
         private val getInstalledSources: GetInstalledSources
     ) : GetSourceMeta {
+        // first(): a screen opening a source needs one answer now, not a subscription. If that source is
+        // later uninstalled while the screen is open, the screen's own source list is what notices.
         override suspend fun invoke(sourceId: String): SourceMeta? =
-            getInstalledSources().firstOrNull { it.id == sourceId }
+            getInstalledSources().first().firstOrNull { it.id == sourceId }
     }
 }

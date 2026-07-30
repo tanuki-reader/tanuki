@@ -7,6 +7,7 @@ import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -76,7 +77,7 @@ private class RecordingSourceLoader(private val failure: Throwable? = null) : So
     }
 
     override suspend fun loadSource(id: String): Source = error("unused")
-    override suspend fun listSources(): List<SourceMeta> = error("unused")
+    override fun observeInstalledSources(): Flow<List<SourceMeta>> = error("unused")
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing = error("unused")
     override suspend fun fetchChapterList(sourceId: String, mangaKey: String) = error("unused")
     override suspend fun fetchChapterPages(sourceId: String, chapterId: String): List<Page> = error("unused")

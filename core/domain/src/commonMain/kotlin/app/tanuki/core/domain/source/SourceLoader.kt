@@ -7,6 +7,7 @@ import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
+import kotlinx.coroutines.flow.Flow
 
 /**
  * The single seam between the app and the WASM extension runtime.
@@ -31,8 +32,17 @@ interface SourceLoader {
      */
     suspend fun loadSource(id: String): Source
 
-    /** Lists all sources known to the runtime, as lightweight [SourceMeta] entries. */
-    suspend fun listSources(): List<SourceMeta>
+    /**
+     * All sources known to the runtime as lightweight [SourceMeta] entries, re-emitted whenever the
+     * installed set changes — so a screen listing sources follows an install or an uninstall rather than
+     * holding a snapshot that quietly goes stale.
+     *
+     * A [Flow] rather than a `suspend` list because the runtime, not the caller, knows when the set
+     * moved. Each emission re-reads every installed bundle's metadata, which is comparatively expensive,
+     * so it is cold and unshared: collect it once per screen, not per row. A source whose bundle fails to
+     * load is skipped rather than failing the emission — one corrupt bundle cannot empty the list.
+     */
+    fun observeInstalledSources(): Flow<List<SourceMeta>>
 
     /**
      * Fetches one page of the source's browseable catalog as pre-persistence [MangaListing]s.

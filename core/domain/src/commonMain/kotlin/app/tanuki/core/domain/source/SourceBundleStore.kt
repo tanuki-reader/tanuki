@@ -1,5 +1,7 @@
 package app.tanuki.core.domain.source
 
+import kotlinx.coroutines.flow.Flow
+
 /**
  * On-device storage for installed source `.wasm` bundles — the bytes the WASM runtime executes. The
  * port [app.tanuki.source.WasmSourceLoader] reads through to obtain a source's bytes
@@ -13,6 +15,18 @@ package app.tanuki.core.domain.source
 interface SourceBundleStore {
     /** Source-native ids of every currently installed bundle. Empty when none are installed. */
     suspend fun installedIds(): List<String>
+
+    /**
+     * [installedIds] as a stream: the current ids, then the new set every time a bundle is written or
+     * removed. Never completes, and never fails for an absent store directory (that is simply empty).
+     *
+     * This is what lets a screen showing sources react to one being installed or uninstalled instead of
+     * holding a list that silently goes stale. The signal is **in-process**: implementations report their
+     * own mutations rather than watching the filesystem, which is complete because every install and
+     * uninstall goes through this interface. A bundle changed behind the app's back (a debugger, another
+     * process) is not observed — nothing in Tanuki does that.
+     */
+    fun observeInstalledIds(): Flow<List<String>>
 
     /** The `.wasm` bytes for [sourceId], or `null` if no bundle is installed under that id. */
     suspend fun readBundle(sourceId: String): ByteArray?

@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 import kotlin.math.floor
 
 /**
@@ -43,9 +42,10 @@ import kotlin.math.floor
  *    [ObserveNewChapters] for the chapters that have arrived since and not been opened.
  *  - **Sources** — the installed bundles' metadata, bucketed by language into collapsible groups.
  *
- * Sources are enumerated **once** on init (reading each installed bundle's metadata is comparatively
- * expensive and the set only changes on install/uninstall), while history and updates are live [Flow]s
- * — so the three are combined rather than reloaded together.
+ * All three are live [Flow]s and are combined into one state. Sources re-emit only when the installed
+ * set actually changes — reading each bundle's metadata is comparatively expensive — so a source being
+ * installed or uninstalled updates the list in place, without the screen holding a stale snapshot and
+ * without re-enumerating on every history or update tick.
  */
 @Inject
 @ContributesIntoMap(AppScope::class)
@@ -67,9 +67,10 @@ class HomeViewModel(
     val navEvents: Flow<NavEvent> = _navEvents.receiveAsFlow()
 
     /**
-     * Installed sources, enumerated once on init. `null` until that first enumeration finishes, which
-     * holds the screen on [Loading] — otherwise the Sources view would flash its "no sources" empty
-     * state while the bundles are still being read.
+     * Installed sources, tracking the runtime. `null` until the first enumeration finishes, which holds
+     * the screen on [Loading] — otherwise the Sources view would flash its "no sources" empty state while
+     * the bundles are still being read. Mirrored into a [MutableStateFlow] rather than combined directly
+     * so that "not enumerated yet" stays distinguishable from "enumerated, and there are none".
      */
     private val sources = MutableStateFlow<List<SourceMeta>?>(null)
 
@@ -81,11 +82,11 @@ class HomeViewModel(
     private val expandedLangs = MutableStateFlow<Set<String>?>(null)
 
     init {
-        viewModelScope.launch {
-            // No withContext: SourceLoader dispatches its own engine work (and the bundle reads beneath
-            // it hop to `io` themselves), so wrapping would only add a hop before it switched again.
-            sources.value = getInstalledSources()
-        }
+        // No flowOn: SourceLoader dispatches its own engine work (and the bundle reads beneath it hop to
+        // `io` themselves), so adding one would only bounce a hop before it switched again.
+        getInstalledSources()
+            .onEach { sources.value = it }
+            .launchIn(viewModelScope)
 
         combine(
             observeReadHistory(),

@@ -94,7 +94,7 @@ class CacheSourceMangaTest {
 /** A [SourceLoader] that returns one canned [Source] from [loadSource]; other calls are unused here. */
 private class FakeSourceLoader(private val source: Source) : SourceLoader {
     override suspend fun loadSource(id: String): Source = source
-    override suspend fun listSources(): List<SourceMeta> = error("unused")
+    override fun observeInstalledSources(): Flow<List<SourceMeta>> = error("unused")
     override suspend fun fetchMangaList(sourceId: String, listing: SourceListing?, query: String?, page: Int): MangaPage =
         error("unused")
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing = error("unused")

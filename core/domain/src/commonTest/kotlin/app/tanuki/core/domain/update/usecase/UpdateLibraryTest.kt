@@ -356,7 +356,7 @@ private class FakeSourceLoader(
 
     override suspend fun loadSource(id: String): Source = error("unused")
 
-    override suspend fun listSources(): List<SourceMeta> = error("unused")
+    override fun observeInstalledSources(): Flow<List<SourceMeta>> = error("unused")
 
     override suspend fun fetchMangaList(
         sourceId: String,

@@ -16,8 +16,14 @@ import app.tanuki.core.source.runtime.WasmModule
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,7 +42,7 @@ import kotlin.uuid.Uuid
 @OptIn(ExperimentalCoroutinesApi::class)
 class WasmSourceLoaderTest {
     @Test
-    fun `listSources reports each installed bundle's metadata`() =
+    fun `observeInstalledSources reports each installed bundle's metadata`() =
         runTest {
             val store = FakeBundleStore("mangadex", "weebcentral")
             val engine =
@@ -49,14 +55,14 @@ class WasmSourceLoaderTest {
                 )
             val loader = loader(engine, store)
 
-            val sources = loader.listSources().sortedBy { it.id }
+            val sources = loader.observeInstalledSources().first().sortedBy { it.id }
 
             assertEquals(listOf("mangadex", "weebcentral"), sources.map { it.id })
             assertEquals("MangaDex", sources.first().name.value)
         }
 
     @Test
-    fun `listSources skips sources that fail to load`() =
+    fun `observeInstalledSources skips sources that fail to load`() =
         runTest {
             val store = FakeBundleStore("good", "broken")
             // Mismatched ABI version → moduleFor's version check fails for every source; both are skipped
@@ -68,7 +74,56 @@ class WasmSourceLoaderTest {
                 )
             val loader = loader(engine, store)
 
-            assertEquals(emptyList(), loader.listSources())
+            assertEquals(emptyList(), loader.observeInstalledSources().first())
+        }
+
+    @Test
+    fun `observeInstalledSources re-emits when a source is installed or removed`() =
+        runTest {
+            val store = FakeBundleStore("mangadex")
+            val engine =
+                FakeWasmEngine(
+                    metas =
+                        mapOf(
+                            "mangadex" to metaWire("mangadex", "MangaDex"),
+                            "weebcentral" to metaWire("weebcentral", "WeebCentral")
+                        )
+                )
+            val loader = loader(engine, store)
+
+            val emissions = mutableListOf<List<String>>()
+            val collecting =
+                launch { loader.observeInstalledSources().collect { emissions += it.map { m -> m.id } } }
+            runCurrent()
+
+            store.writeBundle("weebcentral", byteArrayOf(0))
+            runCurrent()
+            store.removeBundle("mangadex")
+            runCurrent()
+            collecting.cancel()
+
+            assertEquals(
+                listOf(listOf("mangadex"), listOf("mangadex", "weebcentral"), listOf("weebcentral")),
+                emissions
+            )
+        }
+
+    @Test
+    fun `observeInstalledSources drops the cached module of a removed source`() =
+        runTest {
+            val store = FakeBundleStore("mangadex")
+            val engine = FakeWasmEngine(metas = mapOf("mangadex" to metaWire("mangadex", "MangaDex")))
+            val loader = loader(engine, store)
+
+            // Enumerating instantiates and caches the module; removing the bundle must retire it, or the
+            // loader would keep serving a source that is no longer installed.
+            assertEquals(listOf("mangadex"), loader.observeInstalledSources().first().map { it.id })
+            store.removeBundle("mangadex")
+
+            assertEquals(emptyList(), loader.observeInstalledSources().first())
+            // Not "is not installed" from a stale cache hit — the module was dropped, so the reload is
+            // what fails, and the bundle read is what reports it.
+            assertFailsWith<IllegalStateException> { loader.loadSource("mangadex") }
         }
 
     @Test
@@ -270,7 +325,7 @@ class WasmSourceLoaderTest {
         }
 
     @Test
-    fun `listSources carries version and resolves declared listings against the contract`() =
+    fun `observeInstalledSources carries version and resolves declared listings against the contract`() =
         runTest {
             val engine =
                 FakeWasmEngine(
@@ -291,7 +346,7 @@ class WasmSourceLoaderTest {
                 )
             val loader = loader(engine, FakeBundleStore("mangadex"))
 
-            val meta = loader.listSources().single()
+            val meta = loader.observeInstalledSources().first().single()
 
             assertEquals(7, meta.version)
             // Unknown dropped, duplicate collapsed, and the order is the contract's — not the source's.
@@ -398,13 +453,22 @@ private object NoOpSourceHost : SourceHost {
     ) = Unit
 }
 
-/** In-memory [SourceBundleStore]; bundle bytes are dummies since [FakeWasmEngine] ignores them. */
+/**
+ * In-memory [SourceBundleStore]; bundle bytes are dummies since [FakeWasmEngine] ignores them.
+ *
+ * Mirrors the real store's change signalling — a revision counter bumped by every mutation, which
+ * [observeInstalledIds] re-reads on — so tests can install and uninstall against a live enumeration.
+ */
 private class FakeBundleStore(
     vararg installed: String
 ) : SourceBundleStore {
     private val bundles = installed.associateWith { byteArrayOf(0) }.toMutableMap()
+    private val revision = MutableStateFlow(0)
 
     override suspend fun installedIds() = bundles.keys.toList()
+
+    override fun observeInstalledIds(): Flow<List<String>> =
+        revision.map { installedIds() }.distinctUntilChanged()
 
     override suspend fun readBundle(sourceId: String) = bundles[sourceId]
 
@@ -413,10 +477,12 @@ private class FakeBundleStore(
         bytes: ByteArray
     ) {
         bundles[sourceId] = bytes
+        revision.value++
     }
 
     override suspend fun removeBundle(sourceId: String) {
         bundles.remove(sourceId)
+        revision.value++
     }
 
     override suspend fun isInstalled(sourceId: String) = sourceId in bundles
