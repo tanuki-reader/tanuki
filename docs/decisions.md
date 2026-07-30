@@ -6,6 +6,190 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-07-30 — Cloudflare challenges are solved in a browser the user can see
+
+**Decision:** the challenge is shown on screen. `SiteSessionCoordinator` (`core/source/net/session/`,
+Compose-free) is a bridge: network code calls `request()` and suspends, `SiteSessionHost` renders a real
+browser (`SiteSessionWebView`, `expect`/`actual` over `WebView` / `WKWebView`) and resolves it.
+`InteractiveCloudflareSolver` is caller #1. **Both headless solvers are deleted** — they were broken by
+construction, not merely untuned.
+
+**Why:** MangaFire serves a *managed* challenge (`cType: 'managed'`), which renders a Turnstile widget and
+can escalate to a checkbox. The old solvers built their browser offscreen at zero size and never attached
+it to a window, so the widget never painted: the challenge's JS ran (device logs show its WebRTC
+fingerprinting probes) and then stalled until the 30s timeout. Reproduced identically on an Android
+emulator **and** a physical iPhone, which rules out the emulator's broken GPU. Nothing headless can tap a
+checkbox either. Mihon's solver is offscreen too, and MangaFire is long-broken there for the same reason.
+
+**The host owns one User-Agent.** `DEFAULT_SOURCE_USER_AGENT` behind `SourceUserAgentProvider` (suspend,
+consulted per request, so a settings-backed UA is a one-line DI swap), stamped on every request by
+`sourceUserAgentPlugin`, overwriting whatever a source set. The per-source `USER_AGENT =
+"Tanuki (+https://tanuki.app)"` constants are gone from all four Rust crates — that UA got every request
+challenged, and the solver then forced it onto the WebView, where Turnstile cross-checks the UA against
+the JS environment and so a Chromium claiming to be Tanuki could never clear. Solvers now use the engine's
+**own** UA and report it back; `CloudflareChallenge` deliberately has no `userAgent` field.
+
+**Knowing when a challenge is finished took four tries**, each one a live-verified correction:
+
+1. *Cookie present* → wrong. Cookie stores are shared and persistent (Android's `CookieManager` outlives
+   the process), so a stale `cf_clearance` is already there; the check passed 5ms in, before the page had
+   loaded, and replayed a dead cookie. Tell: a "solve" measured in milliseconds instead of seconds.
+2. *Delete the stale cookie first* (`SiteSessionWebView(clearCookie = …)`), so the browser must re-solve.
+   Mihon does the same (`cookieManager.remove(url, COOKIE_NAMES, 0)`). Also required: without it Cloudflare
+   accepts its own stale clearance in the browser, issues no new one, and the session waits forever.
+3. *Require a **new** value* — sound by construction, since this session only exists because a request
+   carrying the old cookie was challenged.
+4. *Wait for the browser to leave the interstitial* (`window._cf_chl_opt`). Cloudflare sets `cf_clearance`
+   **during** the challenge, before the round trip that commits it server-side; replaying 48ms later was
+   re-challenged and cost the user a second challenge. The `cf_chl_*` cookies are useless for this — they
+   persist long after the flow ends, so waiting for them to clear hangs.
+
+**The session loads the host root, not the challenged URL.** A clearance is domain-scoped, so the root
+earns the same one — while being ordinary HTML rather than the API's raw JSON, which is both saner to show
+someone and a document the `_cf_chl_opt` probe can actually run against. The browser is covered by a
+spinner whenever it isn't showing a challenge (it must keep rendering, so it stays laid out underneath).
+
+**Detection narrowed** (`CloudflareDetection`): `server: cloudflare` + `cf-ray` ride on *every* proxied
+response, so origin 403s (a bad VRF signature, a rejected key) were spinning a pointless 30s browser. It
+now keys only on markers Cloudflare sets when actually serving a challenge — `cf-mitigated: challenge`,
+the `chlray` `server-timing` metric, or legacy `cf-chl-bypass` — both live markers pinned in
+`CloudflareDetectionTest`. Trade: a challenge setting none of the three is missed and surfaces as a plain
+403, which is the better failure.
+
+**Two conclusions reached and retracted**, recorded so they aren't re-derived:
+- *"`cf_clearance` is TLS/JA3-fingerprint-bound, so OkHttp can never work"* — **wrong**, and it nearly
+  bought a Cronet dependency or a browser-backed transport. It rested on a curl matrix run against a
+  clearance that had silently expired hours earlier. A `cf_clearance` lives ~30 min: timestamp every
+  manual replay experiment before trusting it.
+- *"Missing Chromium client hints cause the rejection"* — **unproven**; adding them changed nothing.
+  `CfClearance.headers` keeps them (replaying the identity you were handed is defensible, and Cloudflare
+  does list them in `critical-ch`), but nothing here rests on it.
+
+**Reusable for source login** — the coordinator is generic. A login passes
+`SiteSessionCompletion.WhenUserConfirms` and reuses the screen, cookie harvesting and navigation; what it
+additionally needs is a **persistent** cookie store, which `SourceCookieJar`/`CloudflareCookieStore`
+deliberately are not (a clearance is short-lived and IP-bound, so persisting it is a liability).
+
+**Verified** end to end on Android and iOS: one challenge, no retry, browse loads. `static.mfcdn.nl` is
+not protected (200 with no cookie), so covers and pages were never affected.
+
+---
+
+## 2026-07-29 — Covers can carry request headers (`MangaCover.headers`, schema v9)
+
+**Decision:** the ABI's per-page `headers` gained a per-series twin — `MangaWire.coverHeaders` →
+`MangaListing.coverHeaders` → `MangaCover.headers`, persisted in a new `manga.cover_headers` column
+(schema **v9**, `Migration8To9`, `name: value` per line). Additive within the ABI version, exactly as
+`Page.headers` was: an older bundle omits it and decodes to empty.
+
+**Why:** Hipercool's image CDN 403s any request without `Referer: https://lerhentais.com/` — and checks
+the value, so a generic or absent one fails. Pages were already fine (the reader applies `Page.headers`),
+but **covers had no equivalent**, so the entire source rendered as blank tiles everywhere covers appear.
+
+**Why on the cover and not looked up per screen:** covers are drawn in six places (library grid, browse
+grid, two home rows, history, detail hero) from a *persisted* row, with no source in scope to ask and no
+guest call in flight. Attaching the headers to the thing being fetched is the only shape that doesn't
+require every screen to join its way back to a source. Cost is a redundant copy of a per-source constant
+on each row; the alternative was a source lookup in six view models.
+
+`coverImageRequest` (design system) is the single builder every cover component uses, mirroring the
+reader's `Page.toImageRequest`; the two stay separate because pages run on their own `ImageLoader`.
+`CacheSourceManga` now also **refreshes** the stored headers on its existing-row path — the one thing
+about a cached row worth rewriting, since a row cached before its source gained headers would otherwise
+stay a blank tile forever (browse returns early; only opening the series syncs details).
+
+---
+
+## 2026-07-29 — pt-BR source batch: Manhastro + Hipercool built, per-language bundles, source cookie jar
+
+**Decision:** added two pt-BR sources and made the multi-language ones ship one bundle per language.
+Surveyed seven requested sources; three could not be built and are recorded below rather than half-built.
+
+> **Correction (2026-07-29, same day): Manhastro is NOT usable — the site requires an account.**
+> Found by running it in the app, after the source had been built and tested. Tanuki has no source
+> authentication (no login UI, no credential storage, no way for a guest to carry a session it did not
+> earn itself), so the source is finished-but-blocked, exactly like Argos below. It stays bundled and
+> building so the work isn't lost, not because it works; see the crate's module docs.
+>
+> The trap worth recording: its metadata endpoints (`/dados`, `/rank/diario`, `/lancamentos`,
+> `/dados/{id}`) **answer anonymously**, and so does `/paginas/{id}` for some chapters — which is why
+> every probe below passed and the gate was missed until the app hit it. An anonymous `200` from those
+> is not evidence the source works; the reader is. Two later observations to re-check if it is resumed:
+> `/paginas/{id}` now returns **sliced** page images (`1_part0.avif`, `1_part1.avif`), which this guest
+> would emit as separate ABI pages and the reader would render as half images, and the origin
+> intermittently answers `525`.
+
+**Built:**
+- **Manhastro** (`native/sources/manhastro/`, `api2.manhastro.net`) — plain JSON, no signing/gate.
+  `/dados?page&nome&manga_id` is catalog + search + single-series lookup in one endpoint (the site's own
+  frontend bundle documents the full filter set); `/rank/diario` and `/lancamentos` back Popular/Latest and
+  return **whole records**, so neither needs the id→record second pass the reference extension does. Page
+  images need no `Referer`. Titles are bilingual (`titulo_brasil` displayed, `titulo` → `originalTitle`).
+- **Hipercool** (`native/sources/hipercool/`, `lerhentais.com`) — tRPC. Needs a `__st` cookie, minted by
+  fetching the site root with an HTML `Accept` after a `401`, and an `x-flux-node` header without which
+  `reader.chapterPages` alone answers FORBIDDEN. **No WebView needed** — the reference drives one to
+  capture request headers, but those headers turn out to be exactly cookie + `x-flux-node`, both of which
+  a guest can obtain itself. Each tRPC procedure is called on its own, not batched behind `auth.me`.
+
+**Per-language bundles (reverses "one crate = one bundle"):** the ABI gives a source one `lang`, so
+MangaDex and MangaFire now compile **twice** from one crate behind a `lang-en` / `lang-pt-br` cargo
+feature — Mihon's one-extension-per-language model, and no ABI change. English keeps the plain
+`mangadex`/`mangafire` id (no library re-pointing); pt-BR is `-pt-br`. `devSourceBundles` in
+`shared/build.gradle.kts` is now `(bundleId, crate, feature)` with a per-bundle `--target-dir`.
+
+**Source cookie jar (new, host-side):** `core/source/net/cookie/` — an in-memory per-host jar plus a Ktor
+plugin, because the client had **no cookie jar at all** and a guest is stateless between exports, so a
+site's `Set-Cookie` was dropped the moment a response was decoded. Installed **after** the Cloudflare
+plugin so it sits innermost: the jar goes *under* both the guest's own `Cookie` header and the
+`cf_clearance`, and a challenge replay passes back through it (so a cookie set by the challenge response
+rides along). `applyClearance` now **merges** into the `Cookie` header instead of replacing it — replacing
+sent the clearance and dropped the site session, i.e. "solved the challenge, still logged out". Ktor's own
+`HttpCookies` is unusable here: it overwrites the header rather than merging.
+
+**Also:** `native/source-api/src/util.rs` — `percent_encode`, `strip_html`, `parse_datetime_millis`,
+`first_number` were being copy-pasted per crate; six sources made that untenable. MangaDex/MangaFire now
+use the shared ones.
+
+**Verified:** 50 tests green on **both** engines (Chicory + wasmi), including new
+`ManhastroSourceEngineTest` (6), `HipercoolSourceEngineTest` (6) and `SourceCookiePluginTest` (4); all
+seven `.wasm` bundles build; Android app assembles. Every endpoint above was probed against the live
+sites first — the shapes are current, not taken on the reference extensions' word.
+
+### Not built, and why
+
+- **Gekkou Scans — dead.** The scan announced its shutdown; keiyoushi removed it as a dead source
+  (#9358); `gekkou.site` is now a parked ad page and `gekkou.space` a placeholder. Nothing to implement.
+- **Argos Scan — needs login.** `argoscomics.online` returns `401` on *every* endpoint; the reference
+  carries a Discord `session` cookie. Revisit when source-level authentication exists. The sibling **Argos
+  Comics** (`aniargos.com`) is live and auth-free but was ruled out for the same login reason.
+- **MangaLivre (`toonlivre.net`) — blocked on a rotated proof-of-work.** Browse/search/details/chapters
+  are reachable (`/api/mangas/search`, `/api/manga-by-slug/{id}` — the latter returns the full chapter list
+  inline). The **page list** is not: `/api/chapter-token/{mangaId}/{chapterId}` and
+  `/api/mangas/{id}/chapters/{id}` both answer `403 {"error":"Acesso negado. Assinatura ausente."}` without
+  a proof-of-work cookie. The reference's parameters (`toon_h`, seed/LCG/FNV constants) were reimplemented
+  and tested live — **still refused**, so the site has rotated them, and the current ones live in a heavily
+  obfuscated `assets/security-*.js` (string-array rotation) that the reference's regexes no longer match.
+  Two prerequisites beyond that: **a guest has no clock**, and the cookie payload is `{"ts":<now>,"pow":…}`
+  — the fix is reading the `Date` response header rather than adding an ABI import; and the API 302s
+  non-browser clients to a dead host (`www.mangalivre.net`) unless the request looks like a browser
+  (HTTP/2 + `sec-ch-ua` + a real UA), which the guest can supply. **Revisit trigger:** the current PoW
+  parameters, read out of a browser session (`document.cookie` on a chapter page names the cookie). Not
+  shipped half-built: browse would work and opening any chapter would fail, which reads as a broken source.
+  A speculative `/cdn-cgi/` redirect rule was added to `CloudflareDetection` and then **reverted** — the
+  block MangaLivre actually serves is a plain `302` to another host, so the rule had no consumer.
+
+  There is a **different site of the same name**, `mangalivre.to` (keiyoushi's "Manga Livre.to"), which is
+  live, unblocked, and has no proof-of-work — but it is a **Madara** WordPress theme, i.e. pure HTML
+  scraping: `POST /wp-admin/admin-ajax.php` (`madara_load_more`), `/?s=…&post_type=wp-manga`,
+  `POST /manga/{slug}/ajax/chapters/`, all returning HTML fragments. Every Tanuki guest so far parses JSON,
+  and the SDK's `strip_html` is a tag-stripper, not a parser. Doing Madara means **choosing an in-wasm HTML
+  strategy** — a real parser with CSS selectors (`tl`, tens of KB; `scraper`/html5ever, hundreds) versus
+  targeted string scanning — and that choice lands in every future guest's bundle size, so it is its own
+  decision rather than a detail of one source. It is also the highest-leverage one available: most of the
+  pt-BR scanlator sites in keiyoushi's catalogue are Madara.
+
+---
+
 ## 2026-07-26 — MangaFire source built (JSON API + VRF signing wired)
 
 **Decision:** built the MangaFire guest (`native/sources/mangafire/`). Key finding: **current MangaFire
@@ -38,6 +222,11 @@ against a real challenge. Smaller follow-ups: list volumes (`/api/titles/{hid}/v
 ---
 
 ## 2026-07-26 — Cloudflare interceptor scaffolded (ahead of MangaFire)
+
+> **Largely superseded (2026-07-30) — see the entry at the top of this log.** The plugin, the per-host
+> store and the `CloudflareChallengeSolver` seam all survived contact with a live target; the *solvers*
+> did not. Every "needs a live target to finish" item below was answered by finishing it, and the answer
+> to most of them was that an offscreen browser cannot solve a managed challenge at all.
 
 **Decision:** built the Cloudflare interceptor as a **Ktor client plugin** on the one shared source
 client (`core/source/net/cloudflare/`), with the browser-engine challenge solver behind an
