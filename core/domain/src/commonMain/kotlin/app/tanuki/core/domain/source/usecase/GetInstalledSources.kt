@@ -23,13 +23,14 @@ import dev.zacsweers.metro.Inject
  * @see GetSourceMeta for the single-source lookup.
  */
 sealed interface GetInstalledSources {
+    // TODO: return a Flow<List<SourceMeta>>
     suspend operator fun invoke(): List<SourceMeta>
 
     @Inject
     @ContributesBinding(AppScope::class)
     class Default(
         private val sourceLoader: SourceLoader,
-        private val logger: Logger,
+        private val logger: Logger
     ) : GetInstalledSources {
         override suspend fun invoke(): List<SourceMeta> =
             runCatching { sourceLoader.listSources() }

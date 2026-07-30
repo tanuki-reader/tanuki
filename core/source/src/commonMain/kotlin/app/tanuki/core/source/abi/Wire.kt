@@ -96,6 +96,16 @@ object Wire {
         /** Source's original/romanized title when it differs from [title]; absent otherwise. */
         val originalTitle: String? = null,
         val coverUrl: String? = null,
+        /**
+         * Per-request headers to send when fetching [coverUrl] — the cover's counterpart to
+         * [PageWire.headers], for sources whose image CDN checks the `Referer` (Hipercool's 403s
+         * without it). Empty — the default — means none, so this is additive within [SourceAbi.VERSION]
+         * exactly as the page headers were: an older bundle omits it and decodes cleanly.
+         *
+         * Unlike a page's, these are **persisted** with the manga: a library cover is rendered long
+         * after the browse call that produced it, with no source round-trip to re-ask.
+         */
+        val coverHeaders: Map<String, String> = emptyMap(),
         val author: String? = null,
         val description: String? = null,
         /** Publication status name matching [app.tanuki.core.domain.manga.model.PublishStatus]; unknown → UNKNOWN. */

@@ -1,5 +1,10 @@
 package app.tanuki.core.source.net.cloudflare
 
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.info
+import app.tanuki.core.domain.common.service.warn
+import app.tanuki.core.source.net.cookie.parseCookieHeader
+import app.tanuki.core.source.net.cookie.renderCookieHeader
 import io.ktor.client.plugins.api.ClientPlugin
 import io.ktor.client.plugins.api.Send
 import io.ktor.client.plugins.api.createClientPlugin
@@ -40,6 +45,7 @@ import kotlinx.coroutines.sync.withLock
 fun cloudflarePlugin(
     solver: CloudflareChallengeSolver,
     store: CloudflareCookieStore,
+    logger: Logger,
 ): ClientPlugin<Unit> =
     createClientPlugin("CloudflareInterceptor") {
         val solves = HostSolveGate()
@@ -49,6 +55,7 @@ fun cloudflarePlugin(
             if (!call.response.isCloudflareChallenge()) return@on call
 
             val host = request.url.host
+            logger.info(TAG, "Challenged by '$host' (${call.response.status.value}); resolving")
             val solved =
                 solves.forHost(host) {
                     // Whoever held the gate before us may have already solved this host. Their clearance
@@ -56,15 +63,12 @@ fun cloudflarePlugin(
                     // clearance that differs is a fresh solve to reuse — not another WebView to open.
                     val current = store.get(host)
                     if (current != null && current != attempted) {
+                        logger.info(TAG, "Reusing a clearance another request just solved for '$host'")
                         current
                     } else {
                         solver
-                            .solve(
-                                CloudflareChallenge(
-                                    url = request.url.buildString(),
-                                    userAgent = request.headers[HttpHeaders.UserAgent],
-                                ),
-                            )?.also { store.put(host, it) }
+                            .solve(CloudflareChallenge(url = request.url.buildString()))
+                            ?.also { store.put(host, it) }
                     }
                 }
                     // Unsolved (offline / non-interactive block / a challenge kind we don't handle):
@@ -73,12 +77,25 @@ fun cloudflarePlugin(
 
             applyClearance(request, store)
             val replay = proceed(request)
-            // The replay was challenged too → the fresh cookie is already stale (IP change, expiry).
-            // Drop it so the next call solves anew instead of replaying a dead cookie, and return what we got.
-            if (replay.response.isCloudflareChallenge()) store.clear(host)
+            // The replay was challenged too → the clearance isn't being accepted. Drop it so the next call
+            // solves anew instead of replaying a dead cookie, and return what we got.
+            if (replay.response.isCloudflareChallenge()) {
+                // Detailed on purpose: a rejected replay is indistinguishable from a failed solve in the
+                // caller's error, and the difference is everything — one means the browser never cleared
+                // the challenge, the other means it did and we failed to impersonate it afterwards.
+                logger.warn(
+                    TAG,
+                    "Replay for '$host' was challenged again; dropping the clearance. " +
+                        "Sent cookies=${solved.cookies.keys}, ua=${solved.userAgent}, " +
+                        "extra headers=${solved.headers.keys}",
+                )
+                store.clear(host)
+            }
             replay
         }
     }
+
+private const val TAG = "Cloudflare"
 
 /**
  * Serializes challenge solving per host, so concurrent requests to one host answer one challenge between
@@ -100,10 +117,16 @@ private class HostSolveGate {
 }
 
 /**
- * Attaches the stored clearance for the request's host — the `cf_clearance` cookie and the user agent it
- * is bound to — replacing rather than appending so a retry never stacks duplicate cookies. A no-op when no
- * clearance is stored (the common, unchallenged case). The UA is set only when the solver reported one;
- * see [CfClearance.userAgent].
+ * Merges the stored clearance for the request's host — the `cf_clearance` cookie and the user agent it is
+ * bound to — into the request. A no-op when no clearance is stored (the common, unchallenged case). The
+ * UA is set only when the solver reported one; see [CfClearance.userAgent].
+ *
+ * The `Cookie` header is rewritten rather than appended to, so a retry never stacks duplicates — but the
+ * cookies already on it are **kept**, with the clearance overriding only same-named ones. Those cookies
+ * are not noise: by the time this runs, the jar and the source itself have both had their say (see
+ * [app.tanuki.core.source.net.cookie.sourceCookiePlugin]), and a site behind Cloudflare routinely needs
+ * its *own* session cookie alongside the clearance. Replacing the header wholesale would send the
+ * clearance and drop the session, which reads as "solved the challenge, still logged out".
  *
  * @return the clearance it attached, or `null` if there was none — which is what the caller compares
  *   against later to tell "nobody has solved this host" from "someone solved it while I was queued".
@@ -114,13 +137,20 @@ private suspend fun applyClearance(
 ): CfClearance? {
     val clearance = store.get(request.url.host) ?: return null
 
-    val cookieHeader = clearance.cookies.entries.joinToString("; ") { (name, value) -> "$name=$value" }
+    val cookies = parseCookieHeader(request.headers[HttpHeaders.Cookie].orEmpty()).toMutableMap()
+    cookies.putAll(clearance.cookies)
     request.headers.remove(HttpHeaders.Cookie)
-    request.headers.append(HttpHeaders.Cookie, cookieHeader)
+    request.headers.append(HttpHeaders.Cookie, renderCookieHeader(cookies))
 
     clearance.userAgent?.let { userAgent ->
         request.headers.remove(HttpHeaders.UserAgent)
         request.headers.append(HttpHeaders.UserAgent, userAgent)
+    }
+    // The rest of the browser identity the clearance is bound to — the client hints on Chromium. Set the
+    // same way as the UA: replaced, not appended, so a replay can't stack duplicates.
+    clearance.headers.forEach { (name, value) ->
+        request.headers.remove(name)
+        request.headers.append(name, value)
     }
     return clearance
 }

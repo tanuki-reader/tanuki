@@ -5,4 +5,27 @@
     <string name="tab_home">Início</string>
     <string name="tab_activity">Atividade</string>
     <string name="tab_settings">Ajustes</string>
+
+    <!-- Notificação de atualização da biblioteca -->
+    <string name="notification_channel_updates">Atualizações da biblioteca</string>
+    <string name="notification_channel_updates_description">Novos capítulos das séries que você acompanha.</string>
+    <plurals name="notification_updates_title">
+        <item quantity="one">%1$d título atualizado</item>
+        <item quantity="other">%1$d títulos atualizados</item>
+    </plurals>
+    <plurals name="notification_updates_chapters">
+        <item quantity="one">%1$d novo capítulo</item>
+        <item quantity="other">%1$d novos capítulos</item>
+    </plurals>
+    <!-- Linha de uma série numa notificação com várias: "One Piece · 3 novos capítulos" -->
+    <string name="notification_updates_line">%1$s · %2$s</string>
+
+    <!-- Navegador interno mostrado quando um site precisa do usuário: verificação da Cloudflare ou login -->
+    <string name="site_session_challenge_title">Verificando sua conexão</string>
+    <string name="site_session_challenge_message">O %1$s está verificando se você não é um robô. Conclua a verificação abaixo e esta tela se fecha sozinha.</string>
+    <string name="site_session_login_title">Entrar</string>
+    <string name="site_session_login_message">Entre no %1$s para continuar. Toque em Concluir quando terminar.</string>
+    <string name="site_session_done">Concluir</string>
+    <string name="site_session_cancel">Cancelar</string>
+    <string name="site_session_close">Fechar</string>
 </resources>

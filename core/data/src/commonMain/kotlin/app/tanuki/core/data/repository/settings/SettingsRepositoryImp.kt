@@ -5,8 +5,10 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
 import dev.zacsweers.metro.AppScope
@@ -18,8 +20,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okio.Path.Companion.toPath
+import kotlin.time.Instant
 
 /**
  * DataStore-backed [SettingsRepository]. App-level scalars (currently just the theme) live in a single
@@ -43,14 +47,20 @@ class SettingsRepositoryImp(
     private val dataStore: DataStore<Preferences> =
         PreferenceDataStoreFactory.createWithPath(produceFile = { fileFactory.resolve().toPath() })
 
-    override fun observeThemePreference(): Flow<ThemePreference> =
+    /**
+     * The stored preferences, with a read failure (missing/corrupt file) surfacing as defaults rather
+     * than crashing whatever is observing. Every read below builds on this, so no single setting can
+     * forget the fallback.
+     */
+    private val preferences: Flow<Preferences> =
         dataStore.data
-            // A read failure (missing/corrupt file) should surface as defaults, not crash the UI.
             .catch { throwable ->
                 if (throwable is CancellationException) throw throwable
                 emit(emptyPreferences())
-            }.map { preferences -> preferences[THEME_KEY].toThemePreference() }
-            .flowOn(dispatcherProvider.io)
+            }.flowOn(dispatcherProvider.io)
+
+    override fun observeThemePreference(): Flow<ThemePreference> =
+        preferences.map { it[THEME_KEY].toThemePreference() }
 
     override suspend fun setThemePreference(preference: ThemePreference) {
         withContext(dispatcherProvider.io) {
@@ -58,11 +68,41 @@ class SettingsRepositoryImp(
         }
     }
 
+    override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> =
+        preferences.map { it[UPDATE_INTERVAL_KEY].toUpdateInterval() }
+
+    override suspend fun setLibraryUpdateInterval(interval: LibraryUpdateInterval) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[UPDATE_INTERVAL_KEY] = interval.name }
+        }
+    }
+
+    override suspend fun getLastLibraryUpdate(): Instant? =
+        preferences
+            .first()[LAST_UPDATE_KEY]
+            ?.let(Instant::fromEpochMilliseconds)
+
+    override suspend fun setLastLibraryUpdate(at: Instant) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[LAST_UPDATE_KEY] = at.toEpochMilliseconds() }
+        }
+    }
+
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_preference")
+        val UPDATE_INTERVAL_KEY = stringPreferencesKey("library_update_interval")
+        val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")
 
         /** Maps a stored name back to a [ThemePreference], defaulting to [ThemePreference.System]. */
         fun String?.toThemePreference(): ThemePreference =
             ThemePreference.entries.firstOrNull { it.name == this } ?: ThemePreference.System
+
+        /**
+         * Maps a stored name back to a [LibraryUpdateInterval]. An unknown name — a value written by a
+         * newer build, or a corrupt store — falls back to the default rather than to `OFF`: silently
+         * never checking for chapters again is a far worse failure than checking on the usual schedule.
+         */
+        fun String?.toUpdateInterval(): LibraryUpdateInterval =
+            LibraryUpdateInterval.entries.firstOrNull { it.name == this } ?: LibraryUpdateInterval.Default
     }
 }

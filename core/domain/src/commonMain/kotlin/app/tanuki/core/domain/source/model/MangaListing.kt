@@ -23,6 +23,9 @@ import app.tanuki.core.domain.manga.model.PublishStatus
  * @property originalTitle The source's original/romanized title when it differs from [title]; `null`
  *   otherwise.
  * @property coverUrl Cover image URL, or `null` when the source provides none/an unparseable one.
+ * @property coverHeaders Headers the app must send when fetching [coverUrl] — empty for almost every
+ *   source; non-empty when its image CDN checks the `Referer`. Carried on to
+ *   [app.tanuki.core.domain.manga.model.MangaCover.headers] when the series is persisted.
  * @property author Author/artist credit, or `null` when the source provides none.
  * @property description Synopsis, or `null` when the source provides none.
  * @property status Publication status as reported by the source; [PublishStatus.UNKNOWN] when absent or
@@ -34,6 +37,7 @@ data class MangaListing(
     val title: String,
     val originalTitle: String? = null,
     val coverUrl: Url? = null,
+    val coverHeaders: Map<String, String> = emptyMap(),
     val author: String? = null,
     val description: String? = null,
     val status: PublishStatus = PublishStatus.UNKNOWN,

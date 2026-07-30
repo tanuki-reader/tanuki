@@ -11,11 +11,13 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.core.domain.settings.model.ThemePreference
+import app.tanuki.core.domain.update.usecase.UpdateLibrary
 import app.tanuki.di.AppGraph
 import app.tanuki.features.reader.LocalPageImageLoader
 import app.tanuki.navigation.TanukiNavHost
 import app.tanuki.platform.SystemBarsEffect
 import app.tanuki.platform.imaging.newTanukiImageLoader
+import app.tanuki.platform.web.SiteSessionHost
 import app.tanuki.platform.imaging.newTanukiPageImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
@@ -47,6 +49,23 @@ fun App(appGraph: AppGraph) {
         appGraph.applicationScope.launch { appGraph.devSourceInstaller.installBundled() }
     }
 
+    // Check the library for new chapters if the user's interval says one is due. Runs on the app scope,
+    // so leaving the screen (or the composition going away) doesn't cancel a refresh in flight.
+    //
+    // This foreground catch-up is not a stand-in for the platform schedulers — it is the half that
+    // works even when they don't fire. iOS grants background refresh opportunistically and may skip a
+    // rarely-opened app for days; without a check on launch, those users would never see an update.
+    // It stays silent: the user is looking at the Home list it feeds.
+    LaunchedEffect(appGraph) {
+        appGraph.applicationScope.launch { appGraph.updateLibrary(UpdateLibrary.Trigger.Foreground) }
+    }
+
+    // Hand the platform scheduler the user's interval, and re-hand it whenever they change it. Runs for
+    // the app's lifetime — it's a subscription, not a one-shot.
+    LaunchedEffect(appGraph) {
+        appGraph.applicationScope.launch { appGraph.keepLibraryUpdateScheduled() }
+    }
+
     // The user's stored theme choice drives the whole UI: System defers to the OS setting, while Light
     // and Dark force a dialect. Collected at the root so a change re-themes every screen at once.
     val themePreference by appGraph
@@ -73,6 +92,9 @@ fun App(appGraph: AppGraph) {
         SystemBarsEffect(darkTheme)
         TanukiTheme(darkTheme = darkTheme) {
             TanukiNavHost()
+            // Above the nav host, not inside it: a Cloudflare challenge or a login prompt can be raised by
+            // any request on any screen, so it is a layer over the whole app rather than a destination.
+            SiteSessionHost(appGraph.siteSessionCoordinator)
         }
     }
 }

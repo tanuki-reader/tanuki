@@ -5,6 +5,7 @@ import app.tanuki.core.domain.chapter.repository.ChapterRepository
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.history.model.ChapterHistory
 import app.tanuki.core.domain.history.repository.HistoryRepository
+import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
@@ -44,7 +45,8 @@ sealed interface UpdateReadingProgress {
     @ContributesBinding(AppScope::class)
     class Default(
         private val chapterRepository: ChapterRepository,
-        private val historyRepository: HistoryRepository
+        private val historyRepository: HistoryRepository,
+        private val chapterUpdateRepository: ChapterUpdateRepository
     ) : UpdateReadingProgress {
         override suspend fun invoke(
             chapterId: Uuid,
@@ -70,6 +72,10 @@ sealed interface UpdateReadingProgress {
                     mangaId = chapter.mangaId,
                     readAt = Clock.System.now()
                 )
+            )
+            chapterUpdateRepository.deleteChaptersForManga(
+                mangaId = chapter.mangaId,
+                chapterIds = listOf(chapterId)
             )
         }
     }

@@ -12,6 +12,7 @@ import app.tanuki.core.domain.source.model.MangaListing
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.flow.first
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -55,10 +56,13 @@ sealed interface CacheSourceManga {
             // to it, and it's the dedupe scope. A listing carries only the source-native id.
             val source = sourceLoader.loadSource(sourceId)
 
-            // Already cached → reuse the existing row untouched (preserves any library membership).
-            // Deduped on the source-native key, not the permalink: url-less series all fall back to the
-            // source home, so keying on url would merge unrelated titles into one row.
-            mangaRepository.getMangaIdBySourceAndKey(source.id, listing.sourceMangaKey)?.let { return it }
+            // Already cached → reuse the existing row (preserves any library membership). Deduped on the
+            // source-native key, not the permalink: url-less series all fall back to the source home, so
+            // keying on url would merge unrelated titles into one row.
+            mangaRepository.getMangaIdBySourceAndKey(source.id, listing.sourceMangaKey)?.let { existingId ->
+                refreshCoverHeaders(existingId, listing)
+                return existingId
+            }
 
             // The permalink is a display/permalink URL; fall back to the source home if the source
             // published none, so the row still has a valid absolute URL.
@@ -72,7 +76,13 @@ sealed interface CacheSourceManga {
                     title = listing.title.toTextOrNull() ?: Text("Untitled"),
                     author = listing.author.toTextOrNull(),
                     description = listing.description.toTextOrNull(),
-                    cover = MangaCover(mangaId = id, url = listing.coverUrl, lastModified = Clock.System.now()),
+                    cover =
+                        MangaCover(
+                            mangaId = id,
+                            url = listing.coverUrl,
+                            lastModified = Clock.System.now(),
+                            headers = listing.coverHeaders,
+                        ),
                     sourceMangaKey = listing.sourceMangaKey.toTextOrNull(),
                     url = url,
                     dateAdded = null, // cache-only: viewable/readable, not a library entry
@@ -82,6 +92,28 @@ sealed interface CacheSourceManga {
                 )
             )
             return id
+        }
+
+        /**
+         * Brings an already-cached row's [MangaCover.headers] in line with what the source says now.
+         *
+         * The one thing about an existing row worth rewriting. Cover headers are source-owned transport
+         * metadata, not user state, and getting them wrong is not cosmetic: a source whose CDN checks
+         * the `Referer` renders every stale row as a blank tile, in the library, forever — a row cached
+         * before the source gained its headers would never recover, since browse otherwise returns
+         * early and only opening the series triggers a details sync.
+         *
+         * Writes only on an actual difference, so the overwhelmingly common case (no headers, before and
+         * after) is a read and nothing else. [MangaCover.lastModified] is deliberately not bumped — it is
+         * the image loader's cache key, and the art hasn't changed, only how it must be requested.
+         */
+        private suspend fun refreshCoverHeaders(
+            mangaId: Uuid,
+            listing: MangaListing
+        ) {
+            val manga = mangaRepository.observeManga(mangaId).first() ?: return
+            if (manga.cover.headers == listing.coverHeaders) return
+            mangaRepository.upsertManga(manga.copy(cover = manga.cover.copy(headers = listing.coverHeaders)))
         }
     }
 }

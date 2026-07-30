@@ -5,4 +5,27 @@
     <string name="tab_home">Home</string>
     <string name="tab_activity">Activity</string>
     <string name="tab_settings">Settings</string>
+
+    <!-- Library update notification -->
+    <string name="notification_channel_updates">Library updates</string>
+    <string name="notification_channel_updates_description">New chapters in the series you follow.</string>
+    <plurals name="notification_updates_title">
+        <item quantity="one">%1$d title updated</item>
+        <item quantity="other">%1$d titles updated</item>
+    </plurals>
+    <plurals name="notification_updates_chapters">
+        <item quantity="one">%1$d new chapter</item>
+        <item quantity="other">%1$d new chapters</item>
+    </plurals>
+    <!-- One series' line inside a multi-series notification: "One Piece · 3 new chapters" -->
+    <string name="notification_updates_line">%1$s · %2$s</string>
+
+    <!-- In-app browser shown when a site needs the user: a Cloudflare check, or signing in -->
+    <string name="site_session_challenge_title">Verifying your connection</string>
+    <string name="site_session_challenge_message">%1$s is checking that you’re not a bot. Complete the check below and this will close by itself.</string>
+    <string name="site_session_login_title">Sign in</string>
+    <string name="site_session_login_message">Sign in to %1$s to continue. Tap Done when you’ve finished.</string>
+    <string name="site_session_done">Done</string>
+    <string name="site_session_cancel">Cancel</string>
+    <string name="site_session_close">Close</string>
 </resources>

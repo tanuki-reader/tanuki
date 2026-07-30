@@ -26,24 +26,25 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 class DevSourceInstaller(
     private val bundleStore: SourceBundleStore,
     private val dispatchers: DispatcherProvider,
-    private val logger: Logger,
+    private val logger: Logger
 ) {
     /**
      * Installs every bundled source that isn't already present at the current version. Failures are
      * swallowed per source — a missing or corrupt bundle must not stop the app from launching, and
      * the app is fully usable with no sources installed.
      */
-    suspend fun installBundled() = withContext(dispatchers.io) {
-        BUNDLED_SOURCES.forEach { sourceId ->
-            runCatching {
-                if (bundleStore.isInstalled(sourceId) && !shouldReinstall()) return@runCatching
-                val bytes = Res.readBytes("files/sources/$sourceId.wasm")
-                bundleStore.writeBundle(sourceId, bytes)
-            }.onFailure { error ->
-                logger.warn(TAG, "Could not install bundled source '$sourceId'", error)
+    suspend fun installBundled() =
+        withContext(dispatchers.io) {
+            BUNDLED_SOURCES.forEach { sourceId ->
+                runCatching {
+                    if (bundleStore.isInstalled(sourceId) && !shouldReinstall()) return@runCatching
+                    val bytes = Res.readBytes("files/sources/$sourceId.wasm")
+                    bundleStore.writeBundle(sourceId, bytes)
+                }.onFailure { error ->
+                    logger.warn(TAG, "Could not install bundled source '$sourceId'", error)
+                }
             }
         }
-    }
 
     /**
      * Whether to overwrite an already-installed bundle. Always true for now: during development the
@@ -56,10 +57,27 @@ class DevSourceInstaller(
         const val TAG = "DevSourceInstaller"
 
         /**
-         * Source ids to install, matching the crate directory names under `native/sources/` and the
-         * `devSourceCrates` list in `shared/build.gradle.kts`. Each must correspond to a
+         * Source ids to install, matching the bundle ids in `devSourceBundles` in
+         * `shared/build.gradle.kts`. Each must correspond to a
          * `composeResources/files/sources/<id>.wasm`.
+         *
+         * A `-pt-br` suffix is a second *language build* of the same crate, not a second source — see
+         * the `language` module in that crate. MangaDex and MangaFire ship both; the pt-BR-only sites
+         * ship one.
+         *
+         * **`manhastro` is installed but not usable** — the site requires an account and Tanuki has no
+         * source authentication yet (see that crate's module docs). It stays in the list so the work
+         * isn't silently dropped; remove it from here if a non-working source in the list is worse than
+         * a missing one.
          */
-        val BUNDLED_SOURCES = listOf("hello", "mangadex", "mangafire")
+        val BUNDLED_SOURCES =
+            listOf(
+                "mangadex",
+                "mangadex-pt-br",
+                "mangafire",
+                "mangafire-pt-br",
+                "hipercool"
+                // "manhastro",
+            )
     }
 }

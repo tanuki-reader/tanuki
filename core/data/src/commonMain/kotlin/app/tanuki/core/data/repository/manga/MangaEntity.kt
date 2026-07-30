@@ -54,6 +54,7 @@ data class MangaEntity(
     val author: String?,
     val description: String?,
     @ColumnInfo(name = "cover_url") val coverUrl: String?,
+    @ColumnInfo(name = "cover_headers") val coverHeaders: String?,
     @ColumnInfo(name = "cover_last_modified") val coverLastModified: Instant,
     @ColumnInfo(name = "source_manga_key") val sourceMangaKey: String?,
     val url: String,
@@ -91,7 +92,13 @@ fun MangaEntity.toDomain(
         title = Text(title),
         author = author?.let(::Text),
         description = description?.let(::Text),
-        cover = MangaCover(mangaId = id, url = coverUrl?.let(::Url), lastModified = coverLastModified),
+        cover =
+            MangaCover(
+                mangaId = id,
+                url = coverUrl?.let(::Url),
+                lastModified = coverLastModified,
+                headers = decodeHeaders(coverHeaders),
+            ),
         sourceMangaKey = sourceMangaKey.toTextOrNull(),
         url = Url(url),
         // Downloads aren't tracked in the DB yet (no download subsystem — see LibraryFilter), so this
@@ -113,6 +120,7 @@ fun Manga.toEntity(): MangaEntity =
         author = author?.value,
         description = description?.value,
         coverUrl = cover.url?.value,
+        coverHeaders = encodeHeaders(cover.headers),
         coverLastModified = cover.lastModified,
         sourceMangaKey = sourceMangaKey?.value,
         url = url.value,
@@ -130,6 +138,31 @@ fun Manga.toEntity(): MangaEntity =
  */
 internal fun encodeScanlators(scanlators: Set<String>): String? =
     scanlators.takeIf { it.isNotEmpty() }?.joinToString("\n")
+
+/**
+ * Encodes a cover's fetch headers for storage — one `name: value` per line — or `null` when there are
+ * none, which is the case for all but a couple of sources.
+ *
+ * Denormalized onto the row for the same reason `filtered_scanlators` is: it is only ever read and
+ * written whole, one manga's worth at a time. The separators are the ones HTTP itself forbids inside a
+ * header name or value (a newline between entries, the first `:` between name and value), so no
+ * escaping is possible or needed.
+ */
+internal fun encodeHeaders(headers: Map<String, String>): String? =
+    headers
+        .takeIf { it.isNotEmpty() }
+        ?.entries
+        ?.joinToString("\n") { (name, value) -> "$name: $value" }
+
+/** Reverses [encodeHeaders]; a `null` or blank column means no headers. */
+internal fun decodeHeaders(encoded: String?): Map<String, String> =
+    encoded
+        ?.split('\n')
+        ?.mapNotNull { line ->
+            val name = line.substringBefore(':', missingDelimiterValue = "").trim()
+            if (name.isEmpty()) null else name to line.substringAfter(':').trim()
+        }?.toMap()
+        .orEmpty()
 
 /** Reverses [encodeScanlators]; a `null` or blank column means no group is hidden. */
 internal fun decodeScanlators(encoded: String?): Set<String> =

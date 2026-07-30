@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar icon for the library update notification: the Tanuki mark as a silhouette.
+
+  Android renders a small icon as a stencil — every non-transparent pixel is repainted in the system's
+  tint — so this is the design system's **knockout** logo variant (guidelines/brand-logo.card.html)
+  rather than the full-colour mark, which would flatten into a featureless disc. The head and its
+  bandit mask are one `evenOdd` path so the mask subtracts from the head and the eyes flip back to
+  solid; the ears are separate so their overlap with the head doesn't subtract.
+
+  The nose is deliberately dropped. It straddles the mask's lower edge, so at 24dp it reads as a nick
+  in the outline rather than a nose — the same simplification any status-bar icon needs.
+
+  Kept in sync with androidApp's `ic_launcher_monochrome`, which is the same silhouette for the
+  themed launcher icon. It lives here (not in androidApp) because the notifier that references it is
+  in :shared.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512"
+    android:tint="#FFFFFFFF">
+
+    <group
+        android:pivotX="150"
+        android:pivotY="150"
+        android:rotation="-18">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M104,150 a46,54 0 1,0 92,0 a46,54 0 1,0 -92,0 z" />
+    </group>
+    <group
+        android:pivotX="362"
+        android:pivotY="150"
+        android:rotation="18">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M316,150 a46,54 0 1,0 92,0 a46,54 0 1,0 -92,0 z" />
+    </group>
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M100,268 a156,156 0 1,0 312,0 a156,156 0 1,0 -312,0 z M256,214 q-78,-26 -126,16 q-26,24 -14,60 q16,40 70,34 q44,-6 66,-34 l4,22 l4,-22 q22,28 66,34 q54,6 70,-34 q12,-36 -14,-60 q-48,-42 -126,-16 z M177,246 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z M297,246 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z" />
+</vector>

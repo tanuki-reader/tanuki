@@ -19,8 +19,15 @@ plugins {
 // Tolerant of a missing Rust toolchain: without cargo the .wasm isn't built and the fixture is empty,
 // at which point each test skips itself.
 
-/** Source crates under native/sources to compile into test fixtures (`<CRATE>_WASM` byte arrays). */
-val fixtureCrates = listOf("hello", "mangadex", "mangafire")
+/**
+ * Source crates under native/sources to compile into test fixtures (`<CRATE>_WASM` byte arrays).
+ *
+ * Built with each crate's **default** features, so a multi-language crate (MangaDex, MangaFire) is
+ * fixtured in its default language only. The engine tests are about the ABI and the parse contract,
+ * which the other language build shares by construction — there is nothing a second fixture would
+ * cover except doubling the compile time of every test run.
+ */
+val fixtureCrates = listOf("hello", "mangadex", "mangafire", "manhastro", "hipercool")
 
 /**
  * Registers the cargo-build + code-gen task pair for one fixture crate and returns the generate task

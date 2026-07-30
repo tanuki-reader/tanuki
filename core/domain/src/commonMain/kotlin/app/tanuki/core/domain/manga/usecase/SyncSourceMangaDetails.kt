@@ -73,10 +73,14 @@ sealed interface SyncSourceMangaDetails {
                             MangaCover(
                                 mangaId = manga.id,
                                 url = details.coverUrl,
-                                lastModified = Clock.System.now()
+                                lastModified = Clock.System.now(),
+                                headers = details.coverHeaders
                             )
                         } else {
-                            manga.cover
+                            // The URL is unchanged, but the headers it needs may have been added by a
+                            // source update — adopt those without re-stamping lastModified, which would
+                            // needlessly evict a cover the loader already has.
+                            manga.cover.copy(headers = details.coverHeaders.ifEmpty { manga.cover.headers })
                         }
                 )
             )

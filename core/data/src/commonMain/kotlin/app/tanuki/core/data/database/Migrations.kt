@@ -12,7 +12,16 @@ import androidx.sqlite.execSQL
  * so a schema change must never be allowed to drop it, even pre-release.
  */
 internal val MIGRATIONS: Array<Migration> =
-    arrayOf(Migration1To2, Migration2To3, Migration3To4, Migration4To5, Migration5To6, Migration6To7)
+    arrayOf(
+        Migration1To2,
+        Migration2To3,
+        Migration3To4,
+        Migration4To5,
+        Migration5To6,
+        Migration6To7,
+        Migration7To8,
+        Migration8To9,
+    )
 
 /**
  * Adds `sources.version` — the monotonic version the installed `.wasm` bundle reported at install
@@ -154,5 +163,56 @@ internal object Migration5To6 : Migration(5, 6) {
 internal object Migration6To7 : Migration(6, 7) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE sources ADD COLUMN icon_url TEXT")
+    }
+}
+
+/**
+ * Adds `chapter_updates` — the local-only note that a chapter arrived *after* the user was already
+ * following its series, which Home's "New Chapters" list and the update notification are built from.
+ *
+ * A new table rather than columns on `chapters`, for the reason `reading_progress` is also its own
+ * table: the chapter row is source-owned and rewritten on every sync, so app-owned state beside it
+ * would be clobbered. Nothing is backfilled — no existing chapter can be known to have arrived after
+ * the user added the series (that is exactly the fact this table starts recording), and inventing a
+ * backfill would announce a whole library's worth of chapters as "new" on first launch.
+ */
+internal object Migration7To8 : Migration(7, 8) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Must match the schema Room expects for v8 (schemas/…/8.json) exactly, or the identity check
+        // on the next open fails.
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `chapter_updates` (
+                `chapter_id` TEXT NOT NULL,
+                `manga_id` TEXT NOT NULL,
+                `discovered_at` INTEGER NOT NULL,
+                `notified` INTEGER NOT NULL,
+                PRIMARY KEY(`chapter_id`),
+                FOREIGN KEY(`chapter_id`) REFERENCES `chapters`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_chapter_updates_manga_id` ON `chapter_updates` (`manga_id`)",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_chapter_updates_discovered_at` " +
+                "ON `chapter_updates` (`discovered_at`)",
+        )
+    }
+}
+
+/**
+ * Adds `manga.cover_headers` — the headers a cover image fetch has to carry, `name: value` per line.
+ *
+ * Almost every source needs none, but a source whose image CDN checks the `Referer` (Hipercool) answers
+ * a bare cover request with a `403`, and a cover is rendered from this table long after the browse call
+ * that produced it, with no source in scope to re-ask. Nullable and not backfilled: existing rows were
+ * cached by sources that need no headers, and the correct value for any row that does will arrive on the
+ * next sync of that series.
+ */
+internal object Migration8To9 : Migration(8, 9) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE manga ADD COLUMN cover_headers TEXT")
     }
 }

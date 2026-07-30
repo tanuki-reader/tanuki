@@ -35,8 +35,10 @@ class MangaDexSourceEngineTest {
 
         val meta = SourceCodec.decode<Wire.SourceMetaWire>(module.call(SourceAbi.Exports.SOURCE_META, ByteArray(0)))
 
+        // The fixture is the crate's default (English) language build; the pt-BR one differs only in
+        // these three strings and the language tag it filters the API by.
         assertEquals("mangadex", meta.id)
-        assertEquals("MangaDex", meta.name)
+        assertEquals("MangaDex (EN)", meta.name)
         assertEquals("en", meta.lang)
         // A raster icon, not the site's .svg logo or .ico favicon — Coil decodes neither, and a source
         // that reports one would silently show the lettered fallback forever.

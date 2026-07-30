@@ -29,27 +29,36 @@ interface CloudflareChallengeSolver {
 /**
  * A request that came back as a Cloudflare challenge and needs solving.
  *
+ * Note what is deliberately **not** here: the failed request's `User-Agent`. Handing it to the solver
+ * invites the solver to impose it on the browser engine, and Turnstile cross-checks the UA against the JS
+ * environment — so a Chromium/WebKit claiming to be the app's UA never clears the challenge. Solvers use
+ * their engine's own UA and report it back in [CfClearance]; see
+ * [app.tanuki.core.source.net.DEFAULT_SOURCE_USER_AGENT] for the UA ordinary (unchallenged) traffic uses.
+ *
  * @property url the exact URL that was challenged — the browser engine loads this.
- * @property userAgent the user agent the failed request used, or `null`. The solver may reuse it or fall
- *   back to the engine's own default; whichever actually solves the challenge is returned in [CfClearance].
  */
 data class CloudflareChallenge(
     val url: String,
-    val userAgent: String?
 )
 
 /**
- * The result of a solved challenge: the cookies to replay and the user agent they are bound to.
+ * The result of a solved challenge: the cookies to replay, and **the browser identity they are bound to**.
  *
- * Cloudflare ties a `cf_clearance` cookie to **both** the client IP and the exact `User-Agent` string, so
- * replaying the cookie without the same UA fails. [userAgent] is therefore part of the clearance, not an
- * afterthought — the interceptor sets it on every replayed request.
+ * Cloudflare ties a `cf_clearance` to the client IP and to how the browser identifies itself. Replaying
+ * the cookie as anything else is rejected, so the identity travels with the cookie rather than being
+ * reconstructed by the caller — [userAgent] and [headers] are part of the clearance, not decoration.
  *
  * @property cookies clearance cookies by name (at least `cf_clearance`); replayed as a `Cookie` header.
  * @property userAgent the UA the challenge was solved under, which every replay must send; `null` when the
- *   engine couldn't report it (then the caller keeps the request's own UA — a live-tuning gap, see actuals).
+ *   engine couldn't report it (then the caller keeps the request's own UA).
+ * @property headers other request headers that are part of that identity, replayed verbatim. In practice
+ *   the Chromium user-agent client hints (`Sec-CH-UA`, `Sec-CH-UA-Mobile`, `Sec-CH-UA-Platform`): Cloudflare
+ *   asks for them by name on its challenge (`accept-ch`, and `critical-ch` — meaning it revalidates them),
+ *   and a request claiming a Chrome UA while sending none is a contradiction it re-challenges. Empty on
+ *   WebKit, which has no client hints to send — which is exactly why iOS worked while Android did not.
  */
 data class CfClearance(
     val cookies: Map<String, String>,
-    val userAgent: String?
+    val userAgent: String?,
+    val headers: Map<String, String> = emptyMap(),
 )

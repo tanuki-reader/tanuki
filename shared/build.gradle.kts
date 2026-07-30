@@ -43,6 +43,9 @@ kotlin {
             // Ktor engine backing Coil's image fetches on Android (see setSingletonImageLoaderFactory
             // in App.kt).
             implementation(libs.ktor.client.okhttp)
+            // WorkManager backs the Android LibraryUpdateScheduler. `api` because :androidApp has to
+            // see WorkerFactory/Configuration to hand TanukiWorkerFactory to WorkManager at startup.
+            api(libs.androidx.work.runtime)
         }
         iosMain.dependencies {
             // Ktor Darwin engine backing Coil's image fetches on iOS.
@@ -77,6 +80,9 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            // Multiplatform BackHandler, so the site-session layer (a modal over the NavHost) can take
+            // the back gesture instead of letting it drive the screen underneath.
+            implementation(libs.compose.ui.backhandler)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
@@ -114,8 +120,23 @@ dependencies {
 // So each such callback closes over a plain local (a File / String) declared inside the task's own
 // config block, never over a top-level script `val`.
 
-/** Source crates under native/sources to build. Add a directory name here and it gets bundled. */
-val devSourceCrates = listOf("hello", "mangadex", "mangafire")
+/**
+ * The `.wasm` bundles to build, as `bundleId to (crate to cargoFeature)`.
+ *
+ * Usually one bundle per crate. A **multi-language site** is the exception: the ABI gives a source one
+ * `lang`, so MangaDex and MangaFire each compile twice from the same crate — once per language — behind
+ * a cargo feature, exactly as Mihon ships one extension per language. The bundle id is the source id
+ * `meta()` reports, and the file name `DevSourceInstaller` looks for; they must agree.
+ */
+val devSourceBundles: List<Triple<String, String, String?>> = listOf(
+    Triple("hello", "hello", null),
+    Triple("mangadex", "mangadex", "lang-en"),
+    Triple("mangadex-pt-br", "mangadex", "lang-pt-br"),
+    Triple("mangafire", "mangafire", "lang-en"),
+    Triple("mangafire-pt-br", "mangafire", "lang-pt-br"),
+    Triple("manhastro", "manhastro", null),
+    Triple("hipercool", "hipercool", null),
+)
 
 val wasmTarget = "wasm32-unknown-unknown"
 val nativeSourcesDir = rootProject.layout.projectDirectory.dir("native/sources")
@@ -127,29 +148,37 @@ val cargoTargetDir = layout.buildDirectory.dir("wasmSources")
 val sourceApiSrc = rootProject.layout.projectDirectory.dir("native/source-api/src")
 val bundledSourcesDir = layout.projectDirectory.dir("src/commonMain/composeResources/files/sources")
 
-// One cargo build per crate. Each declares its src (and the shared SDK src) as inputs and its .wasm
-// as output, so Gradle skips the build when nothing changed and reruns it when a source is edited.
-val cargoTasks = devSourceCrates.map { crate ->
-    tasks.register<Exec>("cargoBuild${crate.replaceFirstChar { it.uppercase() }}") {
+// One cargo build per BUNDLE, not per crate: two language bundles of one crate differ only by feature,
+// and cargo would otherwise overwrite the same artifact each time. Each gets its own --target-dir, so
+// the two builds are independent and Gradle can cache them separately. Each declares its src (and the
+// shared SDK src) as inputs and its .wasm as output, so Gradle skips the build when nothing changed
+// and reruns it when a source is edited.
+val cargoTasks = devSourceBundles.map { (bundleId, crate, feature) ->
+    val taskSuffix = bundleId.split('-').joinToString("") { it.replaceFirstChar(Char::uppercase) }
+    tasks.register<Exec>("cargoBuild$taskSuffix") {
         group = "tanuki"
-        description = "cargo build native/sources/$crate → wasm"
+        description = "cargo build native/sources/$crate → $bundleId.wasm"
 
         // Local, so the onlyIf spec (serialized into the CC) captures a File, not the script.
         val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
         onlyIf { cargo.exists() }
 
         // Local, so the CC serializes a String rather than the script's providers.
-        val targetDir = cargoTargetDir.get().asFile.absolutePath
+        val targetDir = cargoTargetDir.get().dir(bundleId).asFile.absolutePath
 
         workingDir = nativeSourcesDir.dir(crate).asFile
         executable = cargo.absolutePath
         args("build", "--release", "--target", wasmTarget, "--target-dir", targetDir)
+        // --no-default-features, so a crate's default language can't leak into the other bundle.
+        feature?.let { args("--no-default-features", "--features", it) }
 
         inputs.dir(nativeSourcesDir.dir(crate).dir("src"))
         inputs.file(nativeSourcesDir.dir(crate).file("Cargo.toml"))
         inputs.dir(sourceApiSrc)
         // cargo replaces dashes with underscores in the artifact name.
-        outputs.file(cargoTargetDir.map { it.file("$wasmTarget/release/tanuki_source_$crate.wasm") })
+        outputs.file(
+            cargoTargetDir.map { it.dir(bundleId).file("$wasmTarget/release/tanuki_source_$crate.wasm") },
+        )
     }
 }
 
@@ -171,9 +200,9 @@ val buildDevSources = tasks.register<Copy>("buildDevSources") {
     val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
     onlyIf { cargo.exists() }
 
-    devSourceCrates.forEachIndexed { index, crate ->
+    devSourceBundles.forEachIndexed { index, (bundleId, _, _) ->
         // Local `name`, so the rename closure captures a String rather than the script.
-        val name = "$crate.wasm"
+        val name = "$bundleId.wasm"
         from(cargoTasks[index]) { rename { name } }
     }
     into(bundledSourcesDir)

@@ -65,6 +65,7 @@ fun Wire.MangaWire.toDomain(): MangaListing =
         title = title,
         originalTitle = originalTitle,
         coverUrl = coverUrl.toUrlOrNull(),
+        coverHeaders = coverHeaders,
         author = author,
         description = description,
         status = publishStatusOf(status),
