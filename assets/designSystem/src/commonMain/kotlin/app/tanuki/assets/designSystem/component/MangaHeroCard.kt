@@ -67,6 +67,8 @@ private const val HERO_CARD_BACKDROP_ALPHA = 0.45f
  * @param coverUrl remote cover art URL; `null` shows the gradient fallback.
  * @param onClick invoked when the card is tapped.
  * @param width the card's width; height is fixed at [HeroCardHeight].
+ * @param coverHeaders headers the cover fetch must carry — empty for almost every source, non-empty
+ *   when its image CDN checks the `Referer` (see [coverImageRequest]).
  * @param subtitle an optional faint line under the title (e.g. the resumable chapter).
  */
 @Composable
@@ -77,6 +79,7 @@ fun MangaHeroCard(
     onClick: () -> Unit,
     width: Dp,
     modifier: Modifier = Modifier,
+    coverHeaders: Map<String, String> = emptyMap(),
     subtitle: String? = null
 ) {
     val spacing = TanukiTheme.spacing
@@ -98,7 +101,7 @@ fun MangaHeroCard(
         // stands in when the series has no cover URL (or while the art loads / on failure).
         if (coverUrl != null) {
             AsyncImage(
-                model = coverUrl,
+                model = coverImageRequest(coverUrl, coverHeaders),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize().blur(HeroCardBackdropBlur).alpha(HERO_CARD_BACKDROP_ALPHA)
@@ -148,7 +151,7 @@ fun MangaHeroCard(
                 image = coverUrl?.let { url ->
                     {
                         AsyncImage(
-                            model = url,
+                            model = coverImageRequest(url, coverHeaders),
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.matchParentSize()

@@ -62,6 +62,7 @@ internal fun MostReadRow(
             coverUrl =
                 item.manga.cover.url
                     ?.value,
+            coverHeaders = item.manga.cover.headers,
             onClick = { onOpenSeries(item) },
             modifier = Modifier.width(COVER_WIDTH)
         )

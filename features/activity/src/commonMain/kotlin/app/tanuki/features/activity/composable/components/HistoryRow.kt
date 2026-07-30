@@ -66,6 +66,7 @@ internal fun HistoryRow(
             coverUrl =
                 entry.manga.cover.url
                     ?.value,
+            coverHeaders = entry.manga.cover.headers,
             onClick = onClick,
             modifier =
                 Modifier

@@ -47,6 +47,7 @@ internal fun ContinueReadingRow(
                 seed = item.mangaId.toString(),
                 title = item.title,
                 coverUrl = item.coverUrl,
+                coverHeaders = item.coverHeaders,
                 onClick = { onItemClick(item) },
                 width = CARD_WIDTH,
                 subtitle =

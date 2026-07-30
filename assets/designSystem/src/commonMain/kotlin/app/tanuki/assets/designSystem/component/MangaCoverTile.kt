@@ -36,6 +36,8 @@ import coil3.compose.AsyncImage
  * @param title the series title drawn over the scrim.
  * @param coverUrl remote cover art URL; `null` shows the gradient fallback.
  * @param onClick invoked when the tile is tapped.
+ * @param coverHeaders headers the cover fetch must carry — empty for almost every source, non-empty
+ *   when its image CDN checks the `Referer` (see [coverImageRequest]).
  * @param unread unread-chapter badge count; `0u` hides it.
  * @param downloaded whether to show the downloaded dot.
  */
@@ -46,6 +48,7 @@ fun MangaCoverTile(
     coverUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    coverHeaders: Map<String, String> = emptyMap(),
     unread: UInt = 0u,
     downloaded: Boolean = false
 ) {
@@ -65,7 +68,7 @@ fun MangaCoverTile(
                     // would letterbox them, showing the gradient through the gaps. While loading / on
                     // failure the gradient shows through instead.
                     AsyncImage(
-                        model = url,
+                        model = coverImageRequest(url, coverHeaders),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize()

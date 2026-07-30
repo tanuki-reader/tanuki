@@ -96,6 +96,7 @@ internal fun SourceGrid(
                 seed = listing.sourceMangaKey,
                 title = listing.title,
                 coverUrl = listing.coverUrl?.value,
+                coverHeaders = listing.coverHeaders,
                 onClick = { onMangaClick(listing) },
                 modifier = Modifier.animateItem()
             )

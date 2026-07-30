@@ -43,6 +43,9 @@ kotlin {
             // (image slot); the tile is the app-level convenience that fills it via Coil's singleton
             // ImageLoader (configured in App.kt). Kept an implementation dep so consumers don't inherit it.
             implementation(libs.coil.compose)
+            // For coverImageRequest's httpHeaders(): a couple of sources' image CDNs check the Referer
+            // and 403 without it, so a cover request has to be able to carry headers.
+            implementation(libs.coil.network.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

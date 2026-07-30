@@ -38,6 +38,7 @@ import app.tanuki.assets.designSystem.component.ChevronDownIcon
 import app.tanuki.assets.designSystem.component.LabelIcon
 import app.tanuki.assets.designSystem.component.MangaCover
 import app.tanuki.assets.designSystem.component.TanukiTag
+import app.tanuki.assets.designSystem.component.coverImageRequest
 import app.tanuki.assets.designSystem.coverGradient
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -109,6 +110,7 @@ internal fun MangaHero(
     val scrimTopAlpha = HERO_SCRIM_TOP_LIGHT
     val seed = manga.id.toString()
     val coverUrl = manga.cover.url?.value
+    val coverHeaders = manga.cover.headers
     val statusLabel = manga.publishStatus.labelResource()?.let { stringResource(it) }
 
     Box(modifier = modifier.fillMaxWidth()) {
@@ -116,7 +118,7 @@ internal fun MangaHero(
         // Falls back to the deterministic gradient when the series has no cover URL.
         if (coverUrl != null) {
             AsyncImage(
-                model = coverUrl,
+                model = coverImageRequest(coverUrl, coverHeaders),
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.matchParentSize().blur(HeroBackdropBlur).alpha(backdropAlpha)
@@ -153,7 +155,7 @@ internal fun MangaHero(
                 // The real cover art (the hero previously showed only the gradient); null URL keeps it.
                 coverUrl?.let { url ->
                     AsyncImage(
-                        model = url,
+                        model = coverImageRequest(url, coverHeaders),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.matchParentSize()

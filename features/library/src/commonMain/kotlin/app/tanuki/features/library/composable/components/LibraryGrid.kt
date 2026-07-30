@@ -73,6 +73,7 @@ internal fun LibraryGrid(
                         seed = manga.id.toString(),
                         title = manga.title.value,
                         coverUrl = manga.cover.url?.value,
+                        coverHeaders = manga.cover.headers,
                         onClick = { onMangaClick(manga.id) },
                         unread = manga.unreadCount,
                         downloaded = manga.isDownloaded,
