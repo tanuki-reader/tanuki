@@ -9,6 +9,8 @@ import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.history.model.ChapterHistory
 import app.tanuki.core.domain.history.repository.HistoryRepository
+import app.tanuki.core.domain.update.model.ChapterUpdate
+import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -29,7 +31,7 @@ class UpdateReadingProgressTest {
     @Test
     fun `writes the new page for a chapter with no prior progress`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo())
+        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
 
         update(CHAPTER_ID, lastPageRead = 4u, read = false)
 
@@ -44,7 +46,7 @@ class UpdateReadingProgressTest {
         val chapters = ProgressChapterRepo(
             progress = ReadingProgress(hasBookmark = true, lastPageRead = 2u, alreadyRead = false),
         )
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo())
+        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
 
         update(CHAPTER_ID, lastPageRead = 5u, read = false)
 
@@ -56,7 +58,7 @@ class UpdateReadingProgressTest {
     @Test
     fun `marks the chapter read when the last page is reached`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo())
+        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
 
         update(CHAPTER_ID, lastPageRead = 19u, read = true)
 
@@ -68,7 +70,7 @@ class UpdateReadingProgressTest {
         val chapters = ProgressChapterRepo(
             progress = ReadingProgress(hasBookmark = false, lastPageRead = 19u, alreadyRead = true),
         )
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo())
+        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
 
         update(CHAPTER_ID, lastPageRead = 3u, read = false)
 
@@ -82,7 +84,7 @@ class UpdateReadingProgressTest {
     fun `records a history entry for the chapter's manga`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
         val history = RecordingHistoryRepo()
-        val update = UpdateReadingProgress.Default(chapters, history)
+        val update = UpdateReadingProgress.Default(chapters, history, RecordingChapterUpdateRepo())
 
         update(CHAPTER_ID, lastPageRead = 0u, read = false)
 
@@ -92,15 +94,30 @@ class UpdateReadingProgressTest {
     }
 
     @Test
+    fun `clears the chapter's new-chapter record once it has been opened`() = runTest {
+        val chapters = ProgressChapterRepo(progress = null)
+        val updates = RecordingChapterUpdateRepo()
+        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), updates)
+
+        update(CHAPTER_ID, lastPageRead = 0u, read = false)
+
+        // Opening a chapter is what retires its "new" badge — the update list is about what the user
+        // hasn't seen, so reading it is the acknowledgement.
+        assertEquals(listOf(chapters.mangaId to listOf(CHAPTER_ID)), updates.cleared)
+    }
+
+    @Test
     fun `writes nothing when the chapter does not exist`() = runTest {
         val chapters = ProgressChapterRepo(progress = null, chapterExists = false)
         val history = RecordingHistoryRepo()
-        val update = UpdateReadingProgress.Default(chapters, history)
+        val updates = RecordingChapterUpdateRepo()
+        val update = UpdateReadingProgress.Default(chapters, history, updates)
 
         update(CHAPTER_ID, lastPageRead = 4u, read = false)
 
         assertTrue(chapters.written.isEmpty())
         assertTrue(history.recorded.isEmpty())
+        assertTrue(updates.cleared.isEmpty())
     }
 
     private companion object {
@@ -141,6 +158,23 @@ private class ProgressChapterRepo(
     override suspend fun upsertChapters(chapters: List<Chapter>) = error("unused")
     override suspend fun deleteChapter(chapterId: Uuid) = error("unused")
     override suspend fun deleteChapters(chapterIds: List<Uuid>) = error("unused")
+}
+
+private class RecordingChapterUpdateRepo : ChapterUpdateRepository {
+    val cleared = mutableListOf<Pair<Uuid, List<Uuid>>>()
+
+    override suspend fun deleteChaptersForManga(
+        mangaId: Uuid,
+        chapterIds: List<Uuid>
+    ) {
+        cleared += mangaId to chapterIds
+    }
+
+    override fun observeUpdates(): Flow<List<ChapterUpdate>> = flowOf(emptyList())
+    override suspend fun getUnnotified(): List<ChapterUpdate> = error("unused")
+    override suspend fun recordUpdates(updates: List<ChapterUpdate>) = error("unused")
+    override suspend fun markNotified(chapterIds: List<Uuid>) = error("unused")
+    override suspend fun deleteForManga(mangaId: Uuid) = error("unused")
 }
 
 private class RecordingHistoryRepo : HistoryRepository {
