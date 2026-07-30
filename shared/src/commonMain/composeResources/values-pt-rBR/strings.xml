@@ -28,4 +28,7 @@
     <string name="site_session_done">Concluir</string>
     <string name="site_session_cancel">Cancelar</string>
     <string name="site_session_close">Fechar</string>
+    <!-- Mostrado sobre o navegador enquanto a página do desafio não está visível — antes de carregar e
+         no instante após ela passar, enquanto a camada se fecha -->
+    <string name="site_session_connecting">Conectando a %1$s…</string>
 </resources>

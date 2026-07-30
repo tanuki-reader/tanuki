@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -69,9 +70,12 @@ internal fun BackIcon(
     }
 }
 
-/** `close` — a rounded X, used to clear the search field. */
+/**
+ * `close` — a rounded X. Clears the search field, and dismisses a modal surface that is not part of the
+ * back stack (the site-session layer), where an X reads as "close this" rather than "go back a screen".
+ */
 @Composable
-internal fun CloseIcon(
+fun CloseIcon(
     tint: Color,
     modifier: Modifier = Modifier,
     size: Dp = 18.dp
@@ -438,6 +442,69 @@ fun ContrastIcon(
                 useCenter = true,
                 topLeft = Offset(4f, 4f),
                 size = Size(16f, 16f)
+            )
+        }
+    }
+}
+
+/**
+ * `verified_user` — a shield with a check inside. Marks a security checkpoint the site is putting in
+ * front of the user (the Cloudflare challenge), rather than a failure: the check says the goal is to be
+ * let through.
+ */
+@Composable
+fun ShieldCheckIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val shield =
+                Path().apply {
+                    moveTo(12f, 2.8f)
+                    lineTo(19.2f, 5.8f)
+                    lineTo(19.2f, 11.6f)
+                    // The tapering lower half: both flanks curve in to a rounded point under the centre.
+                    quadraticTo(19.2f, 17.6f, 12f, 21.2f)
+                    quadraticTo(4.8f, 17.6f, 4.8f, 11.6f)
+                    lineTo(4.8f, 5.8f)
+                    close()
+                }
+            drawPath(shield, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round))
+            drawLine(tint, Offset(8.8f, 11.8f), Offset(11f, 14f), ICON_STROKE, StrokeCap.Round)
+            drawLine(tint, Offset(11f, 14f), Offset(15.2f, 9.8f), ICON_STROKE, StrokeCap.Round)
+        }
+    }
+}
+
+/**
+ * `lock` — a padlock: a rounded body under a shackle arc. Marks a surface asking the user to sign in to
+ * a source.
+ */
+@Composable
+fun LockIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val shackle =
+                Path().apply {
+                    moveTo(8.2f, 10.5f)
+                    lineTo(8.2f, 8f)
+                    quadraticTo(8.2f, 4.2f, 12f, 4.2f)
+                    quadraticTo(15.8f, 4.2f, 15.8f, 8f)
+                    lineTo(15.8f, 10.5f)
+                }
+            drawPath(shackle, tint, style = Stroke(width = ICON_STROKE, cap = StrokeCap.Round))
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(4.8f, 10.5f),
+                size = Size(14.4f, 9f),
+                cornerRadius = CornerRadius(2.4f, 2.4f),
+                style = Stroke(width = ICON_STROKE)
             )
         }
     }

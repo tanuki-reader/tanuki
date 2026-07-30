@@ -80,9 +80,10 @@ kotlin {
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
-            // Multiplatform BackHandler, so the site-session layer (a modal over the NavHost) can take
-            // the back gesture instead of letting it drive the screen underneath.
-            implementation(libs.compose.ui.backhandler)
+            // Multiplatform predictive-back handling, so the site-session layer (a modal over the
+            // NavHost) can take the back gesture instead of letting it drive the screen underneath.
+            // Compose's own `ui-backhandler` is deprecated in favour of this.
+            implementation(libs.androidx.navigationevent.compose)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)

@@ -28,4 +28,7 @@
     <string name="site_session_done">Done</string>
     <string name="site_session_cancel">Cancel</string>
     <string name="site_session_close">Close</string>
+    <!-- Shown over the browser while the challenge page itself isn't on screen — before it loads, and
+         in the moment after it clears while the layer is closing -->
+    <string name="site_session_connecting">Connecting to %1$s…</string>
 </resources>
