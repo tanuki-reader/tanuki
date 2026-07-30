@@ -32,9 +32,11 @@ import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.home.composable.ContinueReadingRow
 import app.tanuki.features.home.composable.LanguageSourceGroup
+import app.tanuki.features.home.composable.NewChapterRow
 import app.tanuki.features.home.resources.Res
 import app.tanuki.features.home.resources.home_continue_reading
 import app.tanuki.features.home.resources.home_for_you_empty
+import app.tanuki.features.home.resources.home_new_chapters
 import app.tanuki.features.home.resources.home_segment_for_you
 import app.tanuki.features.home.resources.home_segment_sources
 import app.tanuki.features.home.resources.home_sources_empty
@@ -126,9 +128,11 @@ private fun HomeScreen(
 }
 
 /**
- * The For You view: the user's in-progress library titles. A "Recent Updates" section is intentionally
- * absent until real update tracking exists — the [LazyColumn] is here so it can slot in beside Continue
- * Reading without restructuring the screen.
+ * The For You view: what the user is in the middle of, then what has arrived since.
+ *
+ * Each section renders only when it has something — a library with no updates shows just Continue
+ * Reading, and a freshly-added library with unread updates shows just New Chapters. The empty state is
+ * reserved for when neither has anything at all.
  */
 @Composable
 private fun ForYouView(
@@ -136,7 +140,7 @@ private fun ForYouView(
     viewModel: HomeViewModel
 ) {
     val spacing = TanukiTheme.spacing
-    if (content.continueReading.isEmpty()) {
+    if (content.forYouIsEmpty) {
         Box(Modifier.fillMaxSize(), Alignment.Center) {
             TanukiEmptyState(message = stringResource(Res.string.home_for_you_empty))
         }
@@ -148,16 +152,32 @@ private fun ForYouView(
         contentPadding = PaddingValues(vertical = spacing.sm),
         verticalArrangement = Arrangement.spacedBy(spacing.lg)
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        if (content.continueReading.isNotEmpty()) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    SectionHeader(
+                        title = stringResource(Res.string.home_continue_reading),
+                        modifier = Modifier.padding(horizontal = spacing.gutter)
+                    )
+                    ContinueReadingRow(
+                        items = content.continueReading,
+                        onItemClick = viewModel::onContinueReadingClick
+                    )
+                }
+            }
+        }
+
+        if (content.newChapters.isNotEmpty()) {
+            // The header is its own item, and each update its own, so the list stays lazy — a library
+            // that has been away for a while can produce a long run of these.
+            item {
                 SectionHeader(
-                    title = stringResource(Res.string.home_continue_reading),
+                    title = stringResource(Res.string.home_new_chapters),
                     modifier = Modifier.padding(horizontal = spacing.gutter)
                 )
-                ContinueReadingRow(
-                    items = content.continueReading,
-                    onItemClick = viewModel::onContinueReadingClick
-                )
+            }
+            items(content.newChapters, key = { it.chapterId.toString() }) { item ->
+                NewChapterRow(item = item, onClick = { viewModel.onNewChapterClick(item) })
             }
         }
     }

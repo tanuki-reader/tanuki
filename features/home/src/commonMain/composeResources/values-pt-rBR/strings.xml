@@ -6,4 +6,27 @@
     <string name="home_for_you_empty">Os títulos que você começar a ler aparecem aqui.</string>
     <string name="home_sources_empty">As fontes instaladas aparecem aqui.</string>
     <string name="home_continue_reading_chapter">Capítulo %1$s</string>
+
+    <!-- Seção de novos capítulos -->
+    <string name="home_new_chapters">Novos capítulos</string>
+    <string name="home_cover_content_description">Capa de %1$s</string>
+
+    <!-- Legendas relativas de quando o capítulo foi encontrado -->
+    <string name="home_time_just_now">Agora mesmo</string>
+    <plurals name="home_time_minutes">
+        <item quantity="one">há %1$d min</item>
+        <item quantity="other">há %1$d min</item>
+    </plurals>
+    <plurals name="home_time_hours">
+        <item quantity="one">há %1$d h</item>
+        <item quantity="other">há %1$d h</item>
+    </plurals>
+    <plurals name="home_time_days">
+        <item quantity="one">há %1$d dia</item>
+        <item quantity="other">há %1$d dias</item>
+    </plurals>
+    <plurals name="home_time_weeks">
+        <item quantity="one">há %1$d semana</item>
+        <item quantity="other">há %1$d semanas</item>
+    </plurals>
 </resources>

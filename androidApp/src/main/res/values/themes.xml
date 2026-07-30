@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The app theme, which on Android 12+ is also the splash screen: the platform draws
+      `windowSplashScreenBackground` with `windowSplashScreenAnimatedIcon` centred on it while the
+      process starts. No androidx.core.splashscreen needed — minSdk is well past 31, so the platform
+      API is always available.
+
+      Colours are the design system's dark canvas (tokens/colors.css): the `bg` token, #0C0C0C, behind
+      the mark. That rather than the launcher icon's `surface` #141414, because a splash screen stands
+      in for the app's first frame — and the app's first frame is drawn on `bg`.
+
+      The window background matches, so the hand-off from splash to the Compose UI is seamless instead
+      of flashing the platform's default white. The rest of the app's colour comes from TanukiTheme in
+      Compose — this only has to own the frames before Compose exists.
+
+      The splash icon is the launcher foreground itself, not a copy: both need the mark inset to the
+      central 66.67% of their canvas (an adaptive icon so the launcher mask can't clip it, a splash
+      icon because the platform masks it to a circle at the same ratio), so one drawable satisfies
+      both and they cannot drift apart.
+
+      NoActionBar because the UI is a single edge-to-edge Compose surface with its own top bars.
+    -->
+    <style name="Theme.Tanuki" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/tanuki_background</item>
+        <item name="android:windowSplashScreenBackground">@color/tanuki_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+    </style>
+</resources>

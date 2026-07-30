@@ -16,6 +16,8 @@ dependencies {
     implementation(projects.shared)
 
     implementation(libs.androidx.activity.compose)
+    // WorkManager's Configuration/WorkerFactory, handed the graph's factory in TanukiApplication.
+    implementation(libs.androidx.work.runtime)
     implementation(libs.metrox.android)
     implementation(libs.metrox.viewmodel.compose)
 

@@ -1,16 +1,15 @@
 package app.tanuki.features.home.viewmodel
 
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
  * State of the Home tab — the app's landing surface, split into two views the screen toggles between:
- * **For You** ([continueReading], activity over the user's library) and **Sources** ([sourceGroups],
- * the installed sources grouped by language).
+ * **For You** ([continueReading] and [newChapters], activity over the user's library) and **Sources**
+ * ([sourceGroups], the installed sources grouped by language).
  *
  * Both views load together into one [Content]; the selected view is UI state the screen owns, since it
- * changes nothing in the data. A "Recent Updates" view is intentionally absent for now — it waits on a
- * real update-tracking feature (see the project notes) and [Content] is shaped to grow a second For You
- * section without a state redesign.
+ * changes nothing in the data.
  */
 sealed interface HomeState {
     /** Reading history and installed sources are still loading. */
@@ -18,14 +17,20 @@ sealed interface HomeState {
 
     /**
      * @property continueReading the user's in-progress library titles, most-recently-read first (one
-     *   card per series); empty renders the For You empty state.
+     *   card per series).
+     * @property newChapters chapters that arrived in the library and haven't been opened yet, newest
+     *   first. Independent of [continueReading] — a series can appear in both, or in neither.
      * @property sourceGroups installed sources bucketed by language, each collapsible; empty renders
      *   the Sources empty state.
      */
     data class Content(
         val continueReading: List<ContinueReadingItem>,
+        val newChapters: List<NewChapterItem>,
         val sourceGroups: List<SourceLanguageGroup>
-    ) : HomeState
+    ) : HomeState {
+        /** For You has nothing to show at all — both of its sections are empty. */
+        val forYouIsEmpty: Boolean get() = continueReading.isEmpty() && newChapters.isEmpty()
+    }
 }
 
 /**
@@ -36,6 +41,7 @@ sealed interface HomeState {
  *   then opens the series' detail instead).
  * @property title series title (source content, not localizable).
  * @property coverUrl remote cover URL, or `null` for the gradient fallback.
+ * @property coverHeaders headers the cover fetch must carry; empty for almost every source.
  * @property chapterNumberLabel the resumable chapter's number formatted for display (e.g. "7", "15.3"),
  *   or `null` when the source didn't give a recognizable number.
  * @property chapterName the chapter's own name, shown when [chapterNumberLabel] is `null`.
@@ -45,8 +51,38 @@ data class ContinueReadingItem(
     val chapterId: Uuid?,
     val title: String,
     val coverUrl: String?,
+    val coverHeaders: Map<String, String>,
     val chapterNumberLabel: String?,
     val chapterName: String
+)
+
+/**
+ * One row in the For You "New Chapters" list: a chapter that arrived in a followed series and hasn't
+ * been opened yet.
+ *
+ * Flat rather than grouped per series — a series that drops several chapters at once contributes one
+ * row each, newest first, so a tap always resumes *a specific chapter* rather than dropping the user on
+ * a detail screen to pick one.
+ *
+ * @property chapterId the chapter to open, and the row's stable list key.
+ * @property mangaId the series it belongs to, carried for navigation and as the cover seed.
+ * @property title series title (source content, not localizable).
+ * @property coverUrl remote cover URL, or `null` for the gradient fallback.
+ * @property coverHeaders headers the cover fetch must carry; empty for almost every source.
+ * @property chapterNumberLabel the chapter's number formatted for display (e.g. "7", "15.3"), or `null`
+ *   when the source gave no recognizable number.
+ * @property chapterName the chapter's own name, shown when [chapterNumberLabel] is `null`.
+ * @property discoveredAt when the chapter was found, for the row's relative caption.
+ */
+data class NewChapterItem(
+    val chapterId: Uuid,
+    val mangaId: Uuid,
+    val title: String,
+    val coverUrl: String?,
+    val coverHeaders: Map<String, String>,
+    val chapterNumberLabel: String?,
+    val chapterName: String,
+    val discoveredAt: Instant
 )
 
 /**

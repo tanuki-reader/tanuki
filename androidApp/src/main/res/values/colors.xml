@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The only colours the platform needs before Compose is running (the splash and window background).
+      Everything else lives in TanukiTheme; these are duplicated here because a theme attribute cannot
+      reference a Compose value.
+
+      `bg` token from the design system's tokens/colors.css.
+    -->
+    <color name="tanuki_background">#0C0C0C</color>
+</resources>

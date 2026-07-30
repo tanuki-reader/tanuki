@@ -7,6 +7,8 @@ import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.usecase.ObserveReadHistory
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
+import app.tanuki.core.domain.update.model.NewChapter
+import app.tanuki.core.domain.update.usecase.ObserveNewChapters
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.core.navigation.NavEvent.NavTo
@@ -37,18 +39,20 @@ import kotlin.math.floor
  *
  * Feeds both of Home's views from one state:
  *  - **For You** — [ObserveReadHistory] (which already joins each history row to its manga and chapter)
- *    reduced to one "continue reading" card per library series, most-recently-read first.
+ *    reduced to one "continue reading" card per library series, most-recently-read first, plus
+ *    [ObserveNewChapters] for the chapters that have arrived since and not been opened.
  *  - **Sources** — the installed bundles' metadata, bucketed by language into collapsible groups.
  *
  * Sources are enumerated **once** on init (reading each installed bundle's metadata is comparatively
- * expensive and the set only changes on install/uninstall), while history is a live [Flow] — so the two
- * are combined rather than reloaded together.
+ * expensive and the set only changes on install/uninstall), while history and updates are live [Flow]s
+ * — so the three are combined rather than reloaded together.
  */
 @Inject
 @ContributesIntoMap(AppScope::class)
 @ViewModelKey
 class HomeViewModel(
     observeReadHistory: ObserveReadHistory,
+    observeNewChapters: ObserveNewChapters,
     private val getInstalledSources: GetInstalledSources,
     private val dispatcher: DispatcherProvider
 ) : ViewModel() {
@@ -83,12 +87,17 @@ class HomeViewModel(
             sources.value = getInstalledSources()
         }
 
-        combine(observeReadHistory(), sources, expandedLangs) { history, installed, expanded ->
+        combine(
+            observeReadHistory(),
+            observeNewChapters(),
+            sources,
+            expandedLangs
+        ) { history, updates, installed, expanded ->
             // Null `installed` = sources not enumerated yet; emit nothing so the screen stays on Loading.
-            // TODO: change this infinite loading logic
             installed?.let {
                 Content(
                     continueReading = history.toContinueReading(),
+                    newChapters = updates.map(NewChapter::toItem),
                     sourceGroups = it.toLanguageGroups(expanded)
                 )
             }
@@ -122,6 +131,15 @@ class HomeViewModel(
     }
 
     /**
+     * A "New Chapters" row was tapped — open that chapter in the reader. Nothing is dismissed here: the
+     * reader records the chapter as opened, which is what drops it from the list (see
+     * [app.tanuki.core.domain.update.usecase.ResolveChapterUpdates]).
+     */
+    fun onNewChapterClick(item: NewChapterItem) {
+        _navEvents.trySend(NavTo(Reader(mangaId = item.mangaId, chapterId = item.chapterId)))
+    }
+
+    /**
      * Reduces the raw history to the For You carousel: library titles only (a series read straight from
      * a source without being added isn't "continue reading"), one card per series keeping its most
      * recent read, capped so the row stays a glanceable shortlist rather than a second History screen.
@@ -139,6 +157,7 @@ class HomeViewModel(
                     coverUrl =
                         entry.manga.cover.url
                             ?.value,
+                    coverHeaders = entry.manga.cover.headers,
                     chapterNumberLabel =
                         entry.chapter
                             ?.chapterNumber
@@ -185,6 +204,31 @@ class HomeViewModel(
         const val CONTINUE_READING_LIMIT = 15
     }
 }
+
+/**
+ * Projects a resolved [NewChapter] onto its row. No filtering happens here — the domain already decided
+ * this chapter is still pending, and duplicating that rule in the ViewModel is how the list and the
+ * notification would drift apart.
+ */
+private fun NewChapter.toItem(): NewChapterItem =
+    NewChapterItem(
+        chapterId = chapter.id,
+        mangaId = manga.id,
+        title = manga.title.value,
+        coverUrl =
+            manga.cover.url
+                ?.value,
+        coverHeaders = manga.cover.headers,
+        chapterNumberLabel =
+            chapter.chapterNumber
+                ?.value
+                ?.formatChapterNumber(),
+        chapterName =
+            chapter.name
+                ?.value
+                .orEmpty(),
+        discoveredAt = discoveredAt
+    )
 
 /**
  * Formats a chapter number for display: whole chapters lose the decimal ("7"), subchapters keep it

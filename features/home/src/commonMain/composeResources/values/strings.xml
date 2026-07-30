@@ -6,4 +6,27 @@
     <string name="home_for_you_empty">Titles you start reading show up here.</string>
     <string name="home_sources_empty">Installed sources show up here.</string>
     <string name="home_continue_reading_chapter">Chapter %1$s</string>
+
+    <!-- New Chapters section -->
+    <string name="home_new_chapters">New Chapters</string>
+    <string name="home_cover_content_description">Cover of %1$s</string>
+
+    <!-- Relative "found at" captions -->
+    <string name="home_time_just_now">Just now</string>
+    <plurals name="home_time_minutes">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <plurals name="home_time_hours">
+        <item quantity="one">%1$d h ago</item>
+        <item quantity="other">%1$d h ago</item>
+    </plurals>
+    <plurals name="home_time_days">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <plurals name="home_time_weeks">
+        <item quantity="one">%1$d week ago</item>
+        <item quantity="other">%1$d weeks ago</item>
+    </plurals>
 </resources>

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon layer (Android 13+): the mark as a single-tone silhouette, which the launcher recolours
+  to the user's wallpaper palette.
+
+  This is the design system's **knockout** logo variant (guidelines/brand-logo.card.html): head and
+  ears solid, with the bandit mask reversed out of the head. The full-colour mark cannot be used here
+  — a themed icon is repainted in one tone, so orange head and dark mask would collapse into a
+  featureless disc. Same silhouette as the notification's status-bar icon, for the same reason.
+
+  The mask is a hole rather than a second path because a themed layer has only one colour: the head
+  and its mask are drawn as one `evenOdd` path, so the mask subtracts, and the eyes — a further level
+  in — flip back to solid. Ears are a separate path precisely so they *don't* subtract where they
+  overlap the head.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512"
+    android:tint="#FFFFFFFF">
+
+    <!-- Scaled to the masked safe area, for the same reason as ic_launcher_foreground: at 1:1 a
+         circular launcher mask shears the ears off. -->
+    <group
+        android:pivotX="256"
+        android:pivotY="256"
+        android:scaleX="0.82"
+        android:scaleY="0.82">
+
+        <!-- Ears. Kept out of the evenOdd path below so the head overlap stays solid. -->
+        <group
+            android:pivotX="150"
+            android:pivotY="150"
+            android:rotation="-18">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M104,150 a46,54 0 1,0 92,0 a46,54 0 1,0 -92,0 z" />
+        </group>
+        <group
+            android:pivotX="362"
+            android:pivotY="150"
+            android:rotation="18">
+            <path
+                android:fillColor="#FFFFFFFF"
+                android:pathData="M316,150 a46,54 0 1,0 92,0 a46,54 0 1,0 -92,0 z" />
+        </group>
+
+        <!-- Head, with the mask knocked out and the eyes knocked back in. -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M100,268 a156,156 0 1,0 312,0 a156,156 0 1,0 -312,0 z M256,214 q-78,-26 -126,16 q-26,24 -14,60 q16,40 70,34 q44,-6 66,-34 l4,22 l4,-22 q22,28 66,34 q54,6 70,-34 q12,-36 -14,-60 q-48,-42 -126,-16 z M177,246 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z M297,246 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z" />
+    </group>
+</vector>

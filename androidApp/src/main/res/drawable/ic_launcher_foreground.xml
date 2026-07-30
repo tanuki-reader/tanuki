@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher icon foreground — the Tanuki brand mark, geometry verbatim from the design system's
+  assets/icon.svg (and identical to `TanukiLogo` in assets/designSystem).
+
+  The 512 viewport is kept rather than redrawn at 108, so the paths can be compared to the source SVG
+  line for line.
+
+  The wrapping scale exists because an adaptive icon is masked: launchers keep only the central 66.67%
+  of the layer, and a circular mask is the tightest of them. The mark's ears reach ~40% from centre,
+  so at 1:1 a round mask shears them off and leaves a bare orange disc. Scaled to 0.82 the whole mark —
+  ears included — sits inside the mask on every launcher shape.
+
+  This drawable is also the splash icon (see values/themes.xml), which the platform masks to a circle
+  at the same ratio, so one inset is right for both.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+
+    <group
+        android:pivotX="256"
+        android:pivotY="256"
+        android:scaleX="0.82"
+        android:scaleY="0.82">
+
+        <!-- Ears — tilted ellipses behind the head. -->
+        <group
+            android:pivotX="150"
+            android:pivotY="150"
+            android:rotation="-18">
+            <path
+                android:fillColor="#1A1A1A"
+                android:pathData="M104,150 a46,54 0 1,0 92,0 a46,54 0 1,0 -92,0 z" />
+        </group>
+        <group
+            android:pivotX="362"
+            android:pivotY="150"
+            android:rotation="18">
+            <path
+                android:fillColor="#1A1A1A"
+                android:pathData="M316,150 a46,54 0 1,0 92,0 a46,54 0 1,0 -92,0 z" />
+        </group>
+
+        <!-- Head. -->
+        <path
+            android:fillColor="#E8731C"
+            android:pathData="M100,268 a156,156 0 1,0 312,0 a156,156 0 1,0 -312,0 z" />
+
+        <!-- Bandit mask. -->
+        <path
+            android:fillColor="#1A1A1A"
+            android:pathData="M256,214 q-78,-26 -126,16 q-26,24 -14,60 q16,40 70,34 q44,-6 66,-34 l4,22 l4,-22 q22,28 66,34 q54,6 70,-34 q12,-36 -14,-60 q-48,-42 -126,-16 z" />
+
+        <!-- Eyes. -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M177,246 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M297,246 a19,19 0 1,0 38,0 a19,19 0 1,0 -38,0 z" />
+
+        <!-- Nose. -->
+        <path
+            android:fillColor="#1A1A1A"
+            android:pathData="M256,296 q20,0 20,17 q0,17 -20,22 q-20,-5 -20,-22 q0,-17 20,-17z" />
+    </group>
+</vector>

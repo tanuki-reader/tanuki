@@ -4,5 +4,30 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+
+	<!-- Background library update. `fetch` lets iOS wake the app to look for new chapters; the
+	     identifier must match LIBRARY_UPDATE_TASK_ID in the shared module, or registering the task
+	     throws at launch and every submitted request is rejected. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>app.tanuki.library-update</string>
+	</array>
+
+	<!-- Launch screen: the brand mark on the app's dark canvas (the design system's `bg`, #0C0C0C),
+	     so the frames before Compose exists match the first frame it draws rather than flashing
+	     white. -->
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
+		<key>UIImageRespectsSafeAreaInsets</key>
+		<false/>
+	</dict>
 </dict>
 </plist>
