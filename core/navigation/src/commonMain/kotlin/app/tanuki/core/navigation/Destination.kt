@@ -86,3 +86,14 @@ data object SettingsAppearance : Destination
  */
 @Serializable
 data object SettingsCategories : Destination
+
+/**
+ * Source management — install and uninstall the extensions the app browses through. A leaf pushed onto
+ * the Settings tab's stack from the settings index.
+ *
+ * Deliberately not part of the Home tab's source list: that list is a browse surface whose every row is
+ * a tap target, and a destructive action does not belong next to one. Managing sources is a separate,
+ * intentional trip.
+ */
+@Serializable
+data object SettingsSources : Destination

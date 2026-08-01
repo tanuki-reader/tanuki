@@ -14,6 +14,11 @@
         <item quantity="one">%1$d categoria</item>
         <item quantity="other">%1$d categorias</item>
     </plurals>
+    <string name="settings_sources">Fontes</string>
+    <plurals name="settings_source_count">
+        <item quantity="one">%1$d instalada</item>
+        <item quantity="other">%1$d instaladas</item>
+    </plurals>
 
     <!-- Tela de aparência -->
     <string name="settings_theme">Tema</string>
@@ -36,4 +41,19 @@
     <string name="settings_delete_category_title">Excluir categoria?</string>
     <string name="settings_delete_category_message">“%1$s” será removida de todos os seus mangás. Isso não pode ser desfeito.</string>
     <string name="settings_delete">Excluir</string>
+
+    <!-- Tela de fontes -->
+    <string name="settings_sources_empty">Nenhuma fonte ainda. Elas aparecerão aqui quando houver alguma para instalar.</string>
+    <string name="settings_sources_installed">Instaladas</string>
+    <string name="settings_sources_available">Disponíveis</string>
+    <string name="settings_sources_available_hint">Fontes que você removeu. Instale novamente para voltar a buscar os títulos dela.</string>
+    <string name="settings_install">Instalar</string>
+    <string name="settings_remove">Remover</string>
+    <string name="settings_remove_source_action">Remover %1$s</string>
+    <string name="settings_source_install_failed">Não foi possível instalar</string>
+    <string name="settings_source_remove_failed">Não foi possível remover</string>
+
+    <!-- Diálogo de remover fonte -->
+    <string name="settings_remove_source_title">Remover %1$s?</string>
+    <string name="settings_remove_source_message">A fonte é removida deste dispositivo. Sua biblioteca, seu progresso de leitura e seu histórico são mantidos — instale-a novamente para voltar a buscar novos capítulos.</string>
 </resources>

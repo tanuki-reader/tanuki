@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
+import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
@@ -30,14 +31,20 @@ import kotlinx.coroutines.flow.stateIn
 class SettingsViewModel(
     observeThemePreference: ObserveThemePreference,
     observeCategories: ObserveCategories,
+    getInstalledSources: GetInstalledSources,
     dispatcher: DispatcherProvider
 ) : ViewModel() {
     val uiState: StateFlow<SettingsState> =
         combine(
             observeThemePreference(),
-            observeCategories()
-        ) { theme, categories ->
-            SettingsState(theme = theme, categoryCount = categories.size)
+            observeCategories(),
+            getInstalledSources()
+        ) { theme, categories, sources ->
+            SettingsState(
+                theme = theme,
+                categoryCount = categories.size,
+                sourceCount = sources.size
+            )
         }.flowOn(dispatcher.default)
             .stateIn(
                 scope = viewModelScope,

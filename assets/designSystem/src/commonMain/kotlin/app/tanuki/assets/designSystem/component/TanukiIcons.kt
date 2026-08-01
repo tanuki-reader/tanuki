@@ -510,6 +510,70 @@ fun LockIcon(
     }
 }
 
+/**
+ * `extension` — the puzzle-piece mark for extensions: a rounded square with a tab budding from its top
+ * edge and a matching socket bitten out of its left. Marks the source-management surface, where sources
+ * are the app's extensions.
+ */
+@Composable
+fun ExtensionIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val piece =
+                Path().apply {
+                    // Top edge, interrupted by the outward tab.
+                    moveTo(9.5f, 4.5f)
+                    quadraticTo(9.5f, 1.9f, 12f, 1.9f)
+                    quadraticTo(14.5f, 1.9f, 14.5f, 4.5f)
+                    lineTo(19.5f, 4.5f)
+                    lineTo(19.5f, 19.5f)
+                    lineTo(4.5f, 19.5f)
+                    // Left edge, interrupted by the inward socket — the tab's negative, so two pieces read
+                    // as interlocking rather than as one shape repeated.
+                    lineTo(4.5f, 14.5f)
+                    quadraticTo(1.9f, 14.5f, 1.9f, 12f)
+                    quadraticTo(1.9f, 9.5f, 4.5f, 9.5f)
+                    lineTo(4.5f, 4.5f)
+                    close()
+                }
+            drawPath(piece, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round))
+        }
+    }
+}
+
+/**
+ * `download` — an arrow falling onto a tray: the conventional install mark. Paired with [TrashIcon] on
+ * the source-management rows, where the two are each other's inverse.
+ */
+@Composable
+fun DownloadIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            // Shaft and head.
+            drawLine(tint, Offset(12f, 3.5f), Offset(12f, 14.5f), ICON_STROKE, StrokeCap.Round)
+            drawLine(tint, Offset(7.5f, 10f), Offset(12f, 14.5f), ICON_STROKE, StrokeCap.Round)
+            drawLine(tint, Offset(16.5f, 10f), Offset(12f, 14.5f), ICON_STROKE, StrokeCap.Round)
+            // Tray: an open-topped U, so the arrow reads as landing in it rather than crossing a line.
+            val tray =
+                Path().apply {
+                    moveTo(4.5f, 15.5f)
+                    lineTo(4.5f, 20f)
+                    lineTo(19.5f, 20f)
+                    lineTo(19.5f, 15.5f)
+                }
+            drawPath(tray, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round, cap = StrokeCap.Round))
+        }
+    }
+}
+
 /** Runs [block] in the icon's native 24×24 space, scaled to fill the current [DrawScope]. */
 private inline fun DrawScope.iconSpace(block: DrawScope.() -> Unit) {
     val factor = size.minDimension / ICON_VIEWPORT

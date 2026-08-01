@@ -9,15 +9,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ContrastIcon
+import app.tanuki.assets.designSystem.component.ExtensionIcon
 import app.tanuki.assets.designSystem.component.LabelIcon
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.TanukiListRow
@@ -25,12 +29,15 @@ import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.SettingsAppearance
 import app.tanuki.core.navigation.SettingsCategories
+import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_appearance
 import app.tanuki.features.settings.resources.settings_categories
 import app.tanuki.features.settings.resources.settings_category_count
 import app.tanuki.features.settings.resources.settings_section_library
 import app.tanuki.features.settings.resources.settings_section_personalization
+import app.tanuki.features.settings.resources.settings_source_count
+import app.tanuki.features.settings.resources.settings_sources
 import app.tanuki.features.settings.resources.settings_title
 import app.tanuki.features.settings.viewmodel.SettingsViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -106,15 +113,31 @@ fun SettingsRoute(
                     leading = { LabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = { onNavigate(SettingsCategories) }
                 )
+                HorizontalDivider(
+                    thickness = Dp.Hairline,
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(start = RowDividerInset)
+                )
+                TanukiListRow(
+                    title = stringResource(Res.string.settings_sources),
+                    subtitle =
+                        pluralStringResource(
+                            Res.plurals.settings_source_count,
+                            state.sourceCount,
+                            state.sourceCount
+                        ),
+                    leading = { ExtensionIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = { onNavigate(SettingsSources) }
+                )
             }
         }
     }
 }
 
 /**
- * A settings section container: its rows on one rounded surface (the settings-card look). Holds a single
- * row today, but as a group gains rows they'll stack here with dividers — the reason the index is built
- * from reusable [TanukiListRow]s in a group rather than bespoke one-off rows.
+ * A settings section container: its rows on one rounded surface (the settings-card look), stacked with
+ * hairline dividers between them — the reason the index is built from reusable [TanukiListRow]s in a
+ * group rather than bespoke one-off rows.
  */
 @Composable
 private fun SettingsGroup(
@@ -131,3 +154,10 @@ private fun SettingsGroup(
         content()
     }
 }
+
+/**
+ * Where a [TanukiListRow]'s title starts: the row's leading padding (`lg`) + the 20dp leading icon + the
+ * gap before the text (`md`). Insetting the divider by it runs the rule under the titles rather than the
+ * icons, the grouped-list convention the source and category lists also follow.
+ */
+private val RowDividerInset = 48.dp

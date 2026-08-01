@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
@@ -26,8 +27,9 @@ import okio.Path.Companion.toPath
 import kotlin.time.Instant
 
 /**
- * DataStore-backed [SettingsRepository]. App-level scalars (currently just the theme) live in a single
- * preferences store rather than the relational database.
+ * DataStore-backed [SettingsRepository]. App-level settings — the theme, the library update schedule,
+ * and the set of sources the user has uninstalled — live in a single preferences store rather than the
+ * relational database.
  *
  * The [DataStore] is built and owned here rather than provided as a Metro binding, so the third-party
  * `DataStore`/`Preferences` types never cross the DI boundary — only the app-owned [PreferencesFileFactory]
@@ -88,10 +90,27 @@ class SettingsRepositoryImp(
         }
     }
 
+    override suspend fun getRemovedSourceIds(): Set<String> = preferences.first()[REMOVED_SOURCES_KEY].orEmpty()
+
+    override suspend fun setSourceRemoved(
+        sourceId: String,
+        removed: Boolean
+    ) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences ->
+                val current = preferences[REMOVED_SOURCES_KEY].orEmpty()
+                // Rebuilt rather than mutated: DataStore hands back the stored set, and editing it in
+                // place would mutate the very value the next read is served from.
+                preferences[REMOVED_SOURCES_KEY] = if (removed) current + sourceId else current - sourceId
+            }
+        }
+    }
+
     private companion object {
         val THEME_KEY = stringPreferencesKey("theme_preference")
         val UPDATE_INTERVAL_KEY = stringPreferencesKey("library_update_interval")
         val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")
+        val REMOVED_SOURCES_KEY = stringSetPreferencesKey("removed_source_ids")
 
         /** Maps a stored name back to a [ThemePreference], defaulting to [ThemePreference.System]. */
         fun String?.toThemePreference(): ThemePreference =

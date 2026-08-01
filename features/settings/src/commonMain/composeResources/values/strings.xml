@@ -14,6 +14,11 @@
         <item quantity="one">%1$d category</item>
         <item quantity="other">%1$d categories</item>
     </plurals>
+    <string name="settings_sources">Sources</string>
+    <plurals name="settings_source_count">
+        <item quantity="one">%1$d installed</item>
+        <item quantity="other">%1$d installed</item>
+    </plurals>
 
     <!-- Appearance screen -->
     <string name="settings_theme">Theme</string>
@@ -36,4 +41,19 @@
     <string name="settings_delete_category_title">Delete category?</string>
     <string name="settings_delete_category_message">“%1$s” will be removed from all its manga. This can’t be undone.</string>
     <string name="settings_delete">Delete</string>
+
+    <!-- Sources screen -->
+    <string name="settings_sources_empty">No sources yet. They’ll show up here once there are some to install.</string>
+    <string name="settings_sources_installed">Installed</string>
+    <string name="settings_sources_available">Available</string>
+    <string name="settings_sources_available_hint">Sources you’ve removed. Install one again to start fetching for its titles.</string>
+    <string name="settings_install">Install</string>
+    <string name="settings_remove">Remove</string>
+    <string name="settings_remove_source_action">Remove %1$s</string>
+    <string name="settings_source_install_failed">Couldn’t install</string>
+    <string name="settings_source_remove_failed">Couldn’t remove</string>
+
+    <!-- Remove source dialog -->
+    <string name="settings_remove_source_title">Remove %1$s?</string>
+    <string name="settings_remove_source_message">The source is removed from this device. Your library, reading progress and history are kept — install it again to start fetching new chapters.</string>
 </resources>
