@@ -77,7 +77,7 @@ class InteractiveCloudflareSolverTest {
      * malformed URL into a hang instead of an error.
      */
     @Test
-    fun `returns null for a url with no host, without raising a session`() = runTest {
+    fun `returns null for a url with no host and raises no session`() = runTest {
         val coordinator = SiteSessionCoordinator()
         coordinator.attach()
 

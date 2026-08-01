@@ -84,7 +84,7 @@ class CloudflareDetectionTest {
     }
 
     @Test
-    fun `matches chlray as a metric name, not as substring of another entry`() = runTest {
+    fun `matches chlray as a metric name rather than as substring of another entry`() = runTest {
         assertFalse(isChallenge(HttpStatusCode.Forbidden, "server-timing" to "cfExtPri;desc=\"chlray\""))
         assertTrue(isChallenge(HttpStatusCode.Forbidden, "server-timing" to "cfL4;desc=\"x\", chlray;desc=\"y\""))
     }
