@@ -152,9 +152,11 @@ val generateSentryConfig =
         // Locals only inside the task config/execution, per the configuration-cache note below: a
         // Provider serializes fine, the enclosing build script does not.
         val dsn = sentryDsn
+        val version = libs.versions.tanuki.get()
         val outDir = layout.buildDirectory.dir("generated/sentry/commonMain/kotlin")
 
         inputs.property("dsn", dsn)
+        inputs.property("version", version)
         outputs.dir(outDir)
 
         doLast {
@@ -171,6 +173,12 @@ val generateSentryConfig =
                 | * what makes a fork's build report nothing.
                 | */
                 |internal const val SENTRY_DSN: String = "${dsn.get()}"
+                |
+                |/**
+                | * The app's marketing version, from the `tanuki` entry in the version catalog. Sentry groups
+                | * crashes by release, so this is what makes "was this fixed in 1.1?" answerable.
+                | */
+                |internal const val APP_VERSION: String = "$version"
                 |
                 """.trimMargin(),
             )

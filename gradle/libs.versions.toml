@@ -1,4 +1,9 @@
 [versions]
+# The app's own marketing version. Single-sourced here because it is not just a build number: Sentry
+# groups crashes by it, so Android and iOS reporting the same string is what makes "did this release
+# regress?" answerable. iosApp/Configuration/Config.xcconfig carries MARKETING_VERSION and must be kept
+# in step — xcconfig cannot read the version catalog.
+tanuki = "1.0"
 agp = "9.0.1"
 android-compileSdk = "36"
 android-minSdk = "36"
