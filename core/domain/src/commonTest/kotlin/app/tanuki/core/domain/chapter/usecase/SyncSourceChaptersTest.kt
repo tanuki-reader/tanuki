@@ -372,6 +372,9 @@ private class FakeChapterRepository(
         progress: ReadingProgress
     ) = error("the sync never writes progress")
 
+    override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) =
+        error("the sync never writes progress")
+
     override suspend fun upsertChapter(chapter: Chapter) = error("the sync writes in bulk")
 
     override suspend fun deleteChapter(chapterId: Uuid) = error("the sync deletes in bulk")

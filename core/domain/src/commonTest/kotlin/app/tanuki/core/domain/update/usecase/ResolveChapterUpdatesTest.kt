@@ -196,6 +196,7 @@ private class FakeChapterRepository(private val chapters: List<Chapter>) : Chapt
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> = chapters
     override suspend fun getChapter(chapterId: Uuid): Chapter? = chapters.firstOrNull { it.id == chapterId }
     override suspend fun updateProgress(chapterId: Uuid, progress: ReadingProgress) = error("unused")
+    override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) = error("unused")
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")
     override suspend fun upsertChapters(chapters: List<Chapter>) = error("unused")
     override suspend fun deleteChapter(chapterId: Uuid) = error("unused")

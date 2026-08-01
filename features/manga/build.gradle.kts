@@ -49,6 +49,7 @@ kotlin {
             implementation(libs.kotlinx.datetime)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.androidx.navigationevent.compose)
             implementation(libs.metrox.viewmodel.compose)
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)

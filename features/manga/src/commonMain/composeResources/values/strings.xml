@@ -49,6 +49,17 @@
     <string name="manga_month_nov">Nov</string>
     <string name="manga_month_dec">Dec</string>
 
+    <!-- Chapter multi-select: the contextual app bar and the bulk-action bar under the chapter list.
+         The four action labels sit under their glyphs in a four-up bar, so keep them short. -->
+    <string name="manga_chapter_selected">Selected</string>
+    <string name="manga_selection_exit">Exit selection</string>
+    <string name="manga_selection_select_all">Select all chapters</string>
+    <string name="manga_selection_deselect_all">Deselect all chapters</string>
+    <string name="manga_selection_select_above">Select above</string>
+    <string name="manga_selection_select_below">Select below</string>
+    <string name="manga_selection_mark_read">Mark read</string>
+    <string name="manga_selection_mark_unread">Mark unread</string>
+
     <!-- Chapter filter sheet (which scanlation groups the chapter list shows). -->
     <string name="manga_chapters_filter">Filter chapters by scanlation group</string>
     <string name="manga_filter_title">Filter chapters</string>
@@ -95,6 +106,11 @@
     <plurals name="manga_filter_show_count">
         <item quantity="one">Show %1$d chapter</item>
         <item quantity="other">Show %1$d chapters</item>
+    </plurals>
+    <!-- Title of the chapter multi-select bar; %1$d is how many chapters are picked. -->
+    <plurals name="manga_selection_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
     </plurals>
     <plurals name="manga_chapters_total">
         <item quantity="one">%1$d total</item>

@@ -7,6 +7,7 @@ import app.tanuki.core.domain.category.usecase.SetMangaCategories
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.isHiddenBy
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
+import app.tanuki.core.domain.chapter.usecase.SetChaptersRead
 import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
@@ -46,6 +47,8 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.Double.Companion.MAX_VALUE
+import kotlin.Double.Companion.MIN_VALUE
 import kotlin.uuid.Uuid
 
 /**
@@ -79,6 +82,7 @@ class MangaViewModel(
     private val setReadingStatus: SetReadingStatus,
     private val setReadingMode: SetReadingMode,
     private val setFilteredScanlators: SetFilteredScanlators,
+    private val setChaptersRead: SetChaptersRead,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
     private val dispatcher: DispatcherProvider,
@@ -96,6 +100,16 @@ class MangaViewModel(
 
     /** Chapter ordering: `true` = ascending by chapter number (1 → N), `false` = descending. */
     private val chapterSortAscending = MutableStateFlow(false)
+
+    /**
+     * The chapters the user has picked for a bulk action. Held here rather than in the composable so a
+     * rotation (or an iOS memory warning) can't silently drop a 200-chapter selection mid-decision, and
+     * so the selection logic stays testable without a Compose runtime.
+     *
+     * May briefly hold an id the list no longer shows (a sync removed it, a filter hid it); the pipeline
+     * below prunes those out on the way into the state, and every action works from the pruned set.
+     */
+    private val selectedChapterIds = MutableStateFlow<Set<Uuid>>(emptySet())
 
     init {
         combine(
@@ -125,6 +139,11 @@ class MangaViewModel(
                     source = source
                 )
             }
+        }.combine(selectedChapterIds) { state, selected ->
+            // Selection is folded in after the fact rather than being a sixth `combine` source: the chapter
+            // pipeline above is what defines which rows exist, and the selection is only ever a subset of
+            // its output — so it has to be resolved against the list the user is actually looking at.
+            if (state is Content) state.copy(selection = state.selectionOf(selected)) else state
         }.flowOn(dispatcher.default)
             .onEach { uiState.value = it }
             .launchIn(viewModelScope)
@@ -292,9 +311,121 @@ class MangaViewModel(
         _navEvents.trySend(NavEvent.NavBack)
     }
 
-    /** A chapter row was tapped — open the reader at that chapter. */
+    /**
+     * A chapter row was tapped. While a selection is running the tap toggles that row instead of opening
+     * it — the standard multi-select contract, and the only way to pick apart chapters that aren't
+     * neighbours without a modifier key the phone doesn't have. With no selection running it opens the
+     * reader, which stays the one-tap default.
+     */
     fun onChapterClick(chapterId: Uuid) {
-        _navEvents.trySend(NavEvent.NavTo(Reader(mangaId, chapterId)))
+        if (selection().isActive) {
+            toggleSelection(chapterId)
+        } else {
+            _navEvents.trySend(NavEvent.NavTo(Reader(mangaId, chapterId)))
+        }
+    }
+
+    /**
+     * A chapter row was long-pressed — the way *into* selection mode, and a toggle once inside it. Long
+     * press rather than a permanently visible checkbox column: bulk marking is the rare errand next to
+     * reading, and a row of checkboxes would tax every ordinary visit to make the rare one cheaper.
+     */
+    fun onChapterLongClick(chapterId: Uuid) {
+        toggleSelection(chapterId)
+    }
+
+    /**
+     * "Select above" — extends the selection to every chapter shown above the topmost picked one.
+     *
+     * Anchored on the topmost picked chapter (not the last one tapped) so the action is a pure extension
+     * of the range in view: it only ever adds, it reads the same whether one or twenty rows are picked,
+     * and running it twice is a no-op. "Above" means above *in the list as displayed* — flipping the sort
+     * flips which chapters that is, which is what the user pointing at the screen means either way.
+     */
+    fun onSelectAbove() {
+        val content = uiState.value as? Content ?: return
+        val selected = content.selection.ids
+        val top = content.chapters.indexOfFirst { it.id in selected }
+        if (top <= 0) return
+        selectedChapterIds.value = selected + content.chapters.take(top).map(Chapter::id)
+    }
+
+    /** "Select below" — [onSelectAbove]'s mirror: every chapter shown below the bottommost picked one. */
+    fun onSelectBelow() {
+        val content = uiState.value as? Content ?: return
+        val selected = content.selection.ids
+        val bottom = content.chapters.indexOfLast { it.id in selected }
+        if (bottom < 0 || bottom == content.chapters.lastIndex) return
+        selectedChapterIds.value = selected + content.chapters.drop(bottom + 1).map(Chapter::id)
+    }
+
+    /**
+     * The select-all control was tapped — pick every shown chapter, or clear back to none when they are
+     * all picked already. One control for both directions because "select all" and "undo that" are the
+     * same thought, and the second tap is how a user recovers from the first.
+     *
+     * "Every shown chapter" excludes anything a scanlator filter is hiding: a bulk action must never
+     * reach rows the screen isn't showing.
+     */
+    fun onToggleSelectAll() {
+        val content = uiState.value as? Content ?: return
+        selectedChapterIds.value =
+            if (content.selection.allSelected) emptySet() else content.chapters.mapTo(mutableSetOf(), Chapter::id)
+    }
+
+    /** The selection was dismissed (X, system back, or leaving the Chapters tab) — back to reading chrome. */
+    fun onClearSelection() {
+        if (selectedChapterIds.value.isNotEmpty()) selectedChapterIds.value = emptySet()
+    }
+
+    /**
+     * The selection bar's mark-read / mark-unread action — applies [SetChaptersRead] to everything picked.
+     *
+     * The selection is dropped immediately, before the write lands: the mode exists to stage this action,
+     * so leaving it is the acknowledgement that the action was taken, and the rows re-render read (or
+     * unread) as the database emits. Nothing is queued behind the write, so a slow disk can't leave the
+     * bar sitting there looking unresponsive.
+     */
+    fun onMarkSelectionRead(read: Boolean) {
+        val selected = selection().ids
+        if (selected.isEmpty()) return
+        selectedChapterIds.value = emptySet()
+        viewModelScope.launch {
+            withContext(dispatcher.io) { setChaptersRead(mangaId, selected, read) }
+        }
+    }
+
+    /** Adds or removes one chapter, working from the pruned selection the state exposes. */
+    private fun toggleSelection(chapterId: Uuid) {
+        val selected = selection().ids
+        selectedChapterIds.value =
+            if (chapterId in selected) selected - chapterId else selected + chapterId
+    }
+
+    /** The selection as currently *shown* — stale ids have already been pruned out of it. */
+    private fun selection(): MangaState.ChapterSelection =
+        (uiState.value as? Content)?.selection ?: MangaState.ChapterSelection.None
+
+    /**
+     * Resolves the raw picked ids against this content's chapter list: drops ids the list no longer shows,
+     * and works out what the selection bar may offer for what's left. Done here, once per emission, rather
+     * than in the composables — each flag is a scan of a list that runs to thousands of rows.
+     */
+    private fun Content.selectionOf(selected: Set<Uuid>): MangaState.ChapterSelection {
+        if (selected.isEmpty()) return MangaState.ChapterSelection.None
+        val shown = chapters.filterTo(mutableSetOf()) { it.id in selected }
+        if (shown.isEmpty()) return MangaState.ChapterSelection.None
+        val ids = shown.mapTo(mutableSetOf(), Chapter::id)
+        return MangaState.ChapterSelection(
+            ids = ids,
+            canSelectAbove = chapters.indexOfFirst { it.id in ids } > 0,
+            canSelectBelow = chapters.indexOfLast { it.id in ids } < chapters.lastIndex,
+            canMarkRead = shown.any { it.progress?.alreadyRead != true },
+            // Unread has progress of its own to clear: a chapter left half-read keeps a page to rewind
+            // even though it was never marked read.
+            canMarkUnread = shown.any { it.progress?.alreadyRead == true || (it.progress?.lastPageRead ?: 0u) > 0u },
+            allSelected = ids.size == chapters.size
+        )
     }
 
     /** The primary read/resume action was tapped — open the reader at the [Content.resumeChapter]. */
@@ -314,8 +445,8 @@ class MangaViewModel(
         val lastRead =
             chapters
                 .filter { it.progress == null || it.progress?.alreadyRead == false }
-                .minByOrNull { it.chapterNumber?.value ?: Double.MAX_VALUE }
-        return lastRead ?: chapters.minByOrNull { it.chapterNumber?.value ?: Double.MAX_VALUE }
+                .minByOrNull { it.chapterNumber?.value ?: MAX_VALUE }
+        return lastRead ?: chapters.maxByOrNull { it.chapterNumber?.value ?: MIN_VALUE }
     }
 
     /**

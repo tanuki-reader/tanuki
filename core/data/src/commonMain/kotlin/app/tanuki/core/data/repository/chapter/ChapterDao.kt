@@ -74,6 +74,14 @@ interface ChapterDao {
     @Upsert
     suspend fun upsertProgress(progress: ReadingProgressEntity)
 
+    /**
+     * Bulk progress upsert, committed as one transaction — what a multi-select "mark as read" writes.
+     * Unlike [upsertChapters] this *is* the user's reading state, so it deliberately writes the progress
+     * table and leaves the source-owned chapter rows alone.
+     */
+    @Upsert
+    suspend fun upsertProgress(progress: List<ReadingProgressEntity>)
+
     @Query("DELETE FROM reading_progress WHERE chapter_id = :chapterId")
     suspend fun deleteProgress(chapterId: Uuid)
 

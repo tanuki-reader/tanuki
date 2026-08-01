@@ -68,6 +68,19 @@ interface ChapterRepository {
     )
 
     /**
+     * Writes many chapters' [ReadingProgress] in a single transaction — the bulk counterpart of
+     * [updateProgress], for the chapter list's multi-select "mark as read".
+     *
+     * The bulk form exists for the same reason [upsertChapters] does: selecting every chapter of a long
+     * series is thousands of rows, and one transaction per chapter would take seconds and leave a
+     * half-marked list on screen if it were interrupted. Callers still supply a complete [ReadingProgress]
+     * per chapter, so the same "read the current progress first" rule as [updateProgress] applies.
+     *
+     * @param progress the progress to persist, keyed by the local chapter id it belongs to.
+     */
+    suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>)
+
+    /**
      * Inserts or update a new chapter.
      *
      * @param chapter The chapter to persist.

@@ -48,6 +48,17 @@
     <string name="manga_month_nov">nov</string>
     <string name="manga_month_dec">dez</string>
 
+    <!-- Seleção múltipla de capítulos: a barra superior contextual e a barra de ações em massa.
+         Os quatro rótulos de ação ficam sob seus ícones numa barra de quatro colunas — mantenha-os curtos. -->
+    <string name="manga_chapter_selected">Selecionado</string>
+    <string name="manga_selection_exit">Sair da seleção</string>
+    <string name="manga_selection_select_all">Selecionar todos os capítulos</string>
+    <string name="manga_selection_deselect_all">Desmarcar todos os capítulos</string>
+    <string name="manga_selection_select_above">Selecionar acima</string>
+    <string name="manga_selection_select_below">Selecionar abaixo</string>
+    <string name="manga_selection_mark_read">Marcar lido</string>
+    <string name="manga_selection_mark_unread">Marcar não lido</string>
+
     <!-- Folha de filtro de capítulos (quais grupos de tradução a lista mostra). -->
     <string name="manga_chapters_filter">Filtrar capítulos por grupo de tradução</string>
     <string name="manga_filter_title">Filtrar capítulos</string>
@@ -94,6 +105,11 @@
     <plurals name="manga_filter_show_count">
         <item quantity="one">Mostrar %1$d capítulo</item>
         <item quantity="other">Mostrar %1$d capítulos</item>
+    </plurals>
+    <!-- Título da barra de seleção de capítulos; %1$d é quantos capítulos estão selecionados. -->
+    <plurals name="manga_selection_count">
+        <item quantity="one">%1$d selecionado</item>
+        <item quantity="other">%1$d selecionados</item>
     </plurals>
     <plurals name="manga_chapters_total">
         <item quantity="one">%1$d no total</item>

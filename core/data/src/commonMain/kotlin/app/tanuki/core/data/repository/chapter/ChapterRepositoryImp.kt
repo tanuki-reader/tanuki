@@ -49,6 +49,11 @@ class ChapterRepositoryImp(
         progress: ReadingProgress
     ) = withContext(dispatcherProvider.io) { chapterDao.upsertProgress(progress.toEntity(chapterId)) }
 
+    override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) =
+        withContext(dispatcherProvider.io) {
+            chapterDao.upsertProgress(progress.map { (chapterId, it) -> it.toEntity(chapterId) })
+        }
+
     override suspend fun upsertChapter(chapter: Chapter) =
         chapterDao.upsertWithProgress(chapter.toEntity(), chapter.toProgressEntity())
 

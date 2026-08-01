@@ -1,7 +1,7 @@
 package app.tanuki.features.manga.composable.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,14 +20,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.modifier.modifierLocalConsumer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ArrowDownwardIcon
 import app.tanuki.assets.designSystem.component.ArrowUpwardIcon
+import app.tanuki.assets.designSystem.component.CheckIcon
 import app.tanuki.assets.designSystem.component.FilterIcon
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.core.domain.chapter.model.Chapter
@@ -37,6 +40,7 @@ import app.tanuki.features.manga.resources.manga_chapter_date
 import app.tanuki.features.manga.resources.manga_chapter_meta
 import app.tanuki.features.manga.resources.manga_chapter_number
 import app.tanuki.features.manga.resources.manga_chapter_page
+import app.tanuki.features.manga.resources.manga_chapter_selected
 import app.tanuki.features.manga.resources.manga_chapter_untitled
 import app.tanuki.features.manga.resources.manga_chapters_filter
 import app.tanuki.features.manga.resources.manga_chapters_sort
@@ -60,6 +64,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 /** Diameter of the leading unread indicator dot. */
 private val UnreadDotSize = 8.dp
@@ -70,29 +75,38 @@ private val SortArrowSize = 18.dp
 /** Diameter of the dot marking the filter action while a group is hidden. */
 private val FilterDotSize = 6.dp
 
+/** Size of the tick a selected chapter row carries in place of its resume marker. */
+private val SelectedTickSize = 20.dp
+
 /**
  * Adds the chapters section — a header (title, count, and a sort-by-number toggle) followed by one row
  * per chapter — into a parent [LazyListScope]. Kept lazy (not a nested scroll) so a series with hundreds
  * of chapters only composes the rows on screen. Read chapters are dimmed; unread ones carry a leading
- * accent dot; tapping a row opens the reader at that chapter.
+ * accent dot; tapping a row opens the reader at that chapter, and long-pressing one starts a multi-select
+ * for the bulk mark-read actions.
  *
  * @param chapters the chapters to list, already ordered and filtered by the ViewModel.
  * @param ascending the current sort direction, shown by the toggle's arrow.
  * @param canFilter whether more than one scanlation group published this series — the filter action is
  *   hidden otherwise, since a single-group series has nothing to choose between.
  * @param filterActive whether a group is currently hidden, marked with a dot on the filter action.
+ * @param selectedIds the chapters currently picked for a bulk action; empty when none is running.
  * @param onToggleSort the sort toggle was tapped — flip ascending/descending.
  * @param onOpenFilter the filter action was tapped — open the scanlator filter sheet.
- * @param onChapterClick a chapter row was tapped — open it in the reader.
+ * @param onChapterClick a chapter row was tapped — open it in the reader, or toggle it while selecting
+ *   (the ViewModel decides, so the row can't disagree with the bar about which mode is running).
+ * @param onChapterLongClick a chapter row was long-pressed — start (or extend) a selection.
  */
 internal fun LazyListScope.chapterList(
     chapters: List<Chapter>,
     ascending: Boolean,
     canFilter: Boolean,
     filterActive: Boolean,
+    selectedIds: Set<Uuid>,
     onToggleSort: () -> Unit,
     onOpenFilter: () -> Unit,
-    onChapterClick: (Chapter) -> Unit
+    onChapterClick: (Chapter) -> Unit,
+    onChapterLongClick: (Chapter) -> Unit
 ) {
     item(key = "chapters-header") {
         ChapterSectionHeader(
@@ -110,8 +124,11 @@ internal fun LazyListScope.chapterList(
         items(chapters, key = { it.id.toString() }) { chapter ->
             ChapterRow(
                 modifier = Modifier.animateItem(),
-                chapter = chapter
-            ) { onChapterClick(chapter) }
+                chapter = chapter,
+                selected = chapter.id in selectedIds,
+                onClick = { onChapterClick(chapter) },
+                onLongClick = { onChapterLongClick(chapter) }
+            )
         }
     }
 }
@@ -190,15 +207,27 @@ private fun EmptyChapters() {
     )
 }
 
+/**
+ * One chapter row.
+ *
+ * A [selected] row is marked three ways over — an accent wash, a trailing tick, and full opacity even when
+ * read — so the selection survives a glance, a colorblind reader, and a dimmed already-read row. The
+ * marks deliberately sit *around* the existing layout rather than inserting a checkbox column: a leading
+ * checkbox would re-flow every row the moment selection starts, which reads as the list jumping.
+ */
 @Composable
 private fun ChapterRow(
     modifier: Modifier = Modifier,
     chapter: Chapter,
-    onClick: () -> Unit
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val spacing = TanukiTheme.spacing
     val progress = chapter.progress
     val read = progress?.alreadyRead == true
+    val haptics = LocalHapticFeedback.current
+    val selectedDescription = stringResource(Res.string.manga_chapter_selected)
     // A chapter the user opened but hasn't finished, and got past the first page: worth showing where
     // they stopped. lastPageRead is a zero-based index, so the visible page is +1.
     val resumePage =
@@ -213,9 +242,20 @@ private fun ChapterRow(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        // The press has no visible target of its own, so the tap-and-hold is confirmed by
+                        // feel — the same long-press haptic the reader uses.
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onLongClick()
+                    }
+                )
+                .semantics { this.selected = selected }
+                .background(if (selected) TanukiTheme.colors.accentTint else Color.Transparent)
                 .padding(horizontal = spacing.gutter, vertical = spacing.md)
-                .alpha(if (read) 0.5f else 1f)
+                // A selected row is never dimmed: it's what the user is acting on, read or not.
+                .alpha(if (read && !selected) 0.5f else 1f)
     ) {
         Box(
             Modifier
@@ -254,13 +294,22 @@ private fun ChapterRow(
                 )
             }
         }
-        resumePage?.let { page ->
-            Text(
-                text = stringResource(Res.string.manga_chapter_page, page),
-                style = TanukiTheme.typography.caption,
-                color = TanukiTheme.colors.accent,
-                maxLines = 1
+        // The resume marker gives way to the selection tick: a selected row is being acted on, not resumed.
+        if (selected) {
+            CheckIcon(
+                tint = TanukiTheme.colors.accent,
+                size = SelectedTickSize,
+                modifier = Modifier.semantics { contentDescription = selectedDescription }
             )
+        } else {
+            resumePage?.let { page ->
+                Text(
+                    text = stringResource(Res.string.manga_chapter_page, page),
+                    style = TanukiTheme.typography.caption,
+                    color = TanukiTheme.colors.accent,
+                    maxLines = 1
+                )
+            }
         }
     }
 }

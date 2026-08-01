@@ -177,6 +177,8 @@ private class PagesChapterRepo(
         progress: ReadingProgress
     ) = error("unused")
 
+    override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) = error("unused")
+
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")
 
     override suspend fun upsertChapters(chapters: List<Chapter>) = error("unused")

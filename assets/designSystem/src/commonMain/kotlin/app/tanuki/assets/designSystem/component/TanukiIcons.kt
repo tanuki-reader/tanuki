@@ -9,6 +9,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -572,6 +573,138 @@ fun DownloadIcon(
             drawPath(tray, tint, style = Stroke(width = ICON_STROKE, join = StrokeJoin.Round, cap = StrokeCap.Round))
         }
     }
+}
+
+/**
+ * `check` — a rounded tick. The app's single "done / read / selected" mark: it confirms a selected row in
+ * a multi-select and labels the action that marks chapters read, so the same glyph means the same thing
+ * in the list and in the bar acting on it.
+ */
+@Composable
+fun CheckIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace { drawCheck(tint) }
+    }
+}
+
+/**
+ * `remove_done` — [CheckIcon] struck through, for the action that takes chapters back to unread. Drawn as
+ * the tick plus a slash rather than a different glyph, so "mark unread" reads as the literal undoing of
+ * "mark read" instead of a second thing to learn.
+ */
+@Composable
+fun CheckOffIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawCheck(tint)
+            drawLine(tint, Offset(5f, 19f), Offset(19f, 5f), ICON_STROKE, StrokeCap.Round)
+        }
+    }
+}
+
+/**
+ * `keyboard_double_arrow_up` — two stacked chevrons pointing up: "everything from here upward". Marks the
+ * multi-select's extend-upward action; pairs with [DoubleArrowDownIcon]. Deliberately *double* chevrons,
+ * so it can't be misread as the single-arrow [ArrowUpwardIcon] that means sort direction.
+ */
+@Composable
+fun DoubleArrowUpIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawChevronUp(tint, apexY = 6f)
+            drawChevronUp(tint, apexY = 13f)
+        }
+    }
+}
+
+/** `keyboard_double_arrow_down` — [DoubleArrowUpIcon] mirrored: "everything from here downward". */
+@Composable
+fun DoubleArrowDownIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawChevronDown(tint, apexY = 11f)
+            drawChevronDown(tint, apexY = 18f)
+        }
+    }
+}
+
+/**
+ * `select_all` — a dashed square (the whole list) around a solid one (what gets taken). Toggles a
+ * multi-select between "everything" and "nothing"; the dashes are what keep it from reading as a plain
+ * card or checkbox.
+ */
+@Composable
+fun SelectAllIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(3.5f, 3.5f),
+                size = Size(17f, 17f),
+                cornerRadius = CornerRadius(2f, 2f),
+                style =
+                    Stroke(
+                        width = ICON_STROKE,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 2.6f))
+                    )
+            )
+            drawRoundRect(
+                color = tint,
+                topLeft = Offset(8f, 8f),
+                size = Size(8f, 8f),
+                cornerRadius = CornerRadius(1.5f, 1.5f)
+            )
+        }
+    }
+}
+
+/** The shared tick geometry behind [CheckIcon] and [CheckOffIcon]. */
+private fun DrawScope.drawCheck(tint: Color) {
+    val tick =
+        Path().apply {
+            moveTo(4.5f, 12.5f)
+            lineTo(9.5f, 17.5f)
+            lineTo(19.5f, 6.5f)
+        }
+    drawPath(tick, tint, style = Stroke(width = ICON_STROKE, cap = StrokeCap.Round, join = StrokeJoin.Round))
+}
+
+/** One upward chevron with its apex at [apexY], for the stacked double arrows. */
+private fun DrawScope.drawChevronUp(
+    tint: Color,
+    apexY: Float
+) {
+    drawLine(tint, Offset(5.5f, apexY + 5f), Offset(12f, apexY), ICON_STROKE, StrokeCap.Round)
+    drawLine(tint, Offset(18.5f, apexY + 5f), Offset(12f, apexY), ICON_STROKE, StrokeCap.Round)
+}
+
+/** One downward chevron with its apex at [apexY]. */
+private fun DrawScope.drawChevronDown(
+    tint: Color,
+    apexY: Float
+) {
+    drawLine(tint, Offset(5.5f, apexY - 5f), Offset(12f, apexY), ICON_STROKE, StrokeCap.Round)
+    drawLine(tint, Offset(18.5f, apexY - 5f), Offset(12f, apexY), ICON_STROKE, StrokeCap.Round)
 }
 
 /** Runs [block] in the icon's native 24×24 space, scaled to fill the current [DrawScope]. */

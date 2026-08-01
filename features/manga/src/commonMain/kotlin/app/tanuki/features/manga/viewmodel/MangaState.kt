@@ -4,6 +4,7 @@ import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.source.model.Source
+import kotlin.uuid.Uuid
 
 /** UI state for the manga detail screen. */
 sealed interface MangaState {
@@ -31,6 +32,8 @@ sealed interface MangaState {
      *   means there is nothing to choose between, and the filter affordance stays hidden.
      * @param source the source this manga belongs to, shown in the Info tab; `null` when the source is
      *   not (yet) persisted locally, in which case the Info tab shows an "unknown source" fallback.
+     * @param selection which chapters the user has picked for a bulk action, and what that selection can
+     *   do. Empty means no selection mode is running and the screen is in its normal reading chrome.
      * @param inLibrary whether the manga is in the user's library (has a `date_added`). Drives the Info
      *   tab's add/remove toggle and whether category edits implicitly add it (see the ViewModel).
      */
@@ -41,7 +44,8 @@ sealed interface MangaState {
         val chapterSortAscending: Boolean,
         val categories: List<MangaCategoryChip>,
         val scanlators: List<ScanlatorChip>,
-        val source: Source?
+        val source: Source?,
+        val selection: ChapterSelection = ChapterSelection.None
     ) : MangaState {
         val inLibrary: Boolean get() = manga.dateAdded != null
 
@@ -65,6 +69,51 @@ sealed interface MangaState {
         val chapterCount: Int,
         val isShown: Boolean
     )
+
+    /**
+     * The chapter multi-select: which chapters are picked, plus what the bulk-action bar may offer for
+     * them. The four `can*` flags are computed once by the ViewModel — each is a scan of the chapter list
+     * (which runs to thousands of rows on a long series), so they are state, not something the bar
+     * re-derives on every recomposition.
+     *
+     * @param ids the picked chapters. Only ever ids the list is currently *showing*: a chapter that a
+     *   scanlator filter hides or a sync removes drops out of the selection with it, so no bulk action
+     *   can touch a row the user can't see.
+     * @param canSelectAbove whether any chapter sits above the topmost picked one in the displayed order
+     *   — i.e. whether "select above" would add anything.
+     * @param canSelectBelow the same, below the bottommost picked chapter.
+     * @param canMarkRead whether any picked chapter is not read yet.
+     * @param canMarkUnread whether any picked chapter has reading state to clear — read, or merely opened
+     *   and left partway through.
+     * @param allSelected whether every shown chapter is picked, which flips the select-all control into
+     *   its "clear" meaning.
+     */
+    data class ChapterSelection(
+        val ids: Set<Uuid>,
+        val canSelectAbove: Boolean,
+        val canSelectBelow: Boolean,
+        val canMarkRead: Boolean,
+        val canMarkUnread: Boolean,
+        val allSelected: Boolean
+    ) {
+        /** Whether a selection is running — the screen swaps to its selection chrome exactly when true. */
+        val isActive: Boolean get() = ids.isNotEmpty()
+
+        val count: Int get() = ids.size
+
+        companion object {
+            /** No selection: the screen's normal reading chrome. */
+            val None =
+                ChapterSelection(
+                    ids = emptySet(),
+                    canSelectAbove = false,
+                    canSelectBelow = false,
+                    canMarkRead = false,
+                    canMarkUnread = false,
+                    allSelected = false
+                )
+        }
+    }
 
     /** A [Category] paired with whether the current manga is a member of it. */
     data class MangaCategoryChip(

@@ -410,6 +410,8 @@ private class HeldChapterRepository(
         progress: ReadingProgress
     ) = error("unused")
 
+    override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) = error("unused")
+
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")
 
     override suspend fun deleteChapter(chapterId: Uuid) = error("unused")

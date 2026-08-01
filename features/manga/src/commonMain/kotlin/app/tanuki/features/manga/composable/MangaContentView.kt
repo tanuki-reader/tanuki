@@ -71,6 +71,9 @@ private val DetailBarHeight = 56.dp
  * collapse offset is shared, so it carries over between tabs. [onHeroCollapsedChange] tells the host when
  * the hero has mostly collapsed, so the top bar can fade in the title.
  *
+ * Long-pressing a chapter starts a multi-select; while one is running the "Read" bar gives way to the
+ * [ChapterSelectionBar] in the same slot, and the host swaps the top bar to match.
+ *
  * The two panes swap with the design system's tabbed slide-and-fade (the same [AnimatedContent] transition
  * as the library's filter sheet), directional by tab order. The Chapters pane stays a lazy [LazyColumn] —
  * so a series with hundreds of chapters never composes rows off screen — while the Info pane scrolls its
@@ -85,6 +88,12 @@ fun MangaContentView(
     onEditReadingStatus: () -> Unit,
     onEditReadingMode: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
+    onChapterLongClick: (Chapter) -> Unit,
+    onSelectAbove: () -> Unit,
+    onSelectBelow: () -> Unit,
+    onMarkSelectionRead: () -> Unit,
+    onMarkSelectionUnread: () -> Unit,
+    onClearSelection: () -> Unit,
     onReadClick: () -> Unit,
     onAddToLibrary: () -> Unit,
     onRemoveFromLibrary: () -> Unit,
@@ -93,6 +102,9 @@ fun MangaContentView(
 ) {
     val spacing = TanukiTheme.spacing
     var tab by remember { mutableStateOf(MangaTab.Chapters) }
+    // A selection belongs to the chapter list; carrying it over to Info would leave the selection bars
+    // hovering around a screen with nothing selectable on it.
+    LaunchedEffect(tab) { if (tab != MangaTab.Chapters) onClearSelection() }
     // Hoisted so the chapter scroll position survives switching to the Info tab and back.
     val chapterListState = rememberLazyListState()
 
@@ -214,9 +226,11 @@ fun MangaContentView(
                             ascending = state.chapterSortAscending,
                             canFilter = state.canFilterScanlators,
                             filterActive = state.isChapterFilterActive,
+                            selectedIds = state.selection.ids,
                             onToggleSort = onToggleSort,
                             onOpenFilter = onOpenChapterFilter,
-                            onChapterClick = onChapterClick
+                            onChapterClick = onChapterClick,
+                            onChapterLongClick = onChapterLongClick
                         )
                     }
                 }
@@ -235,16 +249,30 @@ fun MangaContentView(
             }
         }
 
-        // The "Read" bar belongs to the Chapters tab only; it slides down out of view on Info.
+        // The bottom bar belongs to the Chapters tab only; it slides down out of view on Info. Within the
+        // tab it swaps between reading and acting on a selection — a swap in place, not a second bar
+        // stacked on the first, because the two are alternatives: nothing is being resumed mid-selection.
         AnimatedVisibility(
             visible = tab == MangaTab.Chapters,
             enter = slideInVertically { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut()
         ) {
-            MangaBottomBar(
-                resumeChapter = state.resumeChapter,
-                onReadClick = onReadClick
-            )
+            AnimatedContent(targetState = state.selection.isActive, label = "chapterBottomBar") { selecting ->
+                if (selecting) {
+                    ChapterSelectionBar(
+                        selection = state.selection,
+                        onSelectAbove = onSelectAbove,
+                        onSelectBelow = onSelectBelow,
+                        onMarkRead = onMarkSelectionRead,
+                        onMarkUnread = onMarkSelectionUnread
+                    )
+                } else {
+                    MangaBottomBar(
+                        resumeChapter = state.resumeChapter,
+                        onReadClick = onReadClick
+                    )
+                }
+            }
         }
     }
 }
