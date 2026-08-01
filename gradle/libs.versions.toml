@@ -43,6 +43,11 @@ telephoto = "0.19.0"
 # WorkManager — Android's background scheduler for the periodic library chapter check. Android-only by
 # nature; iOS uses BGTaskScheduler behind the same `LibraryUpdateScheduler` interface.
 androidx-work = "2.10.0"
+# Sentry KMP — opt-in crash reporting behind the `CrashReporter` seam in :core:domain. Still pre-1.0, so
+# pin it exactly and re-read the release notes before bumping. On iOS the plugin links Sentry Cocoa, which
+# must already be installed in Xcode via SPM *before* Gradle runs; it resolves the xcframework out of
+# DerivedData, so CI needs `sentryKmp { linker { frameworkPath } }` pinned (getsentry/…-multiplatform#484).
+sentry = "0.27.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -98,3 +103,5 @@ kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", versio
 metro = { id = "dev.zacsweers.metro", version.ref = "metro" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "room" }
+# Not applied yet — applying it before Sentry Cocoa is installed in Xcode via SPM breaks the iOS build.
+sentryKmp = { id = "io.sentry.kotlin.multiplatform.gradle", version.ref = "sentry" }

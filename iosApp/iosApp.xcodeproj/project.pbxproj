@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		FA5B28C0301E85650004D1C8 /* Sentry-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = FA5B28BF301E85650004D1C8 /* Sentry-Dynamic */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		7F3FACDF9E86D2D9A4EDE994 /* Tanuki.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tanuki.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -41,6 +45,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA5B28C0301E85650004D1C8 /* Sentry-Dynamic in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -60,8 +65,16 @@
 			children = (
 				1E538676FAEC1F3A1DACD877 /* Configuration */,
 				37EF9428B1465F38AEC986FA /* iosApp */,
+				FA5B28BE301E85650004D1C8 /* Frameworks */,
 				A502D0676787A4BAEBC6C8D4 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		FA5B28BE301E85650004D1C8 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -85,6 +98,7 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				FA5B28BF301E85650004D1C8 /* Sentry-Dynamic */,
 			);
 			productName = iosApp;
 			productReference = 7F3FACDF9E86D2D9A4EDE994 /* Tanuki.app */;
@@ -114,6 +128,9 @@
 			);
 			mainGroup = DF53FD9491A324783DC84739;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FA5B28BD301E80D00004D1C8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A502D0676787A4BAEBC6C8D4 /* Products */;
 			projectDirPath = "";
@@ -368,6 +385,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FA5B28BD301E80D00004D1C8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
+			requirement = {
+				kind = exactVersion;
+				version = 8.58.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		FA5B28BF301E85650004D1C8 /* Sentry-Dynamic */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FA5B28BD301E80D00004D1C8 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = "Sentry-Dynamic";
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 83E9BE7253F323C371AE4CAF /* Project object */;
 }

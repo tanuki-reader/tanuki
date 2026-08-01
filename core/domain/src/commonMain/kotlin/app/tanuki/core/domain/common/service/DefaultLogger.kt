@@ -19,6 +19,12 @@ import kotlin.concurrent.Volatile
  * dropped in release builds (per [BuildEnvironment.isDebug]) *before* reaching any receiver, so a debug
  * trace can never leak into a crash-reporting or analytics sink in production.
  *
+ * [CrashReporter] is fed from here rather than registered as a [Logger.LogReceiver], because the two
+ * parameters that decide what it gets — `analyticsEvent` and `addToBreadcrumbs` — exist on [Logger.log]
+ * and have no counterpart on [Logger.LogReceiver]. Driving it before the fan-out is what lets those
+ * arguments mean something without widening the receiver contract for the one sink that needs them. With
+ * no backend installed the bound reporter is [NoOpCrashReporter] and every forward is discarded.
+ *
  * The receiver set is held as an immutable snapshot behind a [Volatile] reference and swapped
  * copy-on-write, so [log] fan-out reads a stable list without locking while [addReceiver]/
  * [removeReceiver] (rare, typically at startup) publish a new list atomically.
@@ -30,6 +36,7 @@ import kotlin.concurrent.Volatile
 @ContributesBinding(AppScope::class)
 class DefaultLogger(
     private val buildEnvironment: BuildEnvironment,
+    private val crashReporter: CrashReporter,
 ) : Logger {
 
     @Volatile
@@ -46,9 +53,13 @@ class DefaultLogger(
         // The debug-only contract: development traces never reach a sink in a release build.
         if (priority == LogPriority.DEBUG && !buildEnvironment.isDebug) return
 
-        // analyticsEvent / addToBreadcrumbs are Logger-level concerns with no counterpart on
-        // LogReceiver; there is no analytics or crash backend yet, so they are accepted and ignored
-        // for now — wire them up here (before the fan-out) once one exists.
+        // Breadcrumb first, then the report: an error's own breadcrumb belongs in the trail that
+        // accompanies it, so recording before reporting is what puts it there rather than in the trail of
+        // whatever fails next. Only ERROR is worth a report — the lower levels are context, and they reach
+        // the reporter solely as breadcrumbs when a call site asked for one.
+        if (addToBreadcrumbs) crashReporter.recordBreadcrumb(priority, tag, message)
+        if (priority == LogPriority.ERROR) crashReporter.reportError(tag, message, throwable, analyticsEvent)
+
         receivers.forEach { it.onLog(priority, tag, message, throwable) }
     }
 
