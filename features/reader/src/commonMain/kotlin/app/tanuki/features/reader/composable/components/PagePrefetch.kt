@@ -2,7 +2,9 @@ package app.tanuki.features.reader.composable.components
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import app.tanuki.features.reader.LocalPageImageLoader
+import app.tanuki.features.reader.utils.rememberPageDecodeSize
 import app.tanuki.features.reader.utils.toImageRequest
 import app.tanuki.features.reader.viewmodel.ReaderItem
 import coil3.compose.LocalPlatformContext
@@ -13,9 +15,6 @@ private const val PAGE_PREFETCH_AHEAD = 5
 /** How many pages *behind* the current one to keep warm, so turning back doesn't re-download a page that
  *  was on screen moments ago. Smaller than the forward window — reading goes forward. */
 private const val PAGE_PREFETCH_BEHIND = 2
-
-//TODO: Check if this logic shouldn't be in viewModel with a single launch effect, instead of one per page.
-// It would be more efficient and avoid multiple prefetches when the user scrolls fast.
 
 /**
  * Enqueues the pages around the focused item into the page cache, so paging forward hits a warm cache and
@@ -28,6 +27,14 @@ private const val PAGE_PREFETCH_BEHIND = 2
  * The size is picked up from the request's own success callback rather than by awaiting the load, so the
  * warm stays detached from this effect: scrolling quickly re-targets the window without cancelling
  * downloads that are already half done.
+ *
+ * **Only pages that actually entered the window are enqueued.** Focus moves one item at a time, so re-running
+ * the whole window on every move would hand the loader the same seven requests over and over — each one a
+ * fresh job, a cache probe, and on a miss a redundant HTTP call, which costs radio wake-ups more than it
+ * costs CPU. [warmed] remembers what has already been handed over so a focus change enqueues at most the one
+ * page that just came into range. A failed warm is forgotten again, so a page lost to a dropped connection
+ * can be retried the next time focus passes it; a *successful* warm is never re-enqueued, and if it is later
+ * evicted from the memory cache it simply loads normally (from disk) when its item composes.
  */
 @Composable
 internal fun PagePrefetch(
@@ -37,13 +44,20 @@ internal fun PagePrefetch(
 ) {
     val imageLoader = LocalPageImageLoader.current
     val context = LocalPlatformContext.current
-    LaunchedEffect(focusedIndex, items) {
+    val decodeSize = rememberPageDecodeSize()
+    // Keyed on the decode size as well as the loader: a resize or rotation means a different bitmap to warm,
+    // so everything becomes worth enqueuing again. Confined to the main dispatcher — mutated from the effect
+    // below and from Coil's listeners, both of which run there.
+    val warmed = remember(imageLoader, decodeSize) { mutableSetOf<String>() }
+
+    LaunchedEffect(focusedIndex, items, decodeSize) {
         val forward = items.pagesFrom(focusedIndex + 1, step = 1, limit = PAGE_PREFETCH_AHEAD)
         val backward = items.pagesFrom(focusedIndex - 1, step = -1, limit = PAGE_PREFETCH_BEHIND)
-        (forward + backward).forEach { item ->
+        for (item in forward + backward) {
+            if (!warmed.add(item.key)) continue
             val request =
                 item.page
-                    .toImageRequest(context)
+                    .toImageRequest(context, decodeSize)
                     .newBuilder()
                     .listener(
                         onSuccess = { _, result ->
@@ -52,7 +66,8 @@ internal fun PagePrefetch(
                                 width = result.image.width.toFloat(),
                                 height = result.image.height.toFloat()
                             )
-                        }
+                        },
+                        onError = { _, _ -> warmed -= item.key }
                     ).build()
             imageLoader.enqueue(request)
         }

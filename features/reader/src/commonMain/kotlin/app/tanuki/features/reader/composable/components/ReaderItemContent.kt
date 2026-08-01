@@ -36,6 +36,7 @@ import app.tanuki.features.reader.resources.reader_end_title
 import app.tanuki.features.reader.resources.reader_transition_finished
 import app.tanuki.features.reader.resources.reader_transition_swipe_hint
 import app.tanuki.features.reader.resources.reader_transition_up_next
+import app.tanuki.features.reader.utils.rememberPageDecodeSize
 import app.tanuki.features.reader.utils.toImageRequest
 import app.tanuki.features.reader.viewmodel.ReaderItem
 import coil3.compose.AsyncImagePainter
@@ -112,16 +113,19 @@ private fun ReaderPage(
     ratios: PageAspectRatios? = null
 ) {
     val context = LocalPlatformContext.current
-    val request = remember(context, page) { page.toImageRequest(context) }
+    val decodeSize = rememberPageDecodeSize()
+    val request = remember(context, page, decodeSize) { page.toImageRequest(context, decodeSize) }
     val painter =
         rememberAsyncImagePainter(model = request, imageLoader = LocalPageImageLoader.current)
     val zoomState = rememberZoomableState()
 
     val painterState by painter.state.collectAsState()
-    // The page's true pixel size comes from the decoded result, never from `painter.intrinsicSize`: while
-    // Coil crossfades, the painter is a `CrossfadePainter` whose intrinsic size is the *max* of the
-    // outgoing and incoming images — the right proportions for neither, so a reused item can be measured
-    // against a blend of the page it used to show and the one it now shows.
+    // The page's size is read from the decoded result, never from `painter.intrinsicSize`: until the load
+    // succeeds the painter is whatever the item was showing before (these items are recycled), so its
+    // intrinsic size belongs to the previous page. Only the success result is unambiguously *this* page.
+    // These are the decoded dimensions, not the source's — the page may have been downsampled to
+    // `rememberPageDecodeSize` — but downsampling scales both axes by one multiplier, so the ratio the
+    // strip measures with is the page's true one either way.
     val decoded: Size? =
         (painterState as? AsyncImagePainter.State.Success)
             ?.result

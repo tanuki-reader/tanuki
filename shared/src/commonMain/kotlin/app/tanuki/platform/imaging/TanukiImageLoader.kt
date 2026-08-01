@@ -72,10 +72,14 @@ private const val DISK_CACHE_MAX_BYTES = 256L * 1024 * 1024
  * same instance source API calls use — so a page from a protected host (the reader's real Cloudflare
  * case) inherits the solved `cf_clearance` and no page fetch bypasses the interceptor.
  *
- * Crossfade is on, as it is for covers. It is safe here only because nothing in the reader measures a page
- * from its painter: while Coil crossfades it hands the UI a `CrossfadePainter` whose intrinsic size is the
- * *max* of the outgoing and incoming images — proportions belonging to neither — so page slots are sized
- * from the decoded result instead (see `ReaderPage`). Keep that indirection if this stays enabled.
+ * Crossfade is deliberately **off**, unlike the cover loader. A cover fades in behind a gradient placeholder,
+ * where the transition hides a pop-in. A page arrives on a black surface and is the only thing on screen, so
+ * the fade buys nothing visually and costs a full-screen composite of *two* page-sized bitmaps on every frame
+ * it runs — paid once per page turn, which is exactly when the reader is already busy decoding the next page.
+ *
+ * Page slots are still sized from the decoded result rather than the painter's intrinsic size (see
+ * `ReaderPage`); that no longer works around `CrossfadePainter`, but it remains the only reading that is
+ * unambiguously the current page on a recycled item.
  *
  * @param httpClient the shared source client; not owned here (a process-lived DI singleton), so this
  *   loader never closes it out from under the source layer.
@@ -99,8 +103,7 @@ fun newTanukiPageImageLoader(
                 .directory(pageCacheDirectory(context))
                 .maxSizeBytes(PAGE_DISK_CACHE_MAX_BYTES)
                 .build()
-        }.crossfade(true)
-        .build()
+        }.build()
 
 /**
  * Fraction of app memory the in-RAM page cache may use — lower than [MEMORY_CACHE_PERCENT] because a
