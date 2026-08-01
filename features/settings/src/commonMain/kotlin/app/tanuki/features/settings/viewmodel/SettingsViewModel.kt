@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import dev.zacsweers.metro.AppScope
@@ -30,6 +31,7 @@ import kotlinx.coroutines.flow.stateIn
 @ViewModelKey
 class SettingsViewModel(
     observeThemePreference: ObserveThemePreference,
+    observeCrashReportingEnabled: ObserveCrashReportingEnabled,
     observeCategories: ObserveCategories,
     getInstalledSources: GetInstalledSources,
     dispatcher: DispatcherProvider
@@ -38,12 +40,14 @@ class SettingsViewModel(
         combine(
             observeThemePreference(),
             observeCategories(),
-            getInstalledSources()
-        ) { theme, categories, sources ->
+            getInstalledSources(),
+            observeCrashReportingEnabled()
+        ) { theme, categories, sources, crashReporting ->
             SettingsState(
                 theme = theme,
                 categoryCount = categories.size,
-                sourceCount = sources.size
+                sourceCount = sources.size,
+                crashReportingEnabled = crashReporting
             )
         }.flowOn(dispatcher.default)
             .stateIn(

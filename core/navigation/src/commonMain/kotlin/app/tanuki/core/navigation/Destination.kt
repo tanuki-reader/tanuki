@@ -81,6 +81,16 @@ data class Reader(
 data object SettingsAppearance : Destination
 
 /**
+ * Privacy settings — what, if anything, the app sends off the device. A leaf pushed onto the Settings
+ * tab's stack from the settings index.
+ *
+ * A screen rather than a switch on the index: consent is only meaningful if the user can see what is
+ * collected before giving it, and that explanation needs more room than a row subtitle.
+ */
+@Serializable
+data object SettingsPrivacy : Destination
+
+/**
  * Category management — create/delete the library shelves manga can be organized into. A leaf pushed
  * onto the Settings tab's stack from the settings index.
  */

@@ -263,6 +263,10 @@ private class FakeSettingsRepository(
 
     override suspend fun setThemePreference(preference: ThemePreference) = error("unused")
 
+    override fun observeCrashReportingEnabled(): Flow<Boolean> = error("unused")
+
+    override suspend fun setCrashReportingEnabled(enabled: Boolean) = error("unused")
+
     override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> = error("unused")
 
     override suspend fun setLibraryUpdateInterval(interval: LibraryUpdateInterval) = error("unused")

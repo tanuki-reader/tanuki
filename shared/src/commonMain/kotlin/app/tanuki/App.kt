@@ -66,6 +66,18 @@ fun App(appGraph: AppGraph) {
         appGraph.applicationScope.launch { appGraph.keepLibraryUpdateScheduled() }
     }
 
+    // Apply the user's crash-reporting consent, and keep applying it. This is the *only* thing that ever
+    // starts the reporter: the SDK installs process-wide crash handlers, so it must not run before the
+    // stored preference has been read, and it must stop the moment consent is withdrawn. Collecting the
+    // flow rather than reading it once is what makes the second half true — unticking the switch shuts
+    // the reporter down on the same emission, with no relaunch. On the app scope, so the subscription
+    // outlives any screen.
+    LaunchedEffect(appGraph) {
+        appGraph.applicationScope.launch {
+            appGraph.observeCrashReportingEnabled().collect(appGraph.crashReporter::setEnabled)
+        }
+    }
+
     // The user's stored theme choice drives the whole UI: System defers to the OS setting, while Light
     // and Dark force a dialect. Collected at the root so a change re-themes every screen at once.
     val themePreference by appGraph

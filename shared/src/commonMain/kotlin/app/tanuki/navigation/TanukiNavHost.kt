@@ -32,6 +32,7 @@ import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.navigation.SettingsAppearance
+import app.tanuki.core.navigation.SettingsPrivacy
 import app.tanuki.core.navigation.SettingsCategories
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
@@ -44,6 +45,7 @@ import app.tanuki.features.manga.MangaRoute
 import app.tanuki.features.reader.ReaderRoute
 import app.tanuki.features.settings.SettingsRoute
 import app.tanuki.features.settings.appearance.AppearanceRoute
+import app.tanuki.features.settings.privacy.PrivacyRoute
 import app.tanuki.features.settings.categories.CategoriesRoute
 import app.tanuki.features.settings.sources.SourcesRoute
 import app.tanuki.features.source.SourceRoute
@@ -205,6 +207,14 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popExitTransition = leafPopExit
             ) {
                 AppearanceRoute(onBack = { navController.popBackStack() })
+            }
+            composable<SettingsPrivacy>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) {
+                PrivacyRoute(onBack = { navController.popBackStack() })
             }
             composable<SettingsCategories>(
                 enterTransition = leafEnter,

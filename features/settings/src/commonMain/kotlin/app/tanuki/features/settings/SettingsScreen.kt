@@ -23,19 +23,25 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ContrastIcon
 import app.tanuki.assets.designSystem.component.ExtensionIcon
 import app.tanuki.assets.designSystem.component.LabelIcon
+import app.tanuki.assets.designSystem.component.ShieldCheckIcon
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.TanukiListRow
 import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.SettingsAppearance
 import app.tanuki.core.navigation.SettingsCategories
+import app.tanuki.core.navigation.SettingsPrivacy
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_appearance
 import app.tanuki.features.settings.resources.settings_categories
 import app.tanuki.features.settings.resources.settings_category_count
+import app.tanuki.features.settings.resources.settings_privacy
+import app.tanuki.features.settings.resources.settings_privacy_off
+import app.tanuki.features.settings.resources.settings_privacy_on
 import app.tanuki.features.settings.resources.settings_section_library
 import app.tanuki.features.settings.resources.settings_section_personalization
+import app.tanuki.features.settings.resources.settings_section_privacy
 import app.tanuki.features.settings.resources.settings_source_count
 import app.tanuki.features.settings.resources.settings_sources
 import app.tanuki.features.settings.resources.settings_title
@@ -97,6 +103,23 @@ fun SettingsRoute(
                     subtitle = stringResource(state.theme.labelRes()),
                     leading = { ContrastIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = { onNavigate(SettingsAppearance) }
+                )
+            }
+
+            SectionHeader(title = stringResource(Res.string.settings_section_privacy))
+            SettingsGroup {
+                TanukiListRow(
+                    title = stringResource(Res.string.settings_privacy),
+                    subtitle =
+                        stringResource(
+                            if (state.crashReportingEnabled) {
+                                Res.string.settings_privacy_on
+                            } else {
+                                Res.string.settings_privacy_off
+                            }
+                        ),
+                    leading = { ShieldCheckIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    onClick = { onNavigate(SettingsPrivacy) }
                 )
             }
 

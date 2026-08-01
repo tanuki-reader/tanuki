@@ -3,6 +3,7 @@ package app.tanuki.core.data.repository.settings
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -70,6 +71,18 @@ class SettingsRepositoryImp(
         }
     }
 
+    // Absent reads as `false`, and so does a corrupt store (see [preferences], which falls back to
+    // empty). Both paths therefore mean "has not opted in", which is the only safe reading: the failure
+    // mode of guessing wrong here is collecting diagnostics from someone who never agreed.
+    override fun observeCrashReportingEnabled(): Flow<Boolean> =
+        preferences.map { it[CRASH_REPORTING_KEY] ?: false }
+
+    override suspend fun setCrashReportingEnabled(enabled: Boolean) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[CRASH_REPORTING_KEY] = enabled }
+        }
+    }
+
     override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> =
         preferences.map { it[UPDATE_INTERVAL_KEY].toUpdateInterval() }
 
@@ -107,6 +120,7 @@ class SettingsRepositoryImp(
     }
 
     private companion object {
+        val CRASH_REPORTING_KEY = booleanPreferencesKey("crash_reporting_enabled")
         val THEME_KEY = stringPreferencesKey("theme_preference")
         val UPDATE_INTERVAL_KEY = stringPreferencesKey("library_update_interval")
         val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")

@@ -1,6 +1,8 @@
 package app.tanuki.di
 
+import app.tanuki.core.domain.common.service.CrashReporter
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.update.usecase.KeepLibraryUpdateScheduled
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
@@ -49,6 +51,17 @@ interface AppGraph : ViewModelGraph {
      * navigation graph, above any single screen's ViewModel.
      */
     val observeThemePreference: ObserveThemePreference
+
+    /**
+     * The crash reporter, and the stored opt-in that gates it. Both are exposed on the graph rather than
+     * behind a screen's ViewModel because the subscription tying them together belongs to the app's
+     * lifetime: consent has to be applied at launch, before any screen exists, and revoking it has to
+     * take effect wherever the user happens to be.
+     */
+    val crashReporter: CrashReporter
+
+    /** The stored crash-reporting opt-in. See [crashReporter]. */
+    val observeCrashReportingEnabled: ObserveCrashReportingEnabled
 
     /**
      * The library-wide chapter check, exposed on the graph (rather than behind a screen's ViewModel)

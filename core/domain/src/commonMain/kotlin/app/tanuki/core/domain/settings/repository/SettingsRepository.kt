@@ -29,6 +29,22 @@ interface SettingsRepository {
     suspend fun setThemePreference(preference: ThemePreference)
 
     /**
+     * Observes whether the user has opted in to sending crash reports.
+     *
+     * @return A [Flow] emitting the stored choice, defaulting to `false` until the user opts in. The
+     *   default is the whole point: diagnostics must never be collected from someone who has not agreed,
+     *   so an absent or unreadable value has to mean "off", never "on".
+     */
+    fun observeCrashReportingEnabled(): Flow<Boolean>
+
+    /**
+     * Records the user's crash-reporting choice.
+     *
+     * @param enabled `true` when the user opts in.
+     */
+    suspend fun setCrashReportingEnabled(enabled: Boolean)
+
+    /**
      * Observes how often the library checks its sources for new chapters.
      *
      * @return A [Flow] emitting the stored interval, defaulting to [LibraryUpdateInterval.Default]
