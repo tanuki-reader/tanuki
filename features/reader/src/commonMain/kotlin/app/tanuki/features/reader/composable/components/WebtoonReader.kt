@@ -33,11 +33,10 @@ import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.unit.dp
 import app.tanuki.features.reader.viewmodel.ReaderItem
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.sign
-import kotlinx.coroutines.launch
 
 /** Long-strip layout (webtoons): items stacked in a continuous scroll, no per-item snapping. Transition
  *  slides fill the viewport, so scrolling past a chapter's last page lands on a full "up next" panel and
@@ -136,8 +135,7 @@ internal fun WebtoonReader(
                         scaleY = scale
                         translationX = offsetX
                         transformOrigin = TransformOrigin(0f, 0f)
-                    },
-            verticalArrangement = Arrangement.spacedBy((-1).dp)
+                    }
         ) {
             items(items, key = { it.key }) { item ->
                 ReaderItemContent(
@@ -205,9 +203,7 @@ private suspend fun PointerInputScope.detectStripPan(
  * left entirely alone so the [LazyColumn] scrolls as usual, and once a second finger lands the changes are
  * consumed on the [PointerEventPass.Initial] pass so the list stops treating the pinch as a drag.
  */
-private suspend fun PointerInputScope.detectStripZoom(
-    onTransform: (pivot: Offset, zoom: Float, pan: Offset) -> Unit
-) {
+private suspend fun PointerInputScope.detectStripZoom(onTransform: (pivot: Offset, zoom: Float, pan: Offset) -> Unit) {
     awaitEachGesture {
         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         var pressed: Boolean
