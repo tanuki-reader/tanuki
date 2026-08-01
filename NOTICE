@@ -1,0 +1,14 @@
+Tanuki
+Copyright 2026 Arthur Oliveira and the Tanuki contributors
+
+This product includes software developed as part of Mihon
+(https://github.com/mihonapp/mihon), Copyright the Mihon Open Source Project,
+licensed under the Apache License, Version 2.0.
+
+Tanuki is an independent Kotlin Multiplatform reimplementation that ports and
+adapts portions of Mihon's non-UI code. Ported code has been modified and
+repackaged from `tachiyomi.*` / `mihon.*` into `app.tanuki.*`, and further
+changes have been made throughout.
+
+Tanuki is not affiliated with, endorsed by, or sponsored by the Mihon project.
+"Mihon" is used here solely to attribute the upstream work.
