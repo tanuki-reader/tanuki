@@ -29,10 +29,11 @@ class MangaFireSourceEngineTest {
 
         val meta = SourceCodec.decode<Wire.SourceMetaWire>(module.call(SourceAbi.Exports.SOURCE_META, ByteArray(0)))
 
-        // The fixture is the crate's default (English) language build; the pt-BR one differs only in
-        // these three strings and the `language` request parameter.
+        // The fixture is the crate's default (English) language build; the pt-BR one differs only in its
+        // id, its lang, and the `language` request parameter. The display name is deliberately the *same*
+        // across both — the language is the row's subtitle, so carrying it in the name too would repeat it.
         assertEquals("mangafire", meta.id)
-        assertEquals("MangaFire (EN)", meta.name)
+        assertEquals("MangaFire", meta.name)
         assertEquals("en", meta.lang)
         assertEquals("https://mangafire.to", meta.baseUrl)
         assertTrue(meta.listings.containsAll(listOf("popular", "latest")), "serves popular + latest")
