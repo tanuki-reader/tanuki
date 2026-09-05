@@ -1,21 +1,20 @@
 package app.tanuki.features.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
+import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
 
 /**
  * Presentation logic for the Settings **index** screen (the tab root). Compose-free (per CLAUDE.md →
@@ -27,15 +26,16 @@ import kotlinx.coroutines.flow.stateIn
  * [ContributesIntoMap], so `metroViewModel<SettingsViewModel>()` resolves it in the UI layer.
  */
 @Inject
-@ContributesIntoMap(AppScope::class)
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class SettingsViewModel(
     observeThemePreference: ObserveThemePreference,
     observeCrashReportingEnabled: ObserveCrashReportingEnabled,
     observeCategories: ObserveCategories,
     getInstalledSources: GetInstalledSources,
-    dispatcher: DispatcherProvider
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val uiState: StateFlow<SettingsState> =
         combine(
             observeThemePreference(),
@@ -49,14 +49,5 @@ class SettingsViewModel(
                 sourceCount = sources.size,
                 crashReportingEnabled = crashReporting
             )
-        }.flowOn(dispatcher.default)
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = SettingsState()
-            )
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
-    }
+        }.asState(SettingsState())
 }

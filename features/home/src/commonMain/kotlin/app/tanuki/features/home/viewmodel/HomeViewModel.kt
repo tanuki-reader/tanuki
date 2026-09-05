@@ -3,6 +3,7 @@ package app.tanuki.features.home.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.usecase.ObserveReadHistory
 import app.tanuki.core.domain.source.model.SourceMeta
@@ -10,17 +11,16 @@ import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.domain.update.model.NewChapter
 import app.tanuki.core.domain.update.usecase.ObserveNewChapters
 import app.tanuki.core.navigation.MangaDetail
-import app.tanuki.core.navigation.NavEvent
-import app.tanuki.core.navigation.NavEvent.NavTo
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.navigation.SourceBrowse
+import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.home.viewmodel.HomeState.Content
 import app.tanuki.features.home.viewmodel.HomeState.Loading
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlin.math.floor
 
 /**
@@ -48,23 +47,17 @@ import kotlin.math.floor
  * without re-enumerating on every history or update tick.
  */
 @Inject
-@ContributesIntoMap(AppScope::class)
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class HomeViewModel(
     observeReadHistory: ObserveReadHistory,
     observeNewChapters: ObserveNewChapters,
-    private val getInstalledSources: GetInstalledSources,
-    private val dispatcher: DispatcherProvider
-) : ViewModel() {
+    getInstalledSources: GetInstalledSources,
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val uiState: StateFlow<HomeState>
         field = MutableStateFlow<HomeState>(Loading)
-
-    /**
-     * Screen-scoped navigation intents. One-shot and buffered so a tap emitted before the host collects
-     * isn't lost; the host maps these onto the active back stack.
-     */
-    private val _navEvents = Channel<NavEvent>(Channel.BUFFERED)
-    val navEvents: Flow<NavEvent> = _navEvents.receiveAsFlow()
 
     /**
      * Installed sources, tracking the runtime. `null` until the first enumeration finishes, which holds
@@ -117,7 +110,7 @@ class HomeViewModel(
 
     /** A source row was tapped — open its browse leaf (pushed onto the Home tab's stack). */
     fun onSourceClick(sourceId: String) {
-        _navEvents.trySend(NavTo(SourceBrowse(sourceId)))
+        navigateTo(SourceBrowse(sourceId))
     }
 
     /**
@@ -128,7 +121,7 @@ class HomeViewModel(
         val destination =
             item.chapterId?.let { Reader(mangaId = item.mangaId, chapterId = it) }
                 ?: MangaDetail(item.mangaId)
-        _navEvents.trySend(NavTo(destination))
+        navigateTo(destination)
     }
 
     /**
@@ -137,7 +130,7 @@ class HomeViewModel(
      * [app.tanuki.core.domain.update.usecase.ResolveChapterUpdates]).
      */
     fun onNewChapterClick(item: NewChapterItem) {
-        _navEvents.trySend(NavTo(Reader(mangaId = item.mangaId, chapterId = item.chapterId)))
+        navigateTo(Reader(mangaId = item.mangaId, chapterId = item.chapterId))
     }
 
     /**

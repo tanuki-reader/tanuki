@@ -7,14 +7,14 @@ import app.tanuki.core.domain.category.usecase.CreateCategory
 import app.tanuki.core.domain.category.usecase.DeleteCategory
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.uuid.Uuid
 
@@ -27,22 +27,17 @@ import kotlin.uuid.Uuid
  * store change flows back through [ObserveCategories].
  */
 @Inject
-@ContributesIntoMap(AppScope::class)
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class CategoriesViewModel(
     observeCategories: ObserveCategories,
     private val createCategory: CreateCategory,
     private val deleteCategory: DeleteCategory,
-    dispatcher: DispatcherProvider
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val categories: StateFlow<List<Category>> =
-        observeCategories()
-            .flowOn(dispatcher.default)
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = emptyList()
-            )
+        observeCategories().asState(emptyList())
 
     /**
      * Create a category from the dialog's text. A blank name is a no-op (handled in [CreateCategory]),
@@ -55,9 +50,5 @@ class CategoriesViewModel(
     /** Delete a category (and, by cascade, its manga memberships). */
     fun onDeleteCategory(categoryId: Uuid) {
         viewModelScope.launch { deleteCategory(categoryId) }
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

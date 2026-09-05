@@ -1,6 +1,5 @@
 package app.tanuki.features.manga.viewmodel
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.category.usecase.SetMangaCategories
@@ -11,7 +10,6 @@ import app.tanuki.core.domain.chapter.usecase.SetChaptersRead
 import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
-import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
@@ -22,8 +20,8 @@ import app.tanuki.core.domain.manga.usecase.SetReadingMode
 import app.tanuki.core.domain.manga.usecase.SetReadingStatus
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
-import app.tanuki.core.navigation.NavEvent
 import app.tanuki.core.navigation.Reader
+import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.manga.viewmodel.MangaState.Content
 import app.tanuki.features.manga.viewmodel.MangaState.Loading
 import app.tanuki.features.manga.viewmodel.MangaState.MangaCategoryChip
@@ -36,25 +34,21 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.Double.Companion.MAX_VALUE
 import kotlin.Double.Companion.MIN_VALUE
 import kotlin.uuid.Uuid
 
 /**
  * Presentation logic for the Manga Detail screen. Compose-free (per CLAUDE.md → MVVM): it exposes state
- * as a [StateFlow] and screen-scoped navigation as one-shot [NavEvent]s, so the same logic drives the
- * shared Compose UI on both Android and iOS and is unit-testable without a Compose runtime.
+ * as a [StateFlow] and screen-scoped navigation through [TanukiViewModel.navEvents], so the same logic
+ * drives the shared Compose UI on both Android and iOS and is unit-testable without a Compose runtime.
  *
  * Unlike the Library ViewModel, this one is **assisted-injected**: it needs the [mangaId] the navigation
  * route carried. Metro builds it through [Factory] (a [ManualViewModelAssistedFactory] registered into the
@@ -85,18 +79,11 @@ class MangaViewModel(
     private val setChaptersRead: SetChaptersRead,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
-    private val dispatcher: DispatcherProvider,
-    private val logger: Logger
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val uiState: StateFlow<MangaState>
         field = MutableStateFlow<MangaState>(Loading)
-
-    /**
-     * Screen-scoped navigation intents (open the reader for a chapter or go back). One-shot and buffered
-     * so a tap emitted before the host collects isn't lost; the host maps these onto the back stack.
-     */
-    private val _navEvents = Channel<NavEvent>(Channel.BUFFERED)
-    val navEvents: Flow<NavEvent> = _navEvents.receiveAsFlow()
 
     /** Chapter ordering: `true` = ascending by chapter number (1 → N), `false` = descending. */
     private val chapterSortAscending = MutableStateFlow(false)
@@ -165,8 +152,7 @@ class MangaViewModel(
      */
     private fun refreshChapters() {
         viewModelScope.launch {
-            runCatching { withContext(dispatcher.io) { syncSourceChapters(mangaId) } }
-                .onFailure { error -> logger.warn(TAG, "Chapter refresh failed for $mangaId", error) }
+            tryIo("Chapter refresh failed for $mangaId") { syncSourceChapters(mangaId) }
         }
     }
 
@@ -181,8 +167,7 @@ class MangaViewModel(
      */
     private fun refreshDetails() {
         viewModelScope.launch {
-            runCatching { withContext(dispatcher.io) { syncSourceMangaDetails(mangaId) } }
-                .onFailure { error -> logger.warn(TAG, "Detail refresh failed for $mangaId", error) }
+            tryIo("Detail refresh failed for $mangaId") { syncSourceMangaDetails(mangaId) }
         }
     }
 
@@ -201,7 +186,7 @@ class MangaViewModel(
             content.categories.filterTo(mutableSetOf()) { it.isMember }.mapTo(mutableSetOf()) { it.category.id }
         if (categoryId in members) members.remove(categoryId) else members.add(categoryId)
         viewModelScope.launch {
-            withContext(dispatcher.io) {
+            io {
                 if (!content.inLibrary && members.isNotEmpty()) addToLibrary(mangaId)
                 setMangaCategories(mangaId, members)
             }
@@ -218,7 +203,7 @@ class MangaViewModel(
         val content = uiState.value as? Content ?: return
         if (content.manga.readingStatus == status) return
         viewModelScope.launch {
-            withContext(dispatcher.io) {
+            io {
                 setReadingStatus(mangaId, status)
             }
         }
@@ -234,7 +219,7 @@ class MangaViewModel(
         val content = uiState.value as? Content ?: return
         if (content.manga.readingMode == mode) return
         viewModelScope.launch {
-            withContext(dispatcher.io) {
+            io {
                 setReadingMode(mangaId, mode)
             }
         }
@@ -245,7 +230,7 @@ class MangaViewModel(
         val content = uiState.value as? Content ?: return
         if (content.inLibrary) return
         viewModelScope.launch {
-            withContext(dispatcher.io) {
+            io {
                 addToLibrary(mangaId)
             }
         }
@@ -260,7 +245,7 @@ class MangaViewModel(
         val content = uiState.value as? Content ?: return
         if (!content.inLibrary) return
         viewModelScope.launch {
-            withContext(dispatcher.io) {
+            io {
                 removeMangaFromLibrary(mangaId)
             }
         }
@@ -297,7 +282,7 @@ class MangaViewModel(
 
     private fun persistFilteredScanlators(hidden: Set<String>) {
         viewModelScope.launch {
-            withContext(dispatcher.io) { setFilteredScanlators(mangaId, hidden) }
+            io { setFilteredScanlators(mangaId, hidden) }
         }
     }
 
@@ -308,7 +293,7 @@ class MangaViewModel(
 
     /** The back arrow was tapped — pop this screen off the back stack. */
     fun onBack() {
-        _navEvents.trySend(NavEvent.NavBack)
+        navigateBack()
     }
 
     /**
@@ -321,7 +306,7 @@ class MangaViewModel(
         if (selection().isActive) {
             toggleSelection(chapterId)
         } else {
-            _navEvents.trySend(NavEvent.NavTo(Reader(mangaId, chapterId)))
+            navigateTo(Reader(mangaId, chapterId))
         }
     }
 
@@ -391,7 +376,7 @@ class MangaViewModel(
         if (selected.isEmpty()) return
         selectedChapterIds.value = emptySet()
         viewModelScope.launch {
-            withContext(dispatcher.io) { setChaptersRead(mangaId, selected, read) }
+            io { setChaptersRead(mangaId, selected, read) }
         }
     }
 
@@ -432,7 +417,7 @@ class MangaViewModel(
     fun onReadClick() {
         val content = uiState.value as? Content ?: return
         val target = content.resumeChapter ?: return
-        _navEvents.trySend(NavEvent.NavTo(Reader(mangaId, target.id)))
+        navigateTo(Reader(mangaId, target.id))
     }
 
     /**
@@ -478,9 +463,5 @@ class MangaViewModel(
     @ContributesIntoMap(AppScope::class)
     fun interface Factory : ManualViewModelAssistedFactory {
         fun create(mangaId: Uuid): MangaViewModel
-    }
-
-    private companion object {
-        const val TAG = "MangaViewModel"
     }
 }

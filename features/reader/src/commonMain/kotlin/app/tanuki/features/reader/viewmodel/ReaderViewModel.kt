@@ -1,6 +1,5 @@
 package app.tanuki.features.reader.viewmodel
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.isHiddenBy
@@ -14,8 +13,8 @@ import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingMode.RIGHT_TO_LEFT
 import app.tanuki.core.domain.manga.usecase.ObserveManga
 import app.tanuki.core.domain.source.model.Page
-import app.tanuki.core.navigation.NavEvent
 import app.tanuki.core.navigation.Reader
+import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.reader.viewmodel.ReaderItem.PageItem
 import app.tanuki.features.reader.viewmodel.ReaderState.Content
 import app.tanuki.features.reader.viewmodel.ReaderState.Error
@@ -45,7 +44,6 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
 /**
@@ -95,15 +93,11 @@ class ReaderViewModel(
     private val updateReadingProgress: UpdateReadingProgress,
     private val observeChapters: ObserveChapters,
     private val observeManga: ObserveManga,
-    private val dispatcher: DispatcherProvider,
-    private val logger: Logger
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val uiState: StateFlow<ReaderState>
         field = MutableStateFlow<ReaderState>(Loading)
-
-    /** Screen-scoped navigation intents (only "go back" now — chapter paging is inline, not navigation). */
-    private val _navEvents = Channel<NavEvent>(Channel.BUFFERED)
-    val navEvents: Flow<NavEvent> = _navEvents.receiveAsFlow()
 
     /** Imperative scrolls the UI must apply (re-anchor after a window shift, or an explicit jump). */
     private val _commands = Channel<ReaderCommand>(Channel.BUFFERED)
@@ -225,9 +219,9 @@ class ReaderViewModel(
             }
 
             val pages =
-                runCatching { withContext(dispatcher.io) { getChapterPages(initialChapterId) } }
-                    .onFailure { logger.warn(TAG, "Failed to load pages for chapter $initialChapterId", it) }
-                    .getOrNull()
+                tryIo("Failed to load pages for chapter $initialChapterId") {
+                    getChapterPages(initialChapterId)
+                }.getOrNull()
 
             if (pages == null) {
                 uiState.value = Error
@@ -358,7 +352,7 @@ class ReaderViewModel(
 
     /** The back affordance was tapped. */
     fun onBack() {
-        _navEvents.trySend(NavEvent.NavBack)
+        navigateBack()
     }
 
     private fun jumpToChapterStart(chapterId: Uuid) {
@@ -388,8 +382,7 @@ class ReaderViewModel(
 
         viewModelScope.launch {
             val pages =
-                runCatching { withContext(dispatcher.io) { getChapterPages(chapterId) } }
-                    .onFailure { logger.warn(TAG, "Failed to load pages for chapter $chapterId", it) }
+                tryIo("Failed to load pages for chapter $chapterId") { getChapterPages(chapterId) }
                     .getOrNull()
             loadingChapters.update { it - chapterId }
             if (pages != null) pagesCache.update { it + (chapterId to pages) }
@@ -568,7 +561,7 @@ class ReaderViewModel(
         read: Boolean
     ) {
         runCatching { updateReadingProgress(chapterId, page.toUInt(), read = read) }
-            .onFailure { logger.warn(TAG, "Failed to persist progress for chapter $chapterId", it) }
+            .onFailure { logger.warn(tag, "Failed to persist progress for chapter $chapterId", it) }
     }
 
     private fun Chapter.ref() = ChapterRef(id, chapterNumber, name?.value)
@@ -600,8 +593,6 @@ class ReaderViewModel(
     }
 
     private companion object {
-        const val TAG = "ReaderViewModel"
-
         /** Wait this long after the last page change before writing, so a fast swipe writes once. */
         const val PROGRESS_PERSIST_DEBOUNCE_MS = 400L
     }

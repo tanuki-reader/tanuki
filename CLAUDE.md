@@ -58,14 +58,27 @@ Start as **packages inside the shared module(s)**. Promote a package to its own 
 something concrete forces it (see "When to split" below) — JetBrains' new default deliberately favors one
 shared module with a clear responsibility, so don't over-modularize.
 
-> **Current state (2026-07):** the actual Gradle modules are **`:shared`** (Compose Multiplatform UI +
-> ViewModels + logic + Metro DI, all targets) and **`:core`** (foundation layer being built out), plus
-> `:androidApp` and `:iosApp`. There is **no `:sharedLogic` / `:sharedUI` split yet** — those names in
-> this doc and below are the **target** vocabulary, mapping onto today's single `:shared` module. Because
-> `:shared` currently imports Compose, the "`sharedLogic` never imports Compose" rule is a *design
-> intent* enforced by package discipline for now, not a module boundary — it becomes real when `:shared`
-> is split into `:sharedLogic` (Compose-free) and `:sharedUI` (Compose). Read `sharedLogic` as "the
-> Compose-free packages in `:shared`" and `sharedUI` as "the Compose packages in `:shared`" until then.
+> **Current state (2026-09):** the actual Gradle modules are:
+>
+> | Module | What's in it | Compose? |
+> |---|---|---|
+> | `:androidApp` / `:iosApp` | thin platform hosts | — |
+> | `:shared` | app shell: the one `Scaffold`/`NavHost`, Metro `AppGraph`, platform bindings | yes |
+> | `:core:domain` | models, repository interfaces, use cases, `DispatcherProvider`/`Logger` | no |
+> | `:core:data` | Room entities/DAOs + repository implementations | no |
+> | `:core:navigation` | `Destination`, `NavEvent`, `NavCommand`, `AppNavigator` | no |
+> | **`:core:presentation`** | **`TanukiViewModel`** — the base class every screen's ViewModel extends | no |
+> | `:core:source` | WASM source runtime + Cloudflare/session networking | no |
+> | `:features:<x>` | one per slice (`library`, `manga`, `reader`, `activity`, `home`, `source`, `settings`) — each holds that slice's Compose screens **and** its ViewModels | yes |
+> | `:assets:designSystem` | the Compose design system | yes |
+>
+> There is **no `:sharedLogic` / `:sharedUI` split** — those names in this doc and below are the **target**
+> vocabulary. They now map onto the `:core:*` modules (Compose-free foundation, the `sharedLogic` role) and
+> the `:features:*` + `:shared` + `:assets:designSystem` modules (Compose, the `sharedUI` role). Because a
+> feature module holds its screens *and* its ViewModels together, the "`sharedLogic` never imports Compose"
+> rule is inside `:features:<x>` still a *design intent* enforced by package discipline (ViewModels live in
+> `…/<feature>/viewmodel/` and must not import Compose), not a module boundary. It **is** a real,
+> compiler-enforced boundary in `:core:*`, none of which may depend on Compose.
 
 ```
 sharedLogic/   (KMP — ALL platforms, NEVER imports Compose)
@@ -100,6 +113,23 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
   get lifecycle scoping for free.
 - **Both platforms:** Compose screens collect state with `collectAsStateWithLifecycle()` and call
   ViewModel methods. No reducers/intents/MVI machinery, no SwiftUI, no SKIE bridging needed for UI.
+- **Every ViewModel extends `TanukiViewModel`** (`:core:presentation`) rather than `ViewModel` directly.
+  The base owns what every screen repeats — don't re-declare any of it:
+  - `navEvents` + `navigateTo(destination)` / `navigateBack()` for screen-scoped navigation (a leaf
+    pushed onto the current tab). Cross-tab jumps and deep links still go through `AppNavigator`.
+  - `dispatcher` and `logger`, taken as constructor parameters the subclass forwards to `super`.
+  - `tag` — defaults to the class's `simpleName`; used by the logging helpers.
+  - `Flow<T>.asState(initial)` for a `StateFlow` derived straight from a domain flow, and
+    `io { }` / `tryIo("what failed") { }` for suspend work that must hop to the IO dispatcher.
+
+  `uiState` stays per-ViewModel: the state shapes differ too much for a generic `BaseViewModel<S>`,
+  and so do screen-specific one-shot effects (e.g. `ReaderViewModel.commands`).
+- **Metro gotcha — a ViewModel's `@ContributesIntoMap` must name its bound type explicitly:**
+  `@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())`. Metro otherwise infers the
+  bound type from the supertype, which is now `TanukiViewModel`, and the ViewModel lands in a
+  multibinding nothing consumes — `metroViewModel<X>()` then fails to resolve **at runtime**, while the
+  build only emits a `SuspiciousUnusedMultibinding` warning. Assisted ViewModels are unaffected (their
+  `Factory` supertype is `ManualViewModelAssistedFactory`).
 
 ### Navigation: shared contract, native rendering
 
@@ -314,6 +344,9 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
   `iosApp` is a thin host that launches a `ComposeUIViewController`; the only iOS-specific code is
   `expect`/`actual` platform bindings (headless `WKWebView`, WASM engine), not UI.
 - Don't define routes per-platform — destinations live once in `sharedLogic` (`Destination` sealed type).
+- Don't extend `ViewModel` directly, and don't re-declare a `navEvents` channel, a `stateIn` timeout, or
+  a `withContext(dispatcher.io)` wrapper in a ViewModel — extend `TanukiViewModel` and use what it owns
+  (see "Presentation pattern"), including the `binding<ViewModel>()` requirement on `@ContributesIntoMap`.
 - Don't invent ad-hoc colors, type scales, spacing, or UI components — base all designs on the Tanuki
   Design System (remote claude.ai/design project, via the `claude_design` MCP). One Compose design system
   serves both platforms; the iOS Liquid Glass kit is reference only, so don't fork components per platform.

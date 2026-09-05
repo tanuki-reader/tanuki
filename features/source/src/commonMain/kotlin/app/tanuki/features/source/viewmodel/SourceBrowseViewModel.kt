@@ -1,6 +1,5 @@
 package app.tanuki.features.source.viewmodel
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
@@ -12,7 +11,8 @@ import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.BrowseSource
 import app.tanuki.core.domain.source.usecase.GetSourceMeta
 import app.tanuki.core.navigation.MangaDetail
-import app.tanuki.core.navigation.NavEvent
+import app.tanuki.core.presentation.TanukiViewModel
+import app.tanuki.core.presentation.runCatchingCancellable
 import app.tanuki.features.source.viewmodel.SourceBrowseState.Browsing
 import app.tanuki.features.source.viewmodel.SourceBrowseState.Error
 import app.tanuki.features.source.viewmodel.SourceBrowseState.Loading
@@ -27,8 +27,6 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -38,11 +36,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * Presentation logic for one source's browse screen. Assisted-injected with the source-native
@@ -88,14 +83,11 @@ class SourceBrowseViewModel(
     private val getSourceMeta: GetSourceMeta,
     private val browseSource: BrowseSource,
     private val cacheSourceManga: CacheSourceManga,
-    private val dispatcher: DispatcherProvider,
-    private val logger: Logger,
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger,
+) : TanukiViewModel(dispatcher, logger) {
     val uiState: StateFlow<SourceBrowseState>
         field = MutableStateFlow<SourceBrowseState>(Loading)
-
-    private val _navEvents = Channel<NavEvent>(Channel.BUFFERED)
-    val navEvents: Flow<NavEvent> = _navEvents.receiveAsFlow()
 
     /** The source's metadata; `null` until resolved, which gates the first-page pipeline below. */
     private val meta = MutableStateFlow<SourceMeta?>(null)
@@ -232,7 +224,7 @@ class SourceBrowseViewModel(
                                 append = if (pageResult.hasNextPage) Append.Idle else Append.End
                             )
                     }.onFailure {
-                        logger.warn(TAG, "Load-more (page ${page + 1}) failed for source '$sourceId'", it)
+                        logger.warn(tag, "Load-more (page ${page + 1}) failed for source '$sourceId'", it)
                         uiState.value = current.withResults(current.items, Append.Error)
                     }
             }
@@ -245,8 +237,8 @@ class SourceBrowseViewModel(
      */
     fun onMangaClick(listing: MangaListing) {
         viewModelScope.launch {
-            val mangaId = withContext(dispatcher.io) { cacheSourceManga(sourceId, listing) }
-            _navEvents.trySend(NavEvent.NavTo(MangaDetail(mangaId)))
+            val mangaId = io { cacheSourceManga(sourceId, listing) }
+            navigateTo(MangaDetail(mangaId))
         }
     }
 
@@ -286,7 +278,7 @@ class SourceBrowseViewModel(
                         Searching(query = text, items = items, append = append)
                     }
             }.onFailure {
-                logger.warn(TAG, "First-page load failed for source '$sourceId' (query='$text')", it)
+                logger.warn(tag, "First-page load failed for source '$sourceId' (query='$text')", it)
                 uiState.value = Error
             }
     }
@@ -314,19 +306,7 @@ class SourceBrowseViewModel(
     }
 
     private companion object {
-        const val TAG = "SourceBrowse"
-
         /** Debounce so a burst of keystrokes issues one search, not one per character. */
         const val SEARCH_DEBOUNCE_MS = 320L
     }
 }
-
-/**
- * [runCatching] that lets a [CancellationException] through instead of turning it into a `Failure`.
- *
- * Plain `runCatching` catches everything, cancellation included — so a load cancelled by a tab switch or
- * a superseded search would fall into the `onFailure` branch and paint an error over state that has
- * already moved on. Re-throwing keeps cancellation doing what it's supposed to: unwind silently.
- */
-private inline fun <T> runCatchingCancellable(block: () -> T): Result<T> =
-    runCatching(block).onFailure { if (it is CancellationException) throw it }

@@ -6,13 +6,14 @@ import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.model.TriState
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.library.model.CategoryMatchMode
 import app.tanuki.core.domain.library.model.LibraryFilter
 import app.tanuki.core.domain.library.model.LibrarySort
 import app.tanuki.core.domain.library.usecase.ObserveLibrary
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.navigation.MangaDetail
-import app.tanuki.core.navigation.NavEvent
+import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
 import app.tanuki.features.library.viewmodel.LibraryState.Loading
 import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet
@@ -20,22 +21,20 @@ import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet.Cat
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlin.uuid.Uuid
 
 /**
  * Presentation logic for the Library tab. Compose-free (per CLAUDE.md → MVVM): it exposes state as a
- * [StateFlow] and screen-scoped navigation as one-shot [NavEvent]s, so the same logic drives the shared
- * Compose UI on both Android and iOS and is unit-testable without a Compose runtime.
+ * [StateFlow] and screen-scoped navigation through [TanukiViewModel.navEvents], so the same logic drives
+ * the shared Compose UI on both Android and iOS and is unit-testable without a Compose runtime.
  *
  * Metro-injected and registered into the app's ViewModel multibinding via [ViewModelKey] +
  * [ContributesIntoMap], so `metroViewModel<LibraryViewModel>()` resolves it in the UI layer.
@@ -45,22 +44,16 @@ import kotlin.uuid.Uuid
  * them to user controls is a later slice that needs no change here, only emissions into those flows.
  */
 @Inject
-@ContributesIntoMap(AppScope::class)
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class LibraryViewModel(
     observeLibrary: ObserveLibrary,
     observeCategories: ObserveCategories,
-    dispatcher: DispatcherProvider
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val uiState: StateFlow<LibraryState>
         field = MutableStateFlow<LibraryState>(Loading)
-
-    /**
-     * Screen-scoped navigation intents (open a manga's detail within this tab). One-shot and buffered so
-     * a tap emitted before the host collects isn't lost; the host maps these onto the active back stack.
-     */
-    private val _navEvents = Channel<NavEvent>(Channel.BUFFERED)
-    val navEvents: Flow<NavEvent> = _navEvents.receiveAsFlow()
 
     /**
      * The live search query. Fed into [ObserveLibrary] below, which re-derives the list whenever the library
@@ -101,7 +94,7 @@ class LibraryViewModel(
 
     /** A library cover was tapped — request navigation to that manga's detail screen. */
     fun onMangaClick(mangaId: Uuid) {
-        _navEvents.trySend(NavEvent.NavTo(MangaDetail(mangaId)))
+        navigateTo(MangaDetail(mangaId))
     }
 
     /** The search field changed — publish the query; [ObserveLibrary] above re-derives the filtered state. */

@@ -3,17 +3,17 @@ package app.tanuki.features.settings.appearance.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.settings.usecase.SetThemePreference
+import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -24,28 +24,19 @@ import kotlinx.coroutines.launch
  * Compose-free (per CLAUDE.md → MVVM); Metro-injected via [ViewModelKey] + [ContributesIntoMap].
  */
 @Inject
-@ContributesIntoMap(AppScope::class)
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class AppearanceViewModel(
     observeThemePreference: ObserveThemePreference,
     private val setThemePreference: SetThemePreference,
-    dispatcher: DispatcherProvider
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     val theme: StateFlow<ThemePreference> =
-        observeThemePreference()
-            .flowOn(dispatcher.default)
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = ThemePreference.System
-            )
+        observeThemePreference().asState(ThemePreference.System)
 
     /** Persist the chosen theme; the new value flows back into [theme] via [ObserveThemePreference]. */
     fun onThemeChange(preference: ThemePreference) {
         viewModelScope.launch { setThemePreference(preference) }
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }

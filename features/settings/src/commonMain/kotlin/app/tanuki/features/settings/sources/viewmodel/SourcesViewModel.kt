@@ -3,20 +3,20 @@ package app.tanuki.features.settings.sources.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.source.model.CatalogSource
 import app.tanuki.core.domain.source.usecase.InstallSource
 import app.tanuki.core.domain.source.usecase.ObserveSourceCatalog
 import app.tanuki.core.domain.source.usecase.UninstallSource
+import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
+import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -34,14 +34,15 @@ import kotlinx.coroutines.launch
  * screen shows is always what is actually on disk, and a failed action needs no rollback.
  */
 @Inject
-@ContributesIntoMap(AppScope::class)
+@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class SourcesViewModel(
     observeSourceCatalog: ObserveSourceCatalog,
     private val installSource: InstallSource,
     private val uninstallSource: UninstallSource,
-    dispatcher: DispatcherProvider
-) : ViewModel() {
+    dispatcher: DispatcherProvider,
+    logger: Logger
+) : TanukiViewModel(dispatcher, logger) {
     private val busyIds = MutableStateFlow<Set<String>>(emptySet())
     private val failedIds = MutableStateFlow<Set<String>>(emptySet())
 
@@ -59,12 +60,7 @@ class SourcesViewModel(
                 busyIds = busy,
                 failedIds = failed
             )
-        }.flowOn(dispatcher.default)
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MILLIS),
-                initialValue = SourcesState()
-            )
+        }.asState(SourcesState())
 
     /** Install (or re-install) a source. Ignored while that source already has an action in flight. */
     fun onInstall(sourceId: String) = act(sourceId) { installSource(sourceId) }
@@ -102,10 +98,6 @@ class SourcesViewModel(
                 busyIds.update { it - sourceId }
             }
         }
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MILLIS = 5_000L
     }
 }
 
