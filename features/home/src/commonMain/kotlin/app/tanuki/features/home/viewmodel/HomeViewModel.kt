@@ -68,11 +68,14 @@ class HomeViewModel(
     private val sources = MutableStateFlow<List<SourceMeta>?>(null)
 
     /**
-     * Which language groups are expanded, or `null` while the user hasn't touched any — in which case
-     * every group renders expanded. Tracking "untouched" separately (rather than seeding the set from
-     * the loaded languages) keeps the default correct even before sources finish loading.
+     * The one expanded language group, or `null` when none is — which is also how the list starts.
+     *
+     * One at a time rather than a set: the groups are long, and several open at once turns the whole
+     * screen into a scroll with no shape to it. Starting closed makes the *languages* the thing the user
+     * reads first, which is the choice the grouping exists to offer; opening every group by default
+     * would bury it under the sources of whichever language sorts first.
      */
-    private val expandedLangs = MutableStateFlow<Set<String>?>(null)
+    private val expandedLang = MutableStateFlow<String?>(null)
 
     init {
         // No flowOn: SourceLoader dispatches its own engine work (and the bundle reads beneath it hop to
@@ -85,7 +88,7 @@ class HomeViewModel(
             observeReadHistory(),
             observeNewChapters(),
             sources,
-            expandedLangs
+            expandedLang
         ) { history, updates, installed, expanded ->
             // Null `installed` = sources not enumerated yet; emit nothing so the screen stays on Loading.
             installed?.let {
@@ -101,11 +104,9 @@ class HomeViewModel(
             .launchIn(viewModelScope)
     }
 
-    /** A language group header was tapped — expand or collapse just that group. */
+    /** A language group header was tapped — open it, or close it if it was already the open one. */
     fun onToggleLanguage(lang: String) {
-        // First toggle starts from "everything expanded", the state the user is looking at.
-        val current = expandedLangs.value ?: sources.value.orEmpty().mapTo(mutableSetOf()) { it.lang.value }
-        expandedLangs.value = if (lang in current) current - lang else current + lang
+        expandedLang.value = if (lang == expandedLang.value) null else lang
     }
 
     /** A source row was tapped — open its browse leaf (pushed onto the Home tab's stack). */
@@ -167,10 +168,10 @@ class HomeViewModel(
 
     /**
      * Buckets sources by the language they serve, ordering both the groups and the sources inside them
-     * alphabetically so the list is stable across reloads. A group is expanded when [expanded] says so,
-     * or always while [expanded] is `null` (the untouched default).
+     * alphabetically so the list is stable across reloads. Exactly the group named by [expanded] is open,
+     * and none is when it is `null`.
      */
-    private fun List<SourceMeta>.toLanguageGroups(expanded: Set<String>?): List<SourceLanguageGroup> =
+    private fun List<SourceMeta>.toLanguageGroups(expanded: String?): List<SourceLanguageGroup> =
         groupBy { it.lang.value }
             // `entries.sortedBy` rather than `toSortedMap()` — the latter is JVM-only and this is
             // common code that also compiles for iOS.
@@ -179,7 +180,7 @@ class HomeViewModel(
             .map { (lang, metas) ->
                 SourceLanguageGroup(
                     lang = lang,
-                    expanded = expanded == null || lang in expanded,
+                    expanded = lang == expanded,
                     sources =
                         metas
                             .sortedBy { it.name.value.lowercase() }
