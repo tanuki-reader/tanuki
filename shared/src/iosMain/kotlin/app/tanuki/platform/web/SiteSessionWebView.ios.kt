@@ -27,6 +27,7 @@ import kotlin.coroutines.resume
 actual fun SiteSessionWebView(
     url: String,
     clearCookie: String?,
+    interactive: Boolean,
     onSnapshot: (SiteSessionResult) -> Unit,
     modifier: Modifier,
 ) {
@@ -50,7 +51,10 @@ actual fun SiteSessionWebView(
         webView.loadRequest(NSURLRequest(uRL = NSURL(string = url)))
     }
 
-    UIKitView(factory = { webView }, modifier = modifier)
+    // Touch handling is the only thing that changes over this view's life, and it is applied in `update`
+    // rather than the factory so flipping it never rebuilds the engine — a new WKWebView would abandon a
+    // challenge that is seconds from clearing and start a fresh one.
+    UIKitView(factory = { webView }, update = { view -> view.userInteractionEnabled = interactive }, modifier = modifier)
 
     LaunchedEffect(webView, url) {
         val cookieStore = configuration.websiteDataStore.httpCookieStore
@@ -67,11 +71,11 @@ actual fun SiteSessionWebView(
                         continuation.resume(result as? String)
                     }
                 }
-            val onChallengePage =
+            val challenge =
                 suspendCancellableCoroutine { continuation ->
-                    webView.evaluateJavaScript(ON_CHALLENGE_PAGE_JS) { result, _ ->
-                        // null mid-navigation: assume still challenged, costing at most one more poll.
-                        continuation.resume((result as? String) != "0")
+                    webView.evaluateJavaScript(CHALLENGE_PROBE_JS) { result, _ ->
+                        // null mid-navigation: parsed as still challenged, costing at most one more poll.
+                        continuation.resume(parseChallengeProbe(result as? String))
                     }
                 }
             latestOnSnapshot(
@@ -82,7 +86,8 @@ actual fun SiteSessionWebView(
                             .filterIsInstance<NSHTTPCookie>()
                             .associate { cookie -> cookie.name to cookie.value },
                     userAgent = userAgent,
-                    onChallengePage = onChallengePage,
+                    onChallengePage = challenge.onChallengePage,
+                    challengeType = challenge.type,
                 ),
             )
             delay(COOKIE_POLL_INTERVAL_MS)

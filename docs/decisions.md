@@ -6,6 +6,55 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-08-22 — Cloudflare challenges solve silently first, and are shown only if that fails
+
+**Decision:** the session layer is composed the moment a challenge arrives — full-size, laid out, opaque
+and painting — but z-ordered **underneath** the app (`SilentZIndex`), so the user keeps reading while it
+solves. It is put on screen only when the challenge is still up after a per-kind budget. This *amends*
+the 2026-07-30 entry below rather than reversing it: the visible browser is still how a challenge that
+needs a person gets solved, it is just no longer the first thing tried.
+
+**Why it isn't a return to the headless solvers.** Those failed because their engine was **zero-size and
+never attached to a window**, so it never rasterized and Turnstile never ran. The property that mattered
+was *painting*, not *being seen*. Occlusion happens in the platform compositor and the page cannot observe
+it — `SiteSessionHost` already relied on this, drawing `ConnectingCover` over a live, still-solving
+WebView. So the rule the code now keeps, and must go on keeping: **while silent the layer changes only its
+draw order.** Never fade it (`alpha` on a layer can skip rasterization), never shrink it, never take it out
+of the composition to hide it. `graphicsLayer` is applied *only* once revealed.
+
+**The budget comes from `_cf_chl_opt.cType`** (`ChallengeType`), read by the probe that was already polling
+every 400ms — one JS evaluation, so the flag and the kind describe the same instant. `interactive` reveals
+at once (waiting cannot help), `managed` gets 8s (it may escalate), `non-interactive`/`jschal` 12s (a person
+cannot help either way). Nothing under ~6s, because Cloudflare's own JS challenge has a deliberate ~5s delay
+and a tighter budget would reveal challenges that were always going to succeed. `Unknown` — what every
+session reports on its first poll — is treated as `managed`; a zero budget there would defeat the feature.
+
+**`SILENT_SESSION_CEILING` (25s) is not a second budget.** Revealing keys on *still being on an
+interstitial*, which is the right test for "has this escalated", but it leaves a gap: a challenge can leave
+the interstitial without ever issuing a clearance (a redirect to an error page, a WAF block behind it).
+Nothing in the solve path has a timeout, so such a session would suspend the request forever with nothing
+on screen to dismiss — invisible, and worse than the challenge it replaced. The ceiling reveals it so the
+user has an affordance.
+
+**Touch, not just sight.** A silent layer sits under the app but Compose will still route a tap that
+nothing above consumed down to it, so the engine is switched to non-interactive while silent
+(`OnTouchListener` consuming on Android, `userInteractionEnabled` on iOS) and handed the touches back on
+reveal. Applied in the interop `update` block, never the factory: rebuilding the engine would abandon a
+challenge seconds from clearing. Same reason the chrome is a conditional *sibling* of the web view rather
+than a separate layout — the view must keep its call site across the reveal.
+
+**Still to verify on device:** that `UIKitView` really composites *under* Compose content on iOS. The
+existing `ConnectingCover` suggests it does, but it draws over the interop view inside the same layer,
+which is not the same test. If iOS turns out to always draw interop on top, the silent tier is
+Android-only until CMP's interop layering allows it.
+
+**What this does not buy:** solving while the app is actually backgrounded. No window means no paint, on
+both platforms (an Android `Service` could only paint through a `SYSTEM_ALERT_WINDOW` overlay, which is not
+a permission worth asking for). Downloads still need the `NeedsVerification` path — see
+`design-downloads.md` §5.1.
+
+---
+
 ## 2026-07-30 — Cloudflare challenges are solved in a browser the user can see
 
 **Decision:** the challenge is shown on screen. `SiteSessionCoordinator` (`core/source/net/session/`,

@@ -183,10 +183,15 @@ enum class SiteSessionReason {
  *   detected by the `window._cf_chl_opt` object those pages define. This is what tells a half-finished
  *   challenge from a finished one: the `cf_chl_*` cookies are no use for it, because they persist in the
  *   jar long after the flow completes.
+ * @property challengeType what kind of interstitial it is, from the same `_cf_chl_opt` object. Read for
+ *   one decision only — how long the challenge may keep solving out of sight before the browser is put on
+ *   screen (see [silentBudget]). [ChallengeType.Unknown] whenever [onChallengePage] is `false`, and on the
+ *   first polls of a session before the page has defined the object.
  */
 data class SiteSessionResult(
     val cookies: Map<String, String>,
     val userAgent: String?,
     val headers: Map<String, String> = emptyMap(),
     val onChallengePage: Boolean = false,
+    val challengeType: ChallengeType = ChallengeType.Unknown,
 )

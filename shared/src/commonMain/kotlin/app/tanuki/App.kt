@@ -1,6 +1,8 @@
 package app.tanuki
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -8,6 +10,7 @@ import androidx.compose.runtime.ProvidableCompositionLocal
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.core.domain.settings.model.ThemePreference
@@ -18,6 +21,7 @@ import app.tanuki.navigation.TanukiNavHost
 import app.tanuki.platform.SystemBarsEffect
 import app.tanuki.platform.imaging.newTanukiImageLoader
 import app.tanuki.platform.web.SiteSessionHost
+import app.tanuki.platform.web.WebEngineWarmupEffect
 import app.tanuki.platform.imaging.newTanukiPageImageLoader
 import coil3.compose.LocalPlatformContext
 import coil3.compose.setSingletonImageLoaderFactory
@@ -102,11 +106,19 @@ fun App(appGraph: AppGraph) {
     ) {
         // Keep the status/navigation bar glyphs legible against the theme (the UI is edge-to-edge).
         SystemBarsEffect(darkTheme)
+        // Start the browser engine early, so the first Cloudflare challenge doesn't pay for it mid-scroll.
+        WebEngineWarmupEffect()
         TanukiTheme(darkTheme = darkTheme) {
-            TanukiNavHost()
-            // Above the nav host, not inside it: a Cloudflare challenge or a login prompt can be raised by
-            // any request on any screen, so it is a layer over the whole app rather than a destination.
-            SiteSessionHost(appGraph.siteSessionCoordinator)
+            // An explicit stacking parent, because the session layer moves *through* the nav host rather
+            // than simply sitting on top of it: a Cloudflare challenge starts underneath the app and solves
+            // there unseen, and only comes over the top if it turns out to need the user (see
+            // SiteSessionHost). That z-order flip needs a parent that stacks its children.
+            Box(modifier = Modifier.fillMaxSize()) {
+                TanukiNavHost()
+                // Not inside the nav host: a challenge or a login prompt can be raised by any request on
+                // any screen, so it is a layer over the whole app rather than a destination.
+                SiteSessionHost(appGraph.siteSessionCoordinator)
+            }
         }
     }
 }

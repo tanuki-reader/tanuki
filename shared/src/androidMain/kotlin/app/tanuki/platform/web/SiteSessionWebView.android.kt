@@ -1,6 +1,7 @@
 package app.tanuki.platform.web
 
 import android.annotation.SuppressLint
+import android.view.View.OnTouchListener
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -25,6 +26,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 actual fun SiteSessionWebView(
     url: String,
     clearCookie: String?,
+    interactive: Boolean,
     onSnapshot: (SiteSessionResult) -> Unit,
     modifier: Modifier,
 ) {
@@ -56,7 +58,14 @@ actual fun SiteSessionWebView(
         webView.loadUrl(url)
     }
 
-    AndroidView(factory = { webView }, modifier = modifier)
+    AndroidView(
+        factory = { webView },
+        // Touch handling is the only thing that changes over this view's life, and it is set here rather
+        // than in the factory so flipping it never rebuilds the engine — a new WebView would abandon a
+        // challenge that is seconds from clearing and start a fresh one.
+        update = { view -> view.setInteractive(interactive) },
+        modifier = modifier,
+    )
 
     LaunchedEffect(webView, url) {
         val cookieManager = CookieManager.getInstance()
@@ -65,6 +74,7 @@ actual fun SiteSessionWebView(
         var clientHints: Map<String, String> = emptyMap()
         while (true) {
             if (clientHints.isEmpty()) clientHints = webView.readClientHints()
+            val challenge = webView.probeChallenge()
             latestOnSnapshot(
                 SiteSessionResult(
                     cookies = parseCookieString(cookieManager.getCookie(url)),
@@ -72,7 +82,8 @@ actual fun SiteSessionWebView(
                     // cf_clearance is bound to. Never overridden; see DEFAULT_SOURCE_USER_AGENT.
                     userAgent = webView.settings.userAgentString,
                     headers = clientHints,
-                    onChallengePage = webView.isOnChallengePage(),
+                    onChallengePage = challenge.onChallengePage,
+                    challengeType = challenge.type,
                 ),
             )
             delay(COOKIE_POLL_INTERVAL_MS)
@@ -87,15 +98,26 @@ actual fun SiteSessionWebView(
     }
 }
 
-/** Asks the page whether it is a Cloudflare interstitial; assumes it is if the answer can't be read. */
-private suspend fun WebView.isOnChallengePage(): Boolean {
+/** Asks the page whether it is a Cloudflare interstitial, and what kind. See [parseChallengeProbe]. */
+private suspend fun WebView.probeChallenge(): ChallengeProbe {
     val result =
         suspendCancellableCoroutine { continuation ->
-            evaluateJavascript(ON_CHALLENGE_PAGE_JS) { value -> continuation.resume(value) }
+            evaluateJavascript(CHALLENGE_PROBE_JS) { value -> continuation.resume(value) }
         }
-    // A page mid-navigation can return null; treating that as "still on the challenge" only delays
-    // finishing by one poll, whereas the opposite would resume the caller on a half-solved challenge.
-    return result?.trim()?.removeSurrounding("\"") != "0"
+    return parseChallengeProbe(result)
+}
+
+/**
+ * Lets the engine see touches, or drops them before it does.
+ *
+ * Returning `true` from the listener consumes the event: while a challenge is being solved out of sight
+ * the view is full-size and painting *under* the app's own UI, and Compose will happily route a tap that
+ * nothing above consumed down to it. Clearing the listener (rather than passing one that returns `false`)
+ * restores the view's own handling, which is what a revealed challenge needs.
+ */
+@SuppressLint("ClickableViewAccessibility") // A browser engine has no click semantics to announce.
+private fun WebView.setInteractive(interactive: Boolean) {
+    setOnTouchListener(if (interactive) null else OnTouchListener { _, _ -> true })
 }
 
 /**
