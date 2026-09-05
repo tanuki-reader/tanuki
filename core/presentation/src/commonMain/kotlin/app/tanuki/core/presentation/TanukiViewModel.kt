@@ -33,10 +33,20 @@ import kotlin.coroutines.cancellation.CancellationException
  *  - **The idioms built on them:** [asState] for a screen state derived straight from a domain flow, and
  *    [io]/[tryIo] for the "hop to IO, log what failed" pattern the writing paths repeat.
  *
- * What it deliberately does *not* own is `uiState`: the screens' state types have genuinely different
- * shapes (a sealed hierarchy here, a data class there, several independent flows elsewhere), and a
- * generic `BaseViewModel<S>` would buy nothing while complicating the Metro multibinding keys. The same
- * goes for screen-specific one-shot effects such as `ReaderViewModel.commands` — those stay local.
+ * What it deliberately does *not* own is `uiState`, even though six of the ViewModels declare an
+ * identical-looking one. Hoisting it into a `TanukiViewModel<S>` costs more than the two lines it saves:
+ *
+ *  - A subclass could no longer write to it. Those six use Kotlin's explicit backing field
+ *    (`val uiState: StateFlow<S> field = MutableStateFlow(...)`), which is visible only inside the
+ *    *declaring* class — so a generic base would have to expose a separate `protected` mutable property,
+ *    reinstating the `_uiState`/`uiState` pair that syntax exists to remove.
+ *  - It fits six of the eleven. `SettingsViewModel`/`SourcesViewModel` derive their state through
+ *    [asState] and have no mutable field to hoist, and the three other settings ViewModels expose a
+ *    single domain value under its own name (`theme`, `categories`, …) rather than a screen state.
+ *
+ * If that ever changes, the shape to reach for is a second tier — a `StateViewModel<S>` extending this —
+ * not a type parameter on this class. The same reasoning keeps screen-specific one-shot effects local
+ * (e.g. `ReaderViewModel.commands`).
  *
  * @property dispatcher Where work is scheduled; see [io].
  * @property logger Where failures go; see [tag] for what they are tagged with.

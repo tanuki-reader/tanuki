@@ -43,7 +43,7 @@ class ResolveChapterUpdates(
 ) {
     /**
      * @param updates The records to resolve, in any order.
-     * @return The pending updates, newest-discovered first and highest-numbered chapter first within a
+     * @return The pending updates, newest-discovered first, and highest-numbered chapter first within a
      *   single discovery.
      */
     suspend operator fun invoke(updates: List<ChapterUpdate>): List<NewChapter> {

@@ -122,8 +122,12 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
   - `Flow<T>.asState(initial)` for a `StateFlow` derived straight from a domain flow, and
     `io { }` / `tryIo("what failed") { }` for suspend work that must hop to the IO dispatcher.
 
-  `uiState` stays per-ViewModel: the state shapes differ too much for a generic `BaseViewModel<S>`,
-  and so do screen-specific one-shot effects (e.g. `ReaderViewModel.commands`).
+  `uiState` stays per-ViewModel, declared with Kotlin's explicit backing field
+  (`val uiState: StateFlow<S>` / `field = MutableStateFlow(Loading)`). Don't hoist it into a
+  `TanukiViewModel<S>`: that backing field is visible only inside the declaring class, so a generic base
+  would have to expose a separate `protected` mutable property and bring back the `_uiState`/`uiState`
+  pair — and it fits only the six ViewModels with a mutable screen state, not the settings ones that
+  derive theirs via `asState`. Screen-specific one-shot effects stay local too (`ReaderViewModel.commands`).
 - **Metro gotcha — a ViewModel's `@ContributesIntoMap` must name its bound type explicitly:**
   `@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())`. Metro otherwise infers the
   bound type from the supertype, which is now `TanukiViewModel`, and the ViewModel lands in a
