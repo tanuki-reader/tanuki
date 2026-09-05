@@ -2,6 +2,7 @@ package app.tanuki.platform.observability
 
 import app.tanuki.core.domain.common.service.BuildEnvironment
 import app.tanuki.core.domain.common.service.CrashReporter
+import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.NoOpCrashReporter
 import dev.zacsweers.metro.AppScope
@@ -11,6 +12,8 @@ import dev.zacsweers.metro.SingleIn
 import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.SentryLevel
 import io.sentry.kotlin.multiplatform.protocol.Breadcrumb
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * [CrashReporter] backed by Sentry, replacing [NoOpCrashReporter] wherever this module is on the graph.
@@ -24,12 +27,20 @@ import io.sentry.kotlin.multiplatform.protocol.Breadcrumb
  * user's stored preference has been read would collect from a user who never agreed. The trade is a blind
  * window between launch and the preference resolving — a crash in that window is lost. Reporting nothing
  * without consent is the right side of that trade; do not "fix" it by initializing eagerly.
+ *
+ * **Starting and stopping happen on the main thread**, because Sentry's Cocoa SDK reads
+ * `UIApplication.applicationState` while starting and UIKit forbids that from anywhere else — Xcode's Main
+ * Thread Checker flags it (`ThreadSafeApplication.swift`). The consent subscription runs on the
+ * application scope's background dispatcher, so the hop is made here rather than being every caller's
+ * problem to remember.
  */
 @Inject
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, replaces = [NoOpCrashReporter::class])
 class SentryCrashReporter(
-    private val buildEnvironment: BuildEnvironment
+    private val buildEnvironment: BuildEnvironment,
+    private val scope: CoroutineScope,
+    private val dispatchers: DispatcherProvider
 ) : CrashReporter {
 
     private var started = false
@@ -41,9 +52,16 @@ class SentryCrashReporter(
         // so no crash handler is installed and there is nothing to send. It also keeps a fork from ever
         // reporting into this project simply because a user toggled the setting on.
         if (SENTRY_DSN.isBlank()) return
+        // Flipped here, synchronously, rather than inside the dispatch below: it is what makes a repeated
+        // call a no-op, and deciding that on the main thread would let two calls both find the old value
+        // and queue opposite work.
         if (enabled == started) return
         started = enabled
-        if (enabled) Sentry.init(::configure) else Sentry.close()
+        // Main thread, always — see the class KDoc. Both queues are FIFO, so a rapid off-on-off sequence
+        // still reaches the SDK in the order the user made it.
+        scope.launch(dispatchers.main) {
+            if (enabled) Sentry.init(::configure) else Sentry.close()
+        }
     }
 
     override fun recordBreadcrumb(
