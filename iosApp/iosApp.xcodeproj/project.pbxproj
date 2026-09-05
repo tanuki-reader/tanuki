@@ -88,6 +88,7 @@
 				A4347A884FF47081960A3853 /* Sources */,
 				D5EAA95BE793AA158D482A34 /* Frameworks */,
 				8E86EB7AF4CF18D2B63087A5 /* Resources */,
+				FA5B28C1301E8E5F0004D1C8 /* Upload dSYMs to Sentry */,
 			);
 			buildRules = (
 			);
@@ -170,6 +171,25 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
+		};
+		FA5B28C1301E8E5F0004D1C8 /* Upload dSYMs to Sentry */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Upload dSYMs to Sentry";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n$SRCROOT/scripts/upload-dsyms.sh\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

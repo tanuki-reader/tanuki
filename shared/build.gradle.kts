@@ -18,6 +18,14 @@ kotlin {
         iosTarget.binaries.framework {
             baseName = "Shared"
             isStatic = true
+            // Kotlin/Native infers a framework bundle id from the package names it finds and warns when it
+            // can't ("Cannot infer a bundle ID … use the bundle name instead: Shared"), then falls back to
+            // the bare base name. It can't infer one here because the framework re-exports several modules
+            // and no single package dominates. Set explicitly: `Shared` is not a bundle identifier, and the
+            // value ends up in the framework's Info.plist, where the crash reporter's image list reads it.
+            // Distinct from the app's own id (iosApp/Configuration/Config.xcconfig) — this identifies the
+            // Kotlin framework inside it, and mirrors the module's Android namespace.
+            binaryOption("bundleId", "app.tanuki.shared")
         }
     }
     

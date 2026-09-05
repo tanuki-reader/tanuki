@@ -13,9 +13,14 @@
 #
 # Uncheck "Based on dependency analysis" so it runs every build, and leave Input/Output Files empty.
 #
-# Configuration:
-#   SENTRY_AUTH_TOKEN   required to upload. A secret — never commit it. Provide it as a CI secret, or
-#                       locally via ~/.zshrc or an Xcode scheme environment variable.
+# Configuration — the upload needs a Sentry auth token, from either:
+#   SENTRY_AUTH_TOKEN   an environment variable. A secret — never commit it. This is how CI provides it.
+#                       Note that a build phase does NOT see your shell profile or an Xcode *scheme*
+#                       environment variable: Xcode passes its own process environment, so an export in
+#                       ~/.zshrc only reaches here if Xcode itself was launched from that shell
+#                       (`open -a Xcode`). Locally, prefer the file below.
+#   ~/.sentryclirc      sentry-cli's own config file — `[auth]` / `token=…` — which it reads by itself.
+#                       Create it with `sentry-cli login`. Survives relaunching Xcode from the Dock.
 #   SENTRY_ORG          defaults below; not secret.
 #   SENTRY_PROJECT      defaults below; not secret.
 #
@@ -36,9 +41,12 @@ if [ "${CONFIGURATION:-Debug}" = "Debug" ]; then
     exit 0
 fi
 
-if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
-    echo "warning: [tanuki] SENTRY_AUTH_TOKEN not set — skipping dSYM upload. iOS crashes from this \
-build will NOT be symbolicated."
+# Either credential will do. Checking for ~/.sentryclirc as well as the variable matters because a build
+# phase runs with Xcode's environment, not a login shell's — a developer who set themselves up the standard
+# way (`sentry-cli login`) would otherwise be told they have no token while sentry-cli can see one fine.
+if [ -z "${SENTRY_AUTH_TOKEN:-}" ] && [ ! -f "$HOME/.sentryclirc" ]; then
+    echo "warning: [tanuki] no Sentry credentials (SENTRY_AUTH_TOKEN unset, no ~/.sentryclirc) — skipping \
+dSYM upload. iOS crashes from this build will NOT be symbolicated."
     exit 0
 fi
 
