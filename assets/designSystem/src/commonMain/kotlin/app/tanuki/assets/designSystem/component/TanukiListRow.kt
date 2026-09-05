@@ -17,11 +17,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /** Minimum row height from the design system's `ListRow` (`min-height: 56`). */
 private val ListRowMinHeight = 56.dp
+
+/** Layout constants derived from [TanukiListRow]'s own geometry. */
+object TanukiListRowDefaults {
+    /**
+     * Where a row's title starts: the row's leading padding (`lg`) + a [leadingWidth]-wide leading slot +
+     * the gap before the text (`md`). Hand it to [TanukiRowDivider] so the rule between two rows runs
+     * under their titles rather than their icons — the grouped-list convention.
+     */
+    fun dividerInset(leadingWidth: Dp): Dp = TanukiSpacing.lg + leadingWidth + TanukiSpacing.md
+}
 
 /**
  * A dense, tappable list item — the **Android (Material) dialect** of the design system's `ListRow`,

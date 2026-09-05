@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,16 +17,19 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ChevronDownIcon
-import app.tanuki.assets.designSystem.component.TanukiCard
+import app.tanuki.assets.designSystem.component.TanukiListRowDefaults
+import app.tanuki.assets.designSystem.component.TanukiRowDivider
+import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.features.home.viewmodel.HomeSource
 
 /**
  * One language bucket in the Sources view: a tappable header (the language, plus a chevron that rotates
- * as it opens) over a card holding that language's [SourceRow]s, divided by hairlines.
+ * as it opens) over the group holding that language's [SourceRow]s, divided by hairlines.
  *
- * The whole group shares a single [TanukiCard] so a language reads as one grouped list — the design's
- * section look — instead of a stack of per-source cards. Collapsing animates the card away rather than
- * snapping, so the surrounding list doesn't jump.
+ * Deliberately the Settings index's section look — a section-header-weight title over one
+ * [TanukiSectionGroup] of [TanukiRowDivider]-separated rows — so a language bucket and a settings section
+ * are the same object, and only the collapsing chevron distinguishes them. Collapsing animates the group
+ * away rather than snapping, so the surrounding list doesn't jump.
  *
  * @param lang the language tag serving as the header label (source-reported content, not UI copy).
  * @param expanded whether this group's rows are shown.
@@ -52,10 +54,12 @@ internal fun LanguageSourceGroup(
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
+            // `md` does double duty: it lifts the tappable header to the `tapMin` target, and leaves the
+            // same gap above the group that a Settings section header leaves above its own.
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable(onClick = onToggle)
-                .padding(vertical = spacing.sm),
+                .padding(vertical = spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
@@ -71,20 +75,15 @@ internal fun LanguageSourceGroup(
         }
 
         AnimatedVisibility(visible = expanded) {
-            TanukiCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    sources.forEachIndexed { index, source ->
-                        SourceRow(
-                            name = source.name,
-                            iconUrl = source.iconUrl,
-                            onClick = { onSourceClick(source.id) }
-                        )
-                        if (index < sources.lastIndex) {
-                            HorizontalDivider(
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                modifier = Modifier.padding(start = DIVIDER_START_INSET)
-                            )
-                        }
+            TanukiSectionGroup {
+                sources.forEachIndexed { index, source ->
+                    SourceRow(
+                        name = source.name,
+                        iconUrl = source.iconUrl,
+                        onClick = { onSourceClick(source.id) }
+                    )
+                    if (index < sources.lastIndex) {
+                        TanukiRowDivider(startInset = RowDividerInset)
                     }
                 }
             }
@@ -95,9 +94,8 @@ internal fun LanguageSourceGroup(
 /** Half a turn — the chevron points down when collapsed, up when open. */
 private const val CHEVRON_EXPANDED_DEGREES = 180f
 
-/**
- * Where a [SourceRow]'s name starts: the row's leading padding (`md`) + the source icon (34dp) + the
- * gap before the text (`md`). Insetting the divider by it aligns the rule under the names rather than
- * the card edge, matching [app.tanuki.assets.designSystem.component.TanukiCardGroup]'s convention.
- */
-private val DIVIDER_START_INSET = 58.dp
+/** A [SourceRow]'s leading slot is a [app.tanuki.assets.designSystem.component.SourceIcon]. */
+private val SOURCE_ICON_SIZE = 34.dp
+
+/** Runs the rule between two sources under their names rather than their icons. */
+private val RowDividerInset = TanukiListRowDefaults.dividerInset(SOURCE_ICON_SIZE)

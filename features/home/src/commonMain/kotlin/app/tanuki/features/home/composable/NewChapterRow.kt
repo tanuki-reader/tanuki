@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.features.home.resources.Res
@@ -33,6 +34,13 @@ import kotlin.time.Clock
 import kotlin.time.Instant
 
 private val COVER_WIDTH = 40.dp
+
+/**
+ * Where a [NewChapterRow]'s title starts: the row's leading padding (`gutter`) + the cover + the gap
+ * before the text (`md`). Insetting the divider between two rows by it runs the rule under the titles
+ * rather than the covers — the grouped-list convention the source and settings lists also follow.
+ */
+internal val NewChapterRowDividerInset = TanukiSpacing.gutter + COVER_WIDTH + TanukiSpacing.md
 
 /**
  * One "New Chapters" row: the series' cover, its title over the chapter that arrived, and a relative

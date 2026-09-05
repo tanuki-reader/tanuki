@@ -4,21 +4,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ContrastIcon
 import app.tanuki.assets.designSystem.component.ExtensionIcon
@@ -26,6 +21,9 @@ import app.tanuki.assets.designSystem.component.LabelIcon
 import app.tanuki.assets.designSystem.component.ShieldCheckIcon
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.TanukiListRow
+import app.tanuki.assets.designSystem.component.TanukiListRowDefaults
+import app.tanuki.assets.designSystem.component.TanukiRowDivider
+import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.SettingsAppearance
@@ -97,7 +95,7 @@ fun SettingsRoute(
             verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.md)
         ) {
             SectionHeader(title = stringResource(Res.string.settings_section_personalization))
-            SettingsGroup {
+            TanukiSectionGroup {
                 TanukiListRow(
                     title = stringResource(Res.string.settings_appearance),
                     subtitle = stringResource(state.theme.labelRes()),
@@ -107,7 +105,7 @@ fun SettingsRoute(
             }
 
             SectionHeader(title = stringResource(Res.string.settings_section_privacy))
-            SettingsGroup {
+            TanukiSectionGroup {
                 TanukiListRow(
                     title = stringResource(Res.string.settings_privacy),
                     subtitle =
@@ -124,7 +122,7 @@ fun SettingsRoute(
             }
 
             SectionHeader(title = stringResource(Res.string.settings_section_library))
-            SettingsGroup {
+            TanukiSectionGroup {
                 TanukiListRow(
                     title = stringResource(Res.string.settings_categories),
                     subtitle =
@@ -136,11 +134,7 @@ fun SettingsRoute(
                     leading = { LabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = { onNavigate(SettingsCategories) }
                 )
-                HorizontalDivider(
-                    thickness = Dp.Hairline,
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                    modifier = Modifier.padding(start = RowDividerInset)
-                )
+                TanukiRowDivider(startInset = RowDividerInset)
                 TanukiListRow(
                     title = stringResource(Res.string.settings_sources),
                     subtitle =
@@ -157,30 +151,8 @@ fun SettingsRoute(
     }
 }
 
-/**
- * A settings section container: its rows on one rounded surface (the settings-card look), stacked with
- * hairline dividers between them — the reason the index is built from reusable [TanukiListRow]s in a
- * group rather than bespoke one-off rows.
- */
-@Composable
-private fun SettingsGroup(
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit
-) {
-    Column(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .clip(TanukiRadii.chipShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        content()
-    }
-}
+/** The index's leading icons are the [ContrastIcon] family at its default size. */
+private val SettingsIconSize = 20.dp
 
-/**
- * Where a [TanukiListRow]'s title starts: the row's leading padding (`lg`) + the 20dp leading icon + the
- * gap before the text (`md`). Insetting the divider by it runs the rule under the titles rather than the
- * icons, the grouped-list convention the source and category lists also follow.
- */
-private val RowDividerInset = 48.dp
+/** Runs the rule between two rows under their titles rather than their icons. */
+private val RowDividerInset = TanukiListRowDefaults.dividerInset(SettingsIconSize)

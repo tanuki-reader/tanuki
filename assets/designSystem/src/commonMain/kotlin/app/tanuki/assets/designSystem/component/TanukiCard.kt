@@ -1,7 +1,10 @@
 package app.tanuki.assets.designSystem.component
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -9,10 +12,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiRadii
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /**
@@ -59,6 +64,57 @@ fun <T> TanukiCardGroup(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * A section of rows on one rounded, filled surface — the grouped-index look the Settings screen is built
+ * from, and the container for a run of [TanukiListRow]s separated by [TanukiRowDivider]s.
+ *
+ * The distinction from [TanukiCard]: a section group is *recessed* (a filled `surfaceVariant` panel, no
+ * outline) and reads as "these rows belong together"; a card is *raised* (a `surface` fill with a hairline
+ * outline) and reads as a standalone object. Rows go in a group, content goes in a card.
+ */
+@Composable
+fun TanukiSectionGroup(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .clip(TanukiRadii.chipShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        content = content
+    )
+}
+
+/**
+ * The rule between two rows of a [TanukiSectionGroup]. [startInset] runs it under the rows' titles rather
+ * than their leading icons — pass [TanukiListRowDefaults.dividerInset] for the row's leading slot width.
+ */
+@Composable
+fun TanukiRowDivider(
+    modifier: Modifier = Modifier,
+    startInset: Dp = TanukiSpacing.none
+) {
+    HorizontalDivider(
+        thickness = Dp.Hairline,
+        color = MaterialTheme.colorScheme.outlineVariant,
+        modifier = modifier.padding(start = startInset)
+    )
+}
+
+@Composable
+@Preview
+private fun TanukiSectionGroupPreview() {
+    TanukiTheme {
+        TanukiSectionGroup {
+            TanukiListRow(title = "Appearance", subtitle = "System", onClick = {})
+            TanukiRowDivider(startInset = TanukiListRowDefaults.dividerInset(0.dp))
+            TanukiListRow(title = "Privacy", subtitle = "Off", onClick = {})
         }
     }
 }

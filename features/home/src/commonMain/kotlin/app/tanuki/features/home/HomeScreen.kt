@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +27,8 @@ import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.Segment
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
+import app.tanuki.assets.designSystem.component.TanukiRowDivider
+import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
 import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
@@ -33,6 +36,7 @@ import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.home.composable.ContinueReadingRow
 import app.tanuki.features.home.composable.LanguageSourceGroup
 import app.tanuki.features.home.composable.NewChapterRow
+import app.tanuki.features.home.composable.NewChapterRowDividerInset
 import app.tanuki.features.home.resources.Res
 import app.tanuki.features.home.resources.home_continue_reading
 import app.tanuki.features.home.resources.home_for_you_empty
@@ -130,6 +134,9 @@ private fun HomeScreen(
 /**
  * The For You view: what the user is in the middle of, then what has arrived since.
  *
+ * Continue Reading and the New Chapters header stay put; only the update list scrolls. Paging through a
+ * long backlog never pushes the shelf the user was last reading from off the top of the screen.
+ *
  * Each section renders only when it has something — a library with no updates shows just Continue
  * Reading, and a freshly-added library with unread updates shows just New Chapters. The empty state is
  * reserved for when neither has anything at all.
@@ -147,37 +154,60 @@ private fun ForYouView(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(vertical = spacing.sm),
+    Column(
+        modifier = Modifier.fillMaxSize().padding(top = spacing.sm),
         verticalArrangement = Arrangement.spacedBy(spacing.lg)
     ) {
         if (content.continueReading.isNotEmpty()) {
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-                    SectionHeader(
-                        title = stringResource(Res.string.home_continue_reading),
-                        modifier = Modifier.padding(horizontal = spacing.gutter)
-                    )
-                    ContinueReadingRow(
-                        items = content.continueReading,
-                        onItemClick = viewModel::onContinueReadingClick
-                    )
-                }
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                SectionHeader(
+                    title = stringResource(Res.string.home_continue_reading),
+                    modifier = Modifier.padding(horizontal = spacing.gutter)
+                )
+                ContinueReadingRow(
+                    items = content.continueReading,
+                    onItemClick = viewModel::onContinueReadingClick
+                )
             }
         }
 
         if (content.newChapters.isNotEmpty()) {
-            // The header is its own item, and each update its own, so the list stays lazy — a library
-            // that has been away for a while can produce a long run of these.
-            item {
-                SectionHeader(
-                    title = stringResource(Res.string.home_new_chapters),
-                    modifier = Modifier.padding(horizontal = spacing.gutter)
-                )
-            }
-            items(content.newChapters, key = { it.chapterId.toString() }) { item ->
-                NewChapterRow(item = item, onClick = { viewModel.onNewChapterClick(item) })
+            // The header stays outside the group and on the screen gutter, so it lines up with Continue
+            // Reading's; the group encloses exactly what scrolls. `fill = false` lets the panel hug a short
+            // list and stop at the leftover height for a long one — only then does it scroll internally,
+            // instead of dragging Continue Reading off the top.
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f, fill = false)
+                        .padding(start = spacing.gutter, end = spacing.gutter, bottom = spacing.md),
+                // `md` under the header, the gap a Settings section leaves above its own group.
+                verticalArrangement = Arrangement.spacedBy(spacing.md)
+            ) {
+                SectionHeader(title = stringResource(Res.string.home_new_chapters))
+                TanukiSectionGroup(modifier = Modifier.weight(1f, fill = false)) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = spacing.xs)
+                    ) {
+                        itemsIndexed(
+                            content.newChapters,
+                            key = { _, item -> item.chapterId.toString() }
+                        ) { index, item ->
+                            // The rule belongs to the row above it, so it scrolls away with that row
+                            // rather than lingering at the group's edge.
+                            Column {
+                                NewChapterRow(
+                                    item = item,
+                                    onClick = { viewModel.onNewChapterClick(item) }
+                                )
+                                if (index < content.newChapters.lastIndex) {
+                                    TanukiRowDivider(startInset = NewChapterRowDividerInset)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -199,8 +229,8 @@ private fun SourcesView(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = spacing.gutter, vertical = spacing.sm),
-        verticalArrangement = Arrangement.spacedBy(spacing.sm)
+        contentPadding = PaddingValues(horizontal = spacing.gutter, vertical = spacing.md),
+        verticalArrangement = Arrangement.spacedBy(spacing.md)
     ) {
         items(content.sourceGroups, key = { it.lang }) { group ->
             LanguageSourceGroup(
