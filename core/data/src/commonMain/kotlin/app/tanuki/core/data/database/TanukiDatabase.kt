@@ -11,6 +11,8 @@ import app.tanuki.core.data.repository.category.MangaCategoryEntity
 import app.tanuki.core.data.repository.chapter.ChapterDao
 import app.tanuki.core.data.repository.chapter.ChapterEntity
 import app.tanuki.core.data.repository.chapter.ReadingProgressEntity
+import app.tanuki.core.data.repository.download.ChapterDownloadDao
+import app.tanuki.core.data.repository.download.ChapterDownloadEntity
 import app.tanuki.core.data.repository.history.HistoryDao
 import app.tanuki.core.data.repository.history.HistoryEntity
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
@@ -36,11 +38,12 @@ import app.tanuki.core.data.repository.update.ChapterUpdateEntity
         ChapterEntity::class,
         ReadingProgressEntity::class,
         ChapterUpdateEntity::class,
+        ChapterDownloadEntity::class,
         HistoryEntity::class,
         CategoryEntity::class,
         MangaCategoryEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -53,6 +56,8 @@ abstract class TanukiDatabase : RoomDatabase() {
     abstract fun chapterDao(): ChapterDao
 
     abstract fun chapterUpdateDao(): ChapterUpdateDao
+
+    abstract fun chapterDownloadDao(): ChapterDownloadDao
 
     abstract fun historyDao(): HistoryDao
 

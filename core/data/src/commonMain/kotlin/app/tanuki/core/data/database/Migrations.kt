@@ -21,6 +21,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration6To7,
         Migration7To8,
         Migration8To9,
+        Migration9To10,
     )
 
 /**
@@ -214,5 +215,52 @@ internal object Migration7To8 : Migration(7, 8) {
 internal object Migration8To9 : Migration(8, 9) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE manga ADD COLUMN cover_headers TEXT")
+    }
+}
+
+/**
+ * Adds `chapter_downloads` — the index of which chapters are queued for, or already kept on, the
+ * device, backing offline reading.
+ *
+ * A new table rather than columns on `chapters`, for the reason `chapter_updates` and
+ * `reading_progress` are also their own tables: the chapter row is source-owned and rewritten on every
+ * sync, so app-owned state beside it would be clobbered. Nothing to backfill — before this table there
+ * was no download subsystem, so no chapter can be on disk.
+ *
+ * The three indexes each pay for a query the UI runs constantly: `manga_id` for a chapter list's
+ * per-row states, `state` for the per-series downloaded counts behind the library badge, and
+ * `queued_at` for the queue's order.
+ */
+internal object Migration9To10 : Migration(9, 10) {
+    override fun migrate(connection: SQLiteConnection) {
+        // Must match the schema Room expects for v10 (schemas/…/10.json) exactly, or the identity
+        // check on the next open fails.
+        connection.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `chapter_downloads` (
+                `chapter_id` TEXT NOT NULL,
+                `manga_id` TEXT NOT NULL,
+                `state` TEXT NOT NULL,
+                `page_count` INTEGER,
+                `downloaded_pages` INTEGER NOT NULL,
+                `bytes` INTEGER NOT NULL,
+                `error` TEXT,
+                `queued_at` INTEGER NOT NULL,
+                `completed_at` INTEGER,
+                PRIMARY KEY(`chapter_id`),
+                FOREIGN KEY(`chapter_id`) REFERENCES `chapters`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+            )
+            """.trimIndent(),
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_chapter_downloads_manga_id` ON `chapter_downloads` (`manga_id`)",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_chapter_downloads_state` ON `chapter_downloads` (`state`)",
+        )
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_chapter_downloads_queued_at` " +
+                "ON `chapter_downloads` (`queued_at`)",
+        )
     }
 }

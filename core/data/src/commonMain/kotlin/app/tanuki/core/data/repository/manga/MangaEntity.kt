@@ -101,8 +101,9 @@ fun MangaEntity.toDomain(
             ),
         sourceMangaKey = sourceMangaKey.toTextOrNull(),
         url = Url(url),
-        // Downloads aren't tracked in the DB yet (no download subsystem — see LibraryFilter), so this
-        // stays at its default until that lands. `unread_count` is derived by the read queries.
+        // `chapter_downloads` exists (schema v10) but nothing writes to it yet, so projecting a
+        // `downloaded_count` here would only ever be zero; it lands with the download engine. See
+        // docs/design-downloads.md. `unread_count` is derived by the read queries.
         unreadCount = unreadCount,
         dateAdded = dateAdded,
         lastRead = lastRead,

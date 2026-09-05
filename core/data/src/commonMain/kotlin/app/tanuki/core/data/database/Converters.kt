@@ -1,6 +1,8 @@
 package app.tanuki.core.data.database
 
 import androidx.room.TypeConverter
+import app.tanuki.core.domain.download.model.DownloadError
+import app.tanuki.core.domain.download.model.DownloadState
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
@@ -49,4 +51,16 @@ class Converters {
 
     @TypeConverter
     fun stringToReadingStatus(value: String): ReadingStatus = ReadingStatus.valueOf(value)
+
+    @TypeConverter
+    fun downloadStateToString(state: DownloadState): String = state.name
+
+    @TypeConverter
+    fun stringToDownloadState(value: String): DownloadState = DownloadState.valueOf(value)
+
+    @TypeConverter
+    fun downloadErrorToString(error: DownloadError): String = error.name
+
+    @TypeConverter
+    fun stringToDownloadError(value: String): DownloadError = DownloadError.valueOf(value)
 }

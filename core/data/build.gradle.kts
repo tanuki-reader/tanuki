@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.metro)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
@@ -46,9 +47,13 @@ kotlin {
             // multiplatform store is created with (see PreferencesFileFactory).
             implementation(libs.androidx.datastore.preferences.core)
             implementation(libs.okio)
+            // Downloaded chapters carry a manifest.json; see DownloadManifestDto.
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.okio.fakefilesystem)
         }
     }
 }

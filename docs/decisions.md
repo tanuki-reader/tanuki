@@ -6,6 +6,54 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-05 — Downloads: the shape settled before the engine was written
+
+**Decision:** the four questions `design-downloads.md` §11 left open are answered as recommended there,
+and phase 1 (the storage spine) is built against those answers. Recorded here because each of them is
+cheap now and a migration later.
+
+**Chapter files are addressed by local `Uuid`, not by title** — `<root>/<mangaId>/<chapterId>/`. Titles
+need sanitizing (`/`, `:`, emoji, RTL), collide across sources, and change whenever a source edits its
+metadata; each of those silently orphans a folder whose contents nothing can any longer identify. The
+price is a tree that isn't browsable from a file manager, which Mihon optimizes for because its users
+copy folders to a PC. If we want that, it is a **CBZ export** over this layout — a feature — rather than
+a reason to make the live layout fragile.
+
+**Completion is `manifest.json` existing, and the queue's states do not include `Paused`.** Pages land
+in a sibling `<chapterId>.part/` and the manifest is written last, by an atomic move of the directory,
+so a crash can leave something resumable but never a half-chapter that reads as downloaded. Pausing is a
+property of the *queue*, so it will be one preference rather than a row state: a paused chapter has to
+keep its place in line, and "resume all" that rewrites N rows loses the ordering it was meant to
+preserve.
+
+**The database is an index over the disk and the two are reconciled, not assumed to agree.** The user
+can clear app storage; a write can die. So `ChapterDownloadStore.storedChapters()` reports what is
+actually there and the *domain* decides what counts as an orphan — the store is deliberately not given
+the set of known ids to filter against, because "a chapter the sync pruned" and "a part a cancelled
+download left" are domain facts, not filesystem ones.
+
+**Downloads are excluded from cloud backup on both platforms**, and the Android half was the surprise:
+`allowBackup="true"` with no rules meant a downloaded library counted against Auto Backup's 25 MB
+per-app quota — and an app over that quota gets *no* backup at all, silently. One downloaded series
+would therefore have cost the user the library, categories, progress and history that are actually worth
+backing up. `backup_rules.xml` / `data_extraction_rules.xml` now exclude `files/downloads` and
+`files/sources`. On iOS the same job is done by `isExcludedFromBackup`, set on every resolve rather than
+only at creation (the flag is an extended attribute, and a restore recreates the directory without it).
+
+**iOS downloads run in the foreground**, with a background grace period and a `BGProcessingTask`
+continuation, and the queue screen will say so. Out-of-process downloading needs
+`URLSession(background:)`, which is per-request and cannot reuse the Ktor client — so the Cloudflare
+interceptor, the cookie jar and the host-owned User-Agent would all be bypassed *for downloads
+specifically*, which is the traffic most likely to be challenged. Revisit if users report queues
+stalling.
+
+**The queue screen gets its own `:features:downloads` module** rather than living in `:features:manga`:
+it spans series, so putting it there would need a feature→feature dependency, which the module rules
+forbid. **Auto-download is per-category from day one** — `Category` already exists, and retrofitting the
+setting onto an all/off toggle is a preference migration for no saving.
+
+---
+
 ## 2026-08-22 — Cloudflare challenges solve silently first, and are shown only if that fails
 
 **Decision:** the session layer is composed the moment a challenge arrives — full-size, laid out, opaque
