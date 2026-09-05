@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup and device-transfer rules for API 31+. Same exclusions as backup_rules.xml, and for the same
+  reason: downloaded chapters and source bundles are bulk, re-fetchable data, and letting them count
+  against the backup quota costs the user the library and reading history that actually matter.
+
+  Device transfer excludes them too — a direct device-to-device copy has no quota, but shipping
+  gigabytes of images over it to save a re-download is a bad trade for the user's setup time.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="downloads" />
+        <exclude domain="file" path="sources" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="downloads" />
+        <exclude domain="file" path="sources" />
+    </device-transfer>
+</data-extraction-rules>

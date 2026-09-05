@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Auto Backup rules (API 31 and below; see data_extraction_rules.xml for 31+).
+
+  Downloaded chapters and installed source bundles are excluded. Both are large and both are
+  re-fetchable for free, but the reason is stronger than tidiness: Auto Backup has a hard per-app
+  quota (25 MB), and an app that exceeds it does not get a partial backup — it gets no backup at all,
+  silently. One downloaded series would therefore cost the user their library, categories, reading
+  progress and history, which is exactly the data worth backing up.
+-->
+<full-backup-content>
+    <exclude domain="file" path="downloads" />
+    <exclude domain="file" path="sources" />
+</full-backup-content>
