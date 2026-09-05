@@ -4,7 +4,7 @@
 # regress?" answerable. iosApp/Configuration/Config.xcconfig carries MARKETING_VERSION and must be kept
 # in step — xcconfig cannot read the version catalog.
 tanuki = "1.0"
-agp = "9.0.1"
+agp = "9.1.1"
 android-compileSdk = "36"
 android-minSdk = "36"
 android-targetSdk = "36"
