@@ -1,8 +1,8 @@
 package app.tanuki.features.reader.viewmodel
 
 import app.tanuki.core.domain.chapter.model.ChapterNumber
+import app.tanuki.core.domain.chapter.model.ReaderPage
 import app.tanuki.core.domain.manga.model.ReadingMode
-import app.tanuki.core.domain.source.model.Page
 import kotlin.uuid.Uuid
 
 /**
@@ -88,13 +88,14 @@ sealed interface ReaderItem {
      * @property chapterId The chapter this page belongs to (the window holds several).
      * @property pageNumber Zero-based index of this page **within its chapter**.
      * @property pageCount Total pages in that chapter (so a focused page can tell if it's the last).
-     * @property page The source page to render.
+     * @property page Where this page's image comes from — the source, or a downloaded copy on disk. The
+     *   reader does not distinguish the two beyond building the image request; see [ReaderPage].
      */
     data class PageItem(
         val chapterId: Uuid,
         val pageNumber: Int,
         val pageCount: Int,
-        val page: Page
+        val page: ReaderPage
     ) : ReaderItem {
         override val key: String get() = "page:$chapterId:$pageNumber"
     }

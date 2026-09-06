@@ -28,7 +28,8 @@ import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.EmptyLibraryIcon
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
-import app.tanuki.core.domain.source.model.Page
+import app.tanuki.core.domain.chapter.model.PageImage
+import app.tanuki.core.domain.chapter.model.ReaderPage
 import app.tanuki.features.reader.LocalPageImageLoader
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_end_subtitle
@@ -64,7 +65,7 @@ internal fun ReaderItemContent(
 ) {
     when (item) {
         is ReaderItem.PageItem -> {
-            ReaderPage(item.page, item.key, onToggleChrome, fillHeight, zoomable, ratios)
+            ReaderPageImage(item.page, item.key, onToggleChrome, fillHeight, zoomable, ratios)
         }
 
         is ReaderItem.Transition -> {
@@ -79,8 +80,9 @@ internal fun ReaderItemContent(
 
 /**
  * A single page's image. Fetched through the reader's dedicated page [LocalPageImageLoader] (not the
- * singleton cover loader) from the page's direct [Page.imageUrl], falling back to its [Page.url] for
- * sources that address pages by URL.
+ * singleton cover loader) from wherever the page's bytes live — the source over the network, or a
+ * downloaded file on disk. Which of the two is settled upstream, in `GetReaderPages`, and everything
+ * from here down is identical: see [PageImage] and `toImageRequest`.
  *
  * When [zoomable] (the paged modes), the image is wrapped in Telephoto's [zoomable] gesture layer, so the
  * page gets pinch-to-zoom, double-tap-to-zoom, and pan. Telephoto owns the fit transform
@@ -104,8 +106,8 @@ internal fun ReaderItemContent(
  * above it — reading as if the two pages were at different zoom levels.
  */
 @Composable
-private fun ReaderPage(
-    page: Page,
+private fun ReaderPageImage(
+    page: ReaderPage,
     key: String,
     onToggleChrome: () -> Unit,
     fillHeight: Boolean = true,

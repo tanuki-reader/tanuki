@@ -2,8 +2,9 @@ package app.tanuki.features.reader.viewmodel
 
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.core.domain.chapter.model.ReaderPage
 import app.tanuki.core.domain.chapter.model.isHiddenBy
-import app.tanuki.core.domain.chapter.usecase.GetChapterPages
+import app.tanuki.core.domain.chapter.usecase.GetReaderPages
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
 import app.tanuki.core.domain.chapter.usecase.UpdateReadingProgress
 import app.tanuki.core.domain.common.service.DispatcherProvider
@@ -12,7 +13,6 @@ import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingMode.RIGHT_TO_LEFT
 import app.tanuki.core.domain.manga.usecase.ObserveManga
-import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.reader.viewmodel.ReaderItem.PageItem
@@ -89,7 +89,7 @@ import kotlin.uuid.Uuid
 class ReaderViewModel(
     @Assisted private val mangaId: Uuid,
     @Assisted private val initialChapterId: Uuid,
-    private val getChapterPages: GetChapterPages,
+    private val getReaderPages: GetReaderPages,
     private val updateReadingProgress: UpdateReadingProgress,
     private val observeChapters: ObserveChapters,
     private val observeManga: ObserveManga,
@@ -120,7 +120,7 @@ class ReaderViewModel(
     private val chromeVisible = MutableStateFlow(true)
 
     /** Fetched pages, keyed by chapter id. Held only for the window (prev/curr/next); others are evicted. */
-    private val pagesCache = MutableStateFlow<Map<Uuid, List<Page>>>(emptyMap())
+    private val pagesCache = MutableStateFlow<Map<Uuid, List<ReaderPage>>>(emptyMap())
 
     /** Chapters whose page fetch is in flight — so a transition can show a spinner and we don't double-load. */
     private val loadingChapters = MutableStateFlow<Set<Uuid>>(emptySet())
@@ -220,7 +220,7 @@ class ReaderViewModel(
 
             val pages =
                 tryIo("Failed to load pages for chapter $initialChapterId") {
-                    getChapterPages(initialChapterId)
+                    getReaderPages(initialChapterId)
                 }.getOrNull()
 
             if (pages == null) {
@@ -382,7 +382,7 @@ class ReaderViewModel(
 
         viewModelScope.launch {
             val pages =
-                tryIo("Failed to load pages for chapter $chapterId") { getChapterPages(chapterId) }
+                tryIo("Failed to load pages for chapter $chapterId") { getReaderPages(chapterId) }
                     .getOrNull()
             loadingChapters.update { it - chapterId }
             if (pages != null) pagesCache.update { it + (chapterId to pages) }
@@ -406,7 +406,7 @@ class ReaderViewModel(
         session: ReaderSession,
         index: Int,
         pageInChapter: Int,
-        cache: Map<Uuid, List<Page>>,
+        cache: Map<Uuid, List<ReaderPage>>,
         loading: Set<Uuid>,
         chromeVisible: Boolean
     ): Content {
@@ -469,7 +469,7 @@ class ReaderViewModel(
     private fun buildItems(
         siblings: List<Chapter>,
         currentIndex: Int,
-        cache: Map<Uuid, List<Page>>,
+        cache: Map<Uuid, List<ReaderPage>>,
         loading: Set<Uuid>
     ): List<ReaderItem> {
         if (siblings.isEmpty() || !cache.containsKey(siblings[currentIndex].id)) return emptyList()
@@ -534,7 +534,7 @@ class ReaderViewModel(
         from: Chapter,
         to: Chapter,
         loadingSide: Uuid,
-        cache: Map<Uuid, List<Page>>,
+        cache: Map<Uuid, List<ReaderPage>>,
         loading: Set<Uuid>
     ) = ReaderItem.Transition(
         from = from.ref(),

@@ -74,8 +74,9 @@ internal fun PagePrefetch(
     }
 }
 
-/** The next [limit] renderable pages walking from [start] in direction [step], skipping transition slides
- *  and pages with nothing to fetch. */
+/** The next [limit] pages walking from [start] in direction [step], skipping transition slides. Every page
+ *  that reaches the reader has somewhere to fetch from — `GetReaderPages` drops the ones that do not — so
+ *  there is nothing else to filter out here. */
 private fun List<ReaderItem>.pagesFrom(
     start: Int,
     step: Int,
@@ -85,9 +86,7 @@ private fun List<ReaderItem>.pagesFrom(
     var index = start
     while (index in indices && found.size < limit) {
         val item = this[index]
-        if (item is ReaderItem.PageItem && (item.page.imageUrl != null || item.page.url != null)) {
-            found += item
-        }
+        if (item is ReaderItem.PageItem) found += item
         index += step
     }
     return found

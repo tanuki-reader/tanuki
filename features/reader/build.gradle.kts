@@ -59,6 +59,8 @@ kotlin {
             implementation(libs.coil.compose)
             // NetworkHeaders / httpHeaders() — per-page request headers (e.g. a source's Referer).
             implementation(libs.coil.network.core)
+            // A downloaded page is handed to Coil as an okio.Path (see ToImageRequest).
+            implementation(libs.okio)
             // Pinch/pan/double-tap zoom on reader pages. Only the multiplatform `zoomable` gesture
             // module (the `zoomable-image*` drop-ins are Android-only); attached to our AsyncImage.
             implementation(libs.telephoto.zoomable)
