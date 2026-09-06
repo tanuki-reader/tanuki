@@ -42,6 +42,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import app.tanuki.core.domain.download.usecase.inertAutoDownloadNewChapters
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -266,7 +267,8 @@ private class World(
                     sourceRepository = FakeSourceRepository(SOURCE),
                     chapterRepository = chapters,
                     chapterUpdateRepository = updates,
-                    sourceLoader = loader
+                    sourceLoader = loader,
+                    autoDownloadNewChapters = inertAutoDownloadNewChapters()
                 ),
             notifyNewChapters =
                 NotifyNewChapters.Default(

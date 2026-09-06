@@ -2,6 +2,7 @@ package app.tanuki.core.domain.chapter.usecase
 
 import app.tanuki.core.domain.chapter.model.ReadingProgress
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
+import app.tanuki.core.domain.download.usecase.DeleteReadChapterDownloads
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.history.model.ChapterHistory
 import app.tanuki.core.domain.history.repository.HistoryRepository
@@ -46,7 +47,8 @@ sealed interface UpdateReadingProgress {
     class Default(
         private val chapterRepository: ChapterRepository,
         private val historyRepository: HistoryRepository,
-        private val chapterUpdateRepository: ChapterUpdateRepository
+        private val chapterUpdateRepository: ChapterUpdateRepository,
+        private val deleteReadChapterDownloads: DeleteReadChapterDownloads
     ) : UpdateReadingProgress {
         override suspend fun invoke(
             chapterId: Uuid,
@@ -77,6 +79,9 @@ sealed interface UpdateReadingProgress {
                 mangaId = chapter.mangaId,
                 chapterIds = listOf(chapterId)
             )
+            // Only on the *transition* to read. This runs on every page turn near the end of a chapter,
+            // and sweeping the series' downloads each time would put a database walk between pages.
+            if (read && existing?.alreadyRead != true) deleteReadChapterDownloads(chapter.mangaId)
         }
     }
 }

@@ -1,5 +1,7 @@
 package app.tanuki.core.domain.download.usecase
 
+import app.tanuki.core.domain.category.model.Category
+import app.tanuki.core.domain.category.repository.CategoryRepository
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.chapter.model.ReadingProgress
@@ -46,6 +48,7 @@ import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -128,6 +131,16 @@ internal class DownloadWorld(
     val runQueue: RunDownloadQueue =
         RunDownloadQueue.Default(manager, queueView, notifier, RecordingLogger())
 
+    val downloadSettings: ObserveDownloadSettings = ObserveDownloadSettings.Default(settings)
+
+    val categories = FakeCategoryRepository()
+
+    val autoDownload: AutoDownloadNewChapters =
+        AutoDownloadNewChapters.Default(downloadSettings, categories, enqueue, RecordingLogger())
+
+    val deleteReadDownloads: DeleteReadChapterDownloads =
+        DeleteReadChapterDownloads.Default(settings, chapterRepository, downloads, deleteChapters, RecordingLogger())
+
     /** Puts [chapters] straight into the queue, bypassing the enqueue use case's own rules. */
     suspend fun queue(vararg chapters: Chapter) {
         chapters.forEachIndexed { position, chapter ->
@@ -146,10 +159,25 @@ internal class DownloadWorld(
     }
 
     /** Marks [chapter] read, the way the reader would. */
-    fun markRead(chapter: Chapter) {
+    fun markRead(
+        chapter: Chapter,
+        bookmarked: Boolean = false,
+    ) {
         chapterRepository.replace(
-            chapter.copy(progress = ReadingProgress(hasBookmark = false, lastPageRead = 0u, alreadyRead = true)),
+            chapter.copy(
+                progress = ReadingProgress(hasBookmark = bookmarked, lastPageRead = 0u, alreadyRead = true),
+            ),
         )
+    }
+
+    /** Downloads [chapter] for real and then marks it read — where the delete-after-reading rule starts. */
+    suspend fun downloadAndRead(
+        chapter: Chapter,
+        bookmarked: Boolean = false,
+    ) {
+        queue(chapter)
+        manager.run()
+        markRead(chapter, bookmarked)
     }
 
     /** Hides [scanlator]'s chapters, the way the manga screen's filter would. */
@@ -574,6 +602,47 @@ internal class FakeSettingsRepository : SettingsRepository {
 }
 
 /**
+ * A [CategoryRepository] over an in-memory membership map — the only half the auto-download rule reads.
+ */
+internal class FakeCategoryRepository : CategoryRepository {
+    private val memberships = MutableStateFlow<Map<Uuid, Set<Uuid>>>(emptyMap())
+
+    /** Puts [mangaId] in [categoryIds], the way the category sheet would. */
+    fun place(
+        mangaId: Uuid,
+        categoryIds: Set<Uuid>,
+    ) {
+        memberships.value = memberships.value + (mangaId to categoryIds)
+    }
+
+    override fun observeLibraryCategories(): Flow<Map<Uuid, Set<Uuid>>> = memberships
+
+    override fun observeCategories(): Flow<List<Category>> = flowOf(emptyList())
+
+    override suspend fun setMangaCategories(
+        mangaId: Uuid,
+        categoryIds: Set<Uuid>,
+    ) = place(mangaId, categoryIds)
+
+    override suspend fun upsertCategory(category: Category) = error("unused")
+
+    override suspend fun deleteCategory(categoryId: Uuid) = error("unused")
+}
+
+/** Records that the queue was asked to run, without running it. */
+internal class FakeDownloadScheduler : DownloadScheduler {
+    var starts: Int = 0
+        private set
+
+    /** Android's answer, since it is the one that makes the queue survive leaving the app. */
+    override val runsInBackground: Boolean = true
+
+    override fun ensureRunning() {
+        starts++
+    }
+}
+
+/**
  * Records what the user would have been told, so the notification contract can be asserted without a
  * platform notification anywhere near the test.
  */
@@ -596,19 +665,6 @@ internal class FakeDownloadNotifier : DownloadNotifier {
 
     override suspend fun clear() {
         clears++
-    }
-}
-
-/** Records that the queue was asked to run, without running it. */
-internal class FakeDownloadScheduler : DownloadScheduler {
-    var starts: Int = 0
-        private set
-
-    /** Android's answer, since it is the one that makes the queue survive leaving the app. */
-    override val runsInBackground: Boolean = true
-
-    override fun ensureRunning() {
-        starts++
     }
 }
 
@@ -773,3 +829,17 @@ internal class FakeSourceRepository(
 /** The pending queue as it stands, for tests that assert on ordering. */
 internal suspend fun DownloadRepository.pending(): List<ChapterDownload> =
     observeQueue().first().filter(ChapterDownload::isPending)
+/**
+ * A [DeleteReadChapterDownloads] wired to real fakes but **switched off** — the setting defaults to
+ * `Off`, so it returns before touching anything else.
+ *
+ * For the tests of the use cases that *call* it. Those cover marking chapters read, not deleting
+ * downloads, and a sealed use case cannot be doubled from a test compilation — so the honest stand-in is
+ * the real thing in the state it ships in.
+ */
+internal fun inertDeleteReadChapterDownloads(): DeleteReadChapterDownloads =
+    DownloadWorld(TestDispatchers(Dispatchers.Unconfined)).deleteReadDownloads
+
+/** The same, for [AutoDownloadNewChapters]: `AutoDownloadMode.Off` is its default and its early return. */
+internal fun inertAutoDownloadNewChapters(): AutoDownloadNewChapters =
+    DownloadWorld(TestDispatchers(Dispatchers.Unconfined)).autoDownload

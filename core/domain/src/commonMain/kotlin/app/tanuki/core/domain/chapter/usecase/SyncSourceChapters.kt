@@ -2,6 +2,7 @@ package app.tanuki.core.domain.chapter.usecase
 
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
+import app.tanuki.core.domain.download.usecase.AutoDownloadNewChapters
 import app.tanuki.core.domain.common.model.toTextOrNull
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
@@ -76,7 +77,8 @@ sealed interface SyncSourceChapters {
         private val sourceRepository: SourceRepository,
         private val chapterRepository: ChapterRepository,
         private val chapterUpdateRepository: ChapterUpdateRepository,
-        private val sourceLoader: SourceLoader
+        private val sourceLoader: SourceLoader,
+        private val autoDownloadNewChapters: AutoDownloadNewChapters
     ) : SyncSourceChapters {
         override suspend fun invoke(mangaId: Uuid): List<Chapter> {
             val manga = mangaRepository.observeManga(mangaId).first() ?: return emptyList()
@@ -105,6 +107,10 @@ sealed interface SyncSourceChapters {
 
             val added = merged.filter { it.id !in localIds }
             recordUpdates(added, manga, isBaseline = local.isEmpty(), now = now)
+            // Both callers of this use case — the scheduled library update and a manual pull on a series
+            // page — mean the same thing by "new chapter arrived", so the auto-download rule is applied
+            // here rather than in each of them. It no-ops unless the user has asked for it.
+            autoDownloadNewChapters(manga, added)
             return added
         }
 

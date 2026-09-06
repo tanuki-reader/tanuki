@@ -12,6 +12,7 @@ import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import app.tanuki.core.domain.download.usecase.inertDeleteReadChapterDownloads
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -28,7 +29,8 @@ class SetChaptersReadTest {
     @Test
     fun `marks every selected chapter read in one write`() = runTest {
         val chapters = MarkChapterRepo(chapters = chapters(unread = 3))
-        val setRead = SetChaptersRead.Default(chapters, MarkChapterUpdateRepo())
+        val setRead =
+            SetChaptersRead.Default(chapters, MarkChapterUpdateRepo(), inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = true)
 
@@ -46,7 +48,8 @@ class SetChaptersReadTest {
                         it.copy(progress = ReadingProgress(hasBookmark = false, lastPageRead = 37u, alreadyRead = true))
                     }
             )
-        val setRead = SetChaptersRead.Default(chapters, MarkChapterUpdateRepo())
+        val setRead =
+            SetChaptersRead.Default(chapters, MarkChapterUpdateRepo(), inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = false)
 
@@ -65,7 +68,8 @@ class SetChaptersReadTest {
                         it.copy(progress = ReadingProgress(hasBookmark = true, lastPageRead = 4u, alreadyRead = false))
                     }
             )
-        val setRead = SetChaptersRead.Default(chapters, MarkChapterUpdateRepo())
+        val setRead =
+            SetChaptersRead.Default(chapters, MarkChapterUpdateRepo(), inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = true)
 
@@ -85,7 +89,7 @@ class SetChaptersReadTest {
                     }
             )
         val updates = MarkChapterUpdateRepo()
-        val setRead = SetChaptersRead.Default(chapters, updates)
+        val setRead = SetChaptersRead.Default(chapters, updates, inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = true)
 
@@ -102,7 +106,8 @@ class SetChaptersReadTest {
                         it.copy(progress = ReadingProgress(hasBookmark = false, lastPageRead = 12u, alreadyRead = false))
                     }
             )
-        val setRead = SetChaptersRead.Default(chapters, MarkChapterUpdateRepo())
+        val setRead =
+            SetChaptersRead.Default(chapters, MarkChapterUpdateRepo(), inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = false)
 
@@ -113,7 +118,8 @@ class SetChaptersReadTest {
     @Test
     fun `ignores ids that belong to another manga`() = runTest {
         val chapters = MarkChapterRepo(chapters = chapters(unread = 2))
-        val setRead = SetChaptersRead.Default(chapters, MarkChapterUpdateRepo())
+        val setRead =
+            SetChaptersRead.Default(chapters, MarkChapterUpdateRepo(), inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, setOf(chapters.ids.first(), uuidV7()), read = true)
 
@@ -124,7 +130,7 @@ class SetChaptersReadTest {
     fun `clears the new-chapter records of the chapters it marks read`() = runTest {
         val chapters = MarkChapterRepo(chapters = chapters(unread = 2))
         val updates = MarkChapterUpdateRepo()
-        val setRead = SetChaptersRead.Default(chapters, updates)
+        val setRead = SetChaptersRead.Default(chapters, updates, inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = true)
 
@@ -141,7 +147,7 @@ class SetChaptersReadTest {
                     }
             )
         val updates = MarkChapterUpdateRepo()
-        val setRead = SetChaptersRead.Default(chapters, updates)
+        val setRead = SetChaptersRead.Default(chapters, updates, inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, chapters.ids.toSet(), read = false)
 
@@ -151,7 +157,8 @@ class SetChaptersReadTest {
     @Test
     fun `writes nothing for an empty selection`() = runTest {
         val chapters = MarkChapterRepo(chapters = chapters(unread = 2))
-        val setRead = SetChaptersRead.Default(chapters, MarkChapterUpdateRepo())
+        val setRead =
+            SetChaptersRead.Default(chapters, MarkChapterUpdateRepo(), inertDeleteReadChapterDownloads())
 
         setRead(chapters.mangaId, emptySet(), read = true)
 

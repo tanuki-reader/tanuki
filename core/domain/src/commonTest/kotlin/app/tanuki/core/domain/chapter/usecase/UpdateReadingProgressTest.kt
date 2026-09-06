@@ -14,6 +14,7 @@ import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import app.tanuki.core.domain.download.usecase.inertDeleteReadChapterDownloads
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,7 +32,12 @@ class UpdateReadingProgressTest {
     @Test
     fun `writes the new page for a chapter with no prior progress`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
+        val update = UpdateReadingProgress.Default(
+            chapters,
+            RecordingHistoryRepo(),
+            RecordingChapterUpdateRepo(),
+            inertDeleteReadChapterDownloads()
+        )
 
         update(CHAPTER_ID, lastPageRead = 4u, read = false)
 
@@ -46,7 +52,12 @@ class UpdateReadingProgressTest {
         val chapters = ProgressChapterRepo(
             progress = ReadingProgress(hasBookmark = true, lastPageRead = 2u, alreadyRead = false),
         )
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
+        val update = UpdateReadingProgress.Default(
+            chapters,
+            RecordingHistoryRepo(),
+            RecordingChapterUpdateRepo(),
+            inertDeleteReadChapterDownloads()
+        )
 
         update(CHAPTER_ID, lastPageRead = 5u, read = false)
 
@@ -58,7 +69,12 @@ class UpdateReadingProgressTest {
     @Test
     fun `marks the chapter read when the last page is reached`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
+        val update = UpdateReadingProgress.Default(
+            chapters,
+            RecordingHistoryRepo(),
+            RecordingChapterUpdateRepo(),
+            inertDeleteReadChapterDownloads()
+        )
 
         update(CHAPTER_ID, lastPageRead = 19u, read = true)
 
@@ -70,7 +86,12 @@ class UpdateReadingProgressTest {
         val chapters = ProgressChapterRepo(
             progress = ReadingProgress(hasBookmark = false, lastPageRead = 19u, alreadyRead = true),
         )
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), RecordingChapterUpdateRepo())
+        val update = UpdateReadingProgress.Default(
+            chapters,
+            RecordingHistoryRepo(),
+            RecordingChapterUpdateRepo(),
+            inertDeleteReadChapterDownloads()
+        )
 
         update(CHAPTER_ID, lastPageRead = 3u, read = false)
 
@@ -84,7 +105,12 @@ class UpdateReadingProgressTest {
     fun `records a history entry for the chapter's manga`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
         val history = RecordingHistoryRepo()
-        val update = UpdateReadingProgress.Default(chapters, history, RecordingChapterUpdateRepo())
+        val update = UpdateReadingProgress.Default(
+            chapters,
+            history,
+            RecordingChapterUpdateRepo(),
+            inertDeleteReadChapterDownloads()
+        )
 
         update(CHAPTER_ID, lastPageRead = 0u, read = false)
 
@@ -97,7 +123,12 @@ class UpdateReadingProgressTest {
     fun `clears the chapter's new-chapter record once it has been opened`() = runTest {
         val chapters = ProgressChapterRepo(progress = null)
         val updates = RecordingChapterUpdateRepo()
-        val update = UpdateReadingProgress.Default(chapters, RecordingHistoryRepo(), updates)
+        val update = UpdateReadingProgress.Default(
+            chapters,
+            RecordingHistoryRepo(),
+            updates,
+            inertDeleteReadChapterDownloads()
+        )
 
         update(CHAPTER_ID, lastPageRead = 0u, read = false)
 
@@ -111,7 +142,7 @@ class UpdateReadingProgressTest {
         val chapters = ProgressChapterRepo(progress = null, chapterExists = false)
         val history = RecordingHistoryRepo()
         val updates = RecordingChapterUpdateRepo()
-        val update = UpdateReadingProgress.Default(chapters, history, updates)
+        val update = UpdateReadingProgress.Default(chapters, history, updates, inertDeleteReadChapterDownloads())
 
         update(CHAPTER_ID, lastPageRead = 4u, read = false)
 

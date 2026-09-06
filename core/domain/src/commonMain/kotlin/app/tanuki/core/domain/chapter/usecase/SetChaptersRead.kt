@@ -3,6 +3,7 @@ package app.tanuki.core.domain.chapter.usecase
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ReadingProgress
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
+import app.tanuki.core.domain.download.usecase.DeleteReadChapterDownloads
 import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -52,7 +53,8 @@ sealed interface SetChaptersRead {
     @ContributesBinding(AppScope::class)
     class Default(
         private val chapterRepository: ChapterRepository,
-        private val chapterUpdateRepository: ChapterUpdateRepository
+        private val chapterUpdateRepository: ChapterUpdateRepository,
+        private val deleteReadChapterDownloads: DeleteReadChapterDownloads
     ) : SetChaptersRead {
         override suspend fun invoke(
             mangaId: Uuid,
@@ -84,6 +86,10 @@ sealed interface SetChaptersRead {
                     mangaId = mangaId,
                     chapterIds = targets.map(Chapter::id)
                 )
+                // Applied to the whole series rather than to `targets`: "keep the last N read chapters"
+                // can only be answered by looking at all of them, and marking chapter 40 read is what
+                // makes chapter 35 the one to delete. No-ops unless the user turned the setting on.
+                deleteReadChapterDownloads(mangaId)
             }
         }
 
