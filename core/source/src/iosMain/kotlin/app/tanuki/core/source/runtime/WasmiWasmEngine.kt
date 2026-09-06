@@ -119,6 +119,12 @@ private class WasmiWasmModule(
  *
  * That bridge blocks the calling thread for a whole HTTP round-trip, which is why
  * [app.tanuki.core.source.WasmSourceLoader] runs the `fetch*` calls on `io` rather than `Default`.
+ *
+ * **Nothing may be thrown out of here.** This is a `staticCFunction` invoked by Rust, and a Kotlin
+ * exception crossing that frame doesn't unwind — Kotlin/Native terminates the process. So every failure
+ * (an unreachable host offline, a TLS error, a malformed request) is caught and reported as a non-zero
+ * return code, which the shim turns into a `0` packed pointer; the guest sees an empty reply and returns
+ * an ordinary ABI error, which reaches the caller of [WasmModule.call] as a normal exception.
  */
 internal fun wasmiHostCall(
     env: COpaquePointer?,
@@ -130,27 +136,35 @@ internal fun wasmiHostCall(
     outLen: CPointer<IntVar>?,
 ): Int {
     val host = env!!.asStableRef<SourceHost>().get()
-    return when (kind) {
-        1 -> { // log
-            val message = inPtr?.reinterpret<ByteVar>()?.readBytes(inLen)?.decodeToString() ?: ""
-            host.log(Wire.LogLevel.entries.getOrElse(arg) { Wire.LogLevel.INFO }, message)
-            0
-        }
-
-        0 -> { // http_request
-            val request = SourceCodec.decode<Wire.HttpRequestWire>(
-                inPtr!!.reinterpret<ByteVar>().readBytes(inLen),
-            )
-            val responseBytes = HttpFrame.encode(runBlocking { host.httpRequest(request) })
-            val buffer = malloc(responseBytes.size.convert())!!.reinterpret<UByteVar>()
-            responseBytes.usePinned { pinned ->
-                memcpy(buffer, pinned.addressOf(0), responseBytes.size.convert())
+    return try {
+        when (kind) {
+            1 -> { // log
+                val message = inPtr?.reinterpret<ByteVar>()?.readBytes(inLen)?.decodeToString() ?: ""
+                host.log(Wire.LogLevel.entries.getOrElse(arg) { Wire.LogLevel.INFO }, message)
+                0
             }
-            outPtr!!.pointed.value = buffer
-            outLen!!.pointed.value = responseBytes.size
-            0
-        }
 
-        else -> -1
+            0 -> { // http_request
+                val request = SourceCodec.decode<Wire.HttpRequestWire>(
+                    inPtr!!.reinterpret<ByteVar>().readBytes(inLen),
+                )
+                val responseBytes = HttpFrame.encode(runBlocking { host.httpRequest(request) })
+                val buffer = malloc(responseBytes.size.convert())!!.reinterpret<UByteVar>()
+                responseBytes.usePinned { pinned ->
+                    memcpy(buffer, pinned.addressOf(0), responseBytes.size.convert())
+                }
+                outPtr!!.pointed.value = buffer
+                outLen!!.pointed.value = responseBytes.size
+                0
+            }
+
+            else -> -1
+        }
+    } catch (failure: Throwable) {
+        // Reported through the host's own logger rather than swallowed: this return code reaches the
+        // guest as "empty reply", which loses the reason entirely, and an offline device is by far the
+        // likeliest way to get here.
+        runCatching { host.log(Wire.LogLevel.ERROR, "Host call $kind failed: ${failure.message}") }
+        -1
     }
 }
