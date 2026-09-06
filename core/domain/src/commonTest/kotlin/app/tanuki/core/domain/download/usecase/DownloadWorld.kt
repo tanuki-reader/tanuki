@@ -18,6 +18,7 @@ import app.tanuki.core.domain.download.model.DownloadedPage
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.download.service.ChapterDownloadPart
 import app.tanuki.core.domain.download.service.ChapterDownloadStore
+import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.service.FetchedPage
 import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.download.service.PageFetcher
@@ -40,6 +41,7 @@ import app.tanuki.core.domain.source.repository.SourceRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlin.time.Clock
@@ -47,8 +49,8 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
- * One series' worth of downloadable chapters, wired to in-memory doubles — the fixture the engine is
- * tested against.
+ * One series' worth of downloadable chapters, wired to in-memory doubles — the fixture both the engine
+ * and the use-case tests are written against.
  *
  * The page *resolution* path is the real [GetChapterPages] over a fake [SourceLoader] rather than a
  * double: a use case is a sealed interface and cannot be implemented from a test compilation, and
@@ -70,6 +72,7 @@ internal class DownloadWorld(
     val downloads = FakeDownloadRepository()
     val store = FakeChapterDownloadStore()
     val fetcher = FakePageFetcher()
+    val scheduler = FakeDownloadScheduler()
     val loader = FakeSourceLoader(pagesPerChapter)
     private val chapterRepository = FakeChapterRepository(chapters)
     private val mangaRepository = FakeMangaRepository(manga)
@@ -90,6 +93,20 @@ internal class DownloadWorld(
             logger = RecordingLogger(),
         )
 
+    val enqueue: EnqueueChapterDownloads =
+        EnqueueChapterDownloads.Default(downloads, chapterRepository, scheduler)
+
+    val enqueueNext: EnqueueNextChapters =
+        EnqueueNextChapters.Default(mangaRepository, chapterRepository, enqueue)
+
+    val cancel: CancelChapterDownloads = CancelChapterDownloads.Default(downloads, store, manager)
+
+    val deleteChapters: DeleteChapterDownloads = DeleteChapterDownloads.Default(downloads, store, manager)
+
+    val deleteManga: DeleteMangaDownloads = DeleteMangaDownloads.Default(downloads, store, manager)
+
+    val deleteAll: DeleteAllDownloads = DeleteAllDownloads.Default(downloads, store, manager)
+
     /** Puts [chapters] straight into the queue, bypassing the enqueue use case's own rules. */
     suspend fun queue(vararg chapters: Chapter) {
         chapters.forEachIndexed { position, chapter ->
@@ -105,6 +122,26 @@ internal class DownloadWorld(
                 ),
             )
         }
+    }
+
+    /** Marks [chapter] read, the way the reader would. */
+    fun markRead(chapter: Chapter) {
+        chapterRepository.replace(
+            chapter.copy(progress = ReadingProgress(hasBookmark = false, lastPageRead = 0u, alreadyRead = true)),
+        )
+    }
+
+    /** Hides [scanlator]'s chapters, the way the manga screen's filter would. */
+    fun hideScanlator(scanlator: String) {
+        mangaRepository.replace(manga.copy(filteredScanlators = setOf(scanlator)))
+    }
+
+    /** Credits [chapter] to [scanlator]. */
+    fun creditTo(
+        chapter: Chapter,
+        scanlator: String,
+    ) {
+        chapterRepository.replace(chapter.copy(scanlator = Text(scanlator)))
     }
 
     /** The record for a chapter, which every assertion about the queue goes through. */
@@ -440,6 +477,16 @@ internal class FakePageFetcher(
     }
 }
 
+/** Records that the queue was asked to run, without running it. */
+internal class FakeDownloadScheduler : DownloadScheduler {
+    var starts: Int = 0
+        private set
+
+    override fun ensureRunning() {
+        starts++
+    }
+}
+
 /** A [SourceLoader] serving [pagesPerChapter] pages per chapter, recording what it was asked for. */
 internal class FakeSourceLoader(
     private val pagesPerChapter: Int,
@@ -503,6 +550,10 @@ internal class FakeChapterRepository(
 ) : ChapterRepository {
     private val held = chapters.associateByTo(mutableMapOf(), Chapter::id)
 
+    fun replace(chapter: Chapter) {
+        held[chapter.id] = chapter
+    }
+
     override suspend fun getChapter(chapterId: Uuid): Chapter? = held[chapterId]
 
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> =
@@ -535,6 +586,10 @@ internal class FakeMangaRepository(
     manga: Manga,
 ) : MangaRepository {
     private val held = MutableStateFlow(manga)
+
+    fun replace(manga: Manga) {
+        held.value = manga
+    }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = held.map { manga -> manga.takeIf { it.id == mangaId } }
 
@@ -585,3 +640,6 @@ internal class FakeSourceRepository(
 
     override suspend fun deleteSource(source: Source) = error("unused")
 }
+
+/** The pending queue as it stands, for tests that assert on ordering. */
+internal suspend fun DownloadRepository.pending(): List<ChapterDownload> = observePending().first()
