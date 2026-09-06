@@ -595,6 +595,12 @@ fun CheckIcon(
  * `remove_done` — [CheckIcon] struck through, for the action that takes chapters back to unread. Drawn as
  * the tick plus a slash rather than a different glyph, so "mark unread" reads as the literal undoing of
  * "mark read" instead of a second thing to learn.
+ *
+ * The slash runs **down**-right, against the tick's long arm rather than along it. The other diagonal
+ * looks like the obvious choice and is the wrong one: the tick's long arm already travels up-right at
+ * very nearly the same angle, so a slash drawn that way lies along it and reads as one thickened stroke —
+ * a check that looks badly drawn rather than a check that has been cancelled. Crossing it near the middle
+ * is what makes the strike-through legible at 20dp.
  */
 @Composable
 fun CheckOffIcon(
@@ -605,7 +611,7 @@ fun CheckOffIcon(
     Canvas(modifier.size(size)) {
         iconSpace {
             drawCheck(tint)
-            drawLine(tint, Offset(5f, 19f), Offset(19f, 5f), ICON_STROKE, StrokeCap.Round)
+            drawLine(tint, Offset(5f, 5f), Offset(19f, 19f), ICON_STROKE, StrokeCap.Round)
         }
     }
 }
