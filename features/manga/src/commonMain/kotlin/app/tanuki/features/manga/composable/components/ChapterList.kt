@@ -35,6 +35,7 @@ import app.tanuki.assets.designSystem.component.FilterIcon
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ChapterNumber
+import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_chapter_date
 import app.tanuki.features.manga.resources.manga_chapter_meta
@@ -91,11 +92,16 @@ private val SelectedTickSize = 20.dp
  *   hidden otherwise, since a single-group series has nothing to choose between.
  * @param filterActive whether a group is currently hidden, marked with a dot on the filter action.
  * @param selectedIds the chapters currently picked for a bulk action; empty when none is running.
+ * @param downloads each chapter's download record, keyed by chapter id — a row reads its own with one
+ *   lookup, which is why this arrives as a map rather than as a field on [Chapter].
  * @param onToggleSort the sort toggle was tapped — flip ascending/descending.
  * @param onOpenFilter the filter action was tapped — open the scanlator filter sheet.
  * @param onChapterClick a chapter row was tapped — open it in the reader, or toggle it while selecting
  *   (the ViewModel decides, so the row can't disagree with the bar about which mode is running).
  * @param onChapterLongClick a chapter row was long-pressed — start (or extend) a selection.
+ * @param onChapterDownloadClick a row's download affordance was tapped — queue, cancel or retry, as its
+ *   state affords.
+ * @param onChapterDownloadDelete *Delete download* was chosen on a finished chapter.
  */
 internal fun LazyListScope.chapterList(
     chapters: List<Chapter>,
@@ -103,10 +109,13 @@ internal fun LazyListScope.chapterList(
     canFilter: Boolean,
     filterActive: Boolean,
     selectedIds: Set<Uuid>,
+    downloads: Map<Uuid, ChapterDownload>,
     onToggleSort: () -> Unit,
     onOpenFilter: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
-    onChapterLongClick: (Chapter) -> Unit
+    onChapterLongClick: (Chapter) -> Unit,
+    onChapterDownloadClick: (Chapter) -> Unit,
+    onChapterDownloadDelete: (Chapter) -> Unit
 ) {
     item(key = "chapters-header") {
         ChapterSectionHeader(
@@ -126,8 +135,11 @@ internal fun LazyListScope.chapterList(
                 modifier = Modifier.animateItem(),
                 chapter = chapter,
                 selected = chapter.id in selectedIds,
+                download = downloads[chapter.id],
                 onClick = { onChapterClick(chapter) },
-                onLongClick = { onChapterLongClick(chapter) }
+                onLongClick = { onChapterLongClick(chapter) },
+                onDownloadClick = { onChapterDownloadClick(chapter) },
+                onDownloadDelete = { onChapterDownloadDelete(chapter) }
             )
         }
     }
@@ -220,8 +232,11 @@ private fun ChapterRow(
     modifier: Modifier = Modifier,
     chapter: Chapter,
     selected: Boolean,
+    download: ChapterDownload?,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onDownloadClick: () -> Unit,
+    onDownloadDelete: () -> Unit
 ) {
     val spacing = TanukiTheme.spacing
     val progress = chapter.progress
@@ -253,7 +268,11 @@ private fun ChapterRow(
                 )
                 .semantics { this.selected = selected }
                 .background(if (selected) TanukiTheme.colors.accentTint else Color.Transparent)
-                .padding(horizontal = spacing.gutter, vertical = spacing.md)
+                // Asymmetric on purpose: the trailing slot is a 44dp tap target whose glyph is optically
+                // centred in it, so a full gutter on that side would inset the mark by nearly twice the
+                // leading one.
+                .padding(start = spacing.gutter, end = spacing.xs)
+                .padding(vertical = spacing.md)
                 // A selected row is never dimmed: it's what the user is acting on, read or not.
                 .alpha(if (read && !selected) 0.5f else 1f)
     ) {
@@ -294,13 +313,24 @@ private fun ChapterRow(
                 )
             }
         }
-        // The resume marker gives way to the selection tick: a selected row is being acted on, not resumed.
+        // The resume marker and the download control give way to the selection tick: a selected row is
+        // being acted on, not resumed — and the bar below is about to offer the same download verbs for
+        // every picked row, so a per-row one would be a second answer to the same question.
+        //
+        // Both branches occupy the same `tapMin` slot, so starting a selection swaps the trailing mark
+        // without re-flowing the row — the same reason the selection marks sit around this layout rather
+        // than inserting a leading checkbox column.
         if (selected) {
-            CheckIcon(
-                tint = TanukiTheme.colors.accent,
-                size = SelectedTickSize,
-                modifier = Modifier.semantics { contentDescription = selectedDescription }
-            )
+            Box(
+                modifier = Modifier.size(spacing.tapMin),
+                contentAlignment = Alignment.Center
+            ) {
+                CheckIcon(
+                    tint = TanukiTheme.colors.accent,
+                    size = SelectedTickSize,
+                    modifier = Modifier.semantics { contentDescription = selectedDescription }
+                )
+            }
         } else {
             resumePage?.let { page ->
                 Text(
@@ -310,6 +340,11 @@ private fun ChapterRow(
                     maxLines = 1
                 )
             }
+            ChapterDownloadButton(
+                download = download,
+                onClick = onDownloadClick,
+                onDelete = onDownloadDelete
+            )
         }
     }
 }

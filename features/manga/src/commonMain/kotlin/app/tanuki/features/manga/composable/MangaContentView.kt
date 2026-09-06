@@ -89,10 +89,14 @@ fun MangaContentView(
     onEditReadingMode: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
     onChapterLongClick: (Chapter) -> Unit,
+    onChapterDownloadClick: (Chapter) -> Unit,
+    onChapterDownloadDelete: (Chapter) -> Unit,
     onSelectAbove: () -> Unit,
     onSelectBelow: () -> Unit,
     onMarkSelectionRead: () -> Unit,
     onMarkSelectionUnread: () -> Unit,
+    onDownloadSelection: () -> Unit,
+    onDeleteSelectionDownloads: () -> Unit,
     onClearSelection: () -> Unit,
     onReadClick: () -> Unit,
     onAddToLibrary: () -> Unit,
@@ -227,10 +231,13 @@ fun MangaContentView(
                             canFilter = state.canFilterScanlators,
                             filterActive = state.isChapterFilterActive,
                             selectedIds = state.selection.ids,
+                            downloads = state.downloads,
                             onToggleSort = onToggleSort,
                             onOpenFilter = onOpenChapterFilter,
                             onChapterClick = onChapterClick,
-                            onChapterLongClick = onChapterLongClick
+                            onChapterLongClick = onChapterLongClick,
+                            onChapterDownloadClick = onChapterDownloadClick,
+                            onChapterDownloadDelete = onChapterDownloadDelete
                         )
                     }
                 }
@@ -264,7 +271,9 @@ fun MangaContentView(
                         onSelectAbove = onSelectAbove,
                         onSelectBelow = onSelectBelow,
                         onMarkRead = onMarkSelectionRead,
-                        onMarkUnread = onMarkSelectionUnread
+                        onMarkUnread = onMarkSelectionUnread,
+                        onDownload = onDownloadSelection,
+                        onDeleteDownload = onDeleteSelectionDownloads
                     )
                 } else {
                     MangaBottomBar(

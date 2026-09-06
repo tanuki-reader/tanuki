@@ -33,6 +33,7 @@ import app.tanuki.features.manga.composable.MangaContentView
 import app.tanuki.features.manga.composable.components.ChapterFilterSheet
 import app.tanuki.features.manga.composable.components.ChapterSelectionTopBar
 import app.tanuki.features.manga.composable.components.MangaCategoriesSheet
+import app.tanuki.features.manga.composable.components.MangaDownloadMenu
 import app.tanuki.features.manga.composable.components.ReadingModeSheet
 import app.tanuki.features.manga.composable.components.ReadingStatusSheet
 import app.tanuki.features.manga.resources.Res
@@ -127,10 +128,14 @@ private fun MangaScreen(
                         onEditReadingMode = { showReadingModeSheet = true },
                         onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
                         onChapterLongClick = { chapter -> viewModel.onChapterLongClick(chapter.id) },
+                        onChapterDownloadClick = { chapter -> viewModel.onChapterDownloadClick(chapter.id) },
+                        onChapterDownloadDelete = { chapter -> viewModel.onDeleteChapterDownload(chapter.id) },
                         onSelectAbove = viewModel::onSelectAbove,
                         onSelectBelow = viewModel::onSelectBelow,
                         onMarkSelectionRead = { viewModel.onMarkSelectionRead(read = true) },
                         onMarkSelectionUnread = { viewModel.onMarkSelectionRead(read = false) },
+                        onDownloadSelection = viewModel::onDownloadSelection,
+                        onDeleteSelectionDownloads = viewModel::onDeleteSelectionDownloads,
                         onClearSelection = viewModel::onClearSelection,
                         onReadClick = viewModel::onReadClick,
                         onAddToLibrary = viewModel::onAddToLibrary,
@@ -181,7 +186,19 @@ private fun MangaScreen(
                             ?.value
                             .orEmpty(),
                     onBack = viewModel::onBack,
-                    collapsed = state !is Content || heroCollapsed
+                    collapsed = state !is Content || heroCollapsed,
+                    actions = {
+                        // Only once there is a chapter list to act on — an empty or unresolved series has
+                        // nothing to queue, and an action that can only disappoint is worse than none.
+                        (state as? Content)?.takeIf { it.chapters.isNotEmpty() }?.let { content ->
+                            MangaDownloadMenu(
+                                hasDownloads = content.hasDownloads,
+                                onDownloadNext = viewModel::onDownloadNextChapters,
+                                onDownloadAll = viewModel::onDownloadAllChapters,
+                                onDeleteAll = viewModel::onDeleteAllDownloads
+                            )
+                        }
+                    }
                 )
             }
         }

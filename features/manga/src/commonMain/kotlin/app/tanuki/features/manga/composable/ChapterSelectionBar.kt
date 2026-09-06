@@ -25,7 +25,11 @@ import app.tanuki.assets.designSystem.component.CheckIcon
 import app.tanuki.assets.designSystem.component.CheckOffIcon
 import app.tanuki.assets.designSystem.component.DoubleArrowDownIcon
 import app.tanuki.assets.designSystem.component.DoubleArrowUpIcon
+import app.tanuki.assets.designSystem.component.DownloadIcon
+import app.tanuki.assets.designSystem.component.TrashIcon
 import app.tanuki.features.manga.resources.Res
+import app.tanuki.features.manga.resources.manga_selection_delete_download
+import app.tanuki.features.manga.resources.manga_selection_download
 import app.tanuki.features.manga.resources.manga_selection_mark_read
 import app.tanuki.features.manga.resources.manga_selection_mark_unread
 import app.tanuki.features.manga.resources.manga_selection_select_above
@@ -42,10 +46,14 @@ private const val DISABLED_ALPHA = 0.35f
 /**
  * The bulk-action bar the Chapters tab swaps in for its "Read" button while chapters are selected.
  *
- * It carries all four selection verbs in one thumb-reachable row, because they're used together: extend
- * the range up or down, then mark the result read or unread. Putting the range extenders *here* rather
- * than in the top bar keeps the whole flow at the bottom of a phone — the list is scrolled with the thumb,
- * and reaching up to the app bar between two extensions would break that.
+ * It carries every selection verb in one thumb-reachable row, because they're used together: extend the
+ * range up or down, then mark the result read, or keep it on the device. Putting the range extenders
+ * *here* rather than in the top bar keeps the whole flow at the bottom of a phone — the list is scrolled
+ * with the thumb, and reaching up to the app bar between two extensions would break that.
+ *
+ * Six cells is the ceiling this shape supports: at a 360dp width each is still ~58dp across and 56dp
+ * tall, comfortably past the 44dp tap-target floor, and the labels stay legible at two lines. A seventh
+ * verb would have to displace one of these into the top bar rather than squeeze in beside them.
  *
  * Actions that would do nothing are shown disabled rather than hidden (nothing above the top row to
  * select; everything already read), so the bar keeps a stable shape and the user learns what the actions
@@ -56,6 +64,8 @@ private const val DISABLED_ALPHA = 0.35f
  * @param onSelectBelow extend the selection to everything below it.
  * @param onMarkRead mark every picked chapter read.
  * @param onMarkUnread mark every picked chapter unread.
+ * @param onDownload queue every picked chapter for download.
+ * @param onDeleteDownload remove every picked chapter from the device — files and queue entries alike.
  */
 @Composable
 internal fun ChapterSelectionBar(
@@ -64,6 +74,8 @@ internal fun ChapterSelectionBar(
     onSelectBelow: () -> Unit,
     onMarkRead: () -> Unit,
     onMarkUnread: () -> Unit,
+    onDownload: () -> Unit,
+    onDeleteDownload: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -99,13 +111,25 @@ internal fun ChapterSelectionBar(
                 onClick = onMarkUnread,
                 modifier = Modifier.weight(1f)
             ) { tint -> CheckOffIcon(tint = tint, size = 22.dp) }
+            SelectionAction(
+                label = stringResource(Res.string.manga_selection_download),
+                enabled = selection.canDownload,
+                onClick = onDownload,
+                modifier = Modifier.weight(1f)
+            ) { tint -> DownloadIcon(tint = tint, size = 22.dp) }
+            SelectionAction(
+                label = stringResource(Res.string.manga_selection_delete_download),
+                enabled = selection.canDeleteDownload,
+                onClick = onDeleteDownload,
+                modifier = Modifier.weight(1f)
+            ) { tint -> TrashIcon(tint = tint, size = 22.dp) }
         }
     }
 }
 
 /**
  * One glyph-over-label action cell. The label is always rendered — an icon-only bar would leave "which
- * double arrow was which" to guesswork, and these four verbs are not ones the user meets often enough to
+ * double arrow was which" to guesswork, and these verbs are not ones the user meets often enough to
  * memorize. It doubles as the accessibility name, so no separate description is needed.
  */
 @Composable

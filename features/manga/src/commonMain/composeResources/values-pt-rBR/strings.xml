@@ -58,6 +58,26 @@
     <string name="manga_selection_select_below">Selecionar abaixo</string>
     <string name="manga_selection_mark_read">Marcar lido</string>
     <string name="manga_selection_mark_unread">Marcar não lido</string>
+    <string name="manga_selection_download">Baixar</string>
+    <string name="manga_selection_delete_download">Excluir</string>
+
+    <!-- Downloads de capítulos. O controle da linha nomeia a *ação*, não o estado — é um botão. -->
+    <string name="manga_download_chapter">Baixar capítulo</string>
+    <string name="manga_download_queued">Na fila de download. Toque para cancelar</string>
+    <string name="manga_download_cancel">Baixando. Toque para cancelar</string>
+    <string name="manga_download_downloaded">Baixado. Toque para ver opções</string>
+    <string name="manga_download_failed">Falha no download. Toque para tentar de novo</string>
+    <string name="manga_download_delete">Excluir download</string>
+
+    <!-- Menu de downloads da obra, na barra superior. -->
+    <string name="manga_download_menu">Baixar capítulos</string>
+    <string name="manga_download_all_unread">Baixar todos os não lidos</string>
+    <string name="manga_download_all">Baixar todos</string>
+    <string name="manga_download_delete_all">Excluir todos os downloads</string>
+    <string name="manga_download_delete_all_title">Excluir todos os downloads?</string>
+    <string name="manga_download_delete_all_message">Todos os capítulos baixados desta obra serão removidos deste dispositivo. Você pode baixá-los de novo depois.</string>
+    <string name="manga_download_delete_all_confirm">Excluir</string>
+    <string name="manga_download_delete_all_cancel">Cancelar</string>
 
     <!-- Folha de filtro de capítulos (quais grupos de tradução a lista mostra). -->
     <string name="manga_chapters_filter">Filtrar capítulos por grupo de tradução</string>
@@ -110,6 +130,11 @@
     <plurals name="manga_selection_count">
         <item quantity="one">%1$d selecionado</item>
         <item quantity="other">%1$d selecionados</item>
+    </plurals>
+    <!-- Menu de downloads: %1$d é quantos dos próximos capítulos não lidos entram na fila. -->
+    <plurals name="manga_download_next">
+        <item quantity="one">Baixar o próximo capítulo</item>
+        <item quantity="other">Baixar os próximos %1$d capítulos</item>
     </plurals>
     <plurals name="manga_chapters_total">
         <item quantity="one">%1$d no total</item>

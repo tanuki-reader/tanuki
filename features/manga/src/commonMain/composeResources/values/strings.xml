@@ -50,7 +50,7 @@
     <string name="manga_month_dec">Dec</string>
 
     <!-- Chapter multi-select: the contextual app bar and the bulk-action bar under the chapter list.
-         The four action labels sit under their glyphs in a four-up bar, so keep them short. -->
+         The action labels sit under their glyphs in a six-up bar, so keep them short. -->
     <string name="manga_chapter_selected">Selected</string>
     <string name="manga_selection_exit">Exit selection</string>
     <string name="manga_selection_select_all">Select all chapters</string>
@@ -59,6 +59,27 @@
     <string name="manga_selection_select_below">Select below</string>
     <string name="manga_selection_mark_read">Mark read</string>
     <string name="manga_selection_mark_unread">Mark unread</string>
+    <string name="manga_selection_download">Download</string>
+    <string name="manga_selection_delete_download">Delete</string>
+
+    <!-- Chapter downloads. The row affordance names its *action*, not its state, since it is a button:
+         a screen reader announcing five identical "download" buttons is the failure to avoid. -->
+    <string name="manga_download_chapter">Download chapter</string>
+    <string name="manga_download_queued">Queued for download. Tap to cancel</string>
+    <string name="manga_download_cancel">Downloading. Tap to cancel</string>
+    <string name="manga_download_downloaded">Downloaded. Tap for options</string>
+    <string name="manga_download_failed">Download failed. Tap to retry</string>
+    <string name="manga_download_delete">Delete download</string>
+
+    <!-- The series-wide download menu in the detail app bar. -->
+    <string name="manga_download_menu">Download chapters</string>
+    <string name="manga_download_all_unread">Download all unread</string>
+    <string name="manga_download_all">Download all</string>
+    <string name="manga_download_delete_all">Delete all downloads</string>
+    <string name="manga_download_delete_all_title">Delete all downloads?</string>
+    <string name="manga_download_delete_all_message">Every downloaded chapter of this series will be removed from this device. You can download them again later.</string>
+    <string name="manga_download_delete_all_confirm">Delete</string>
+    <string name="manga_download_delete_all_cancel">Cancel</string>
 
     <!-- Chapter filter sheet (which scanlation groups the chapter list shows). -->
     <string name="manga_chapters_filter">Filter chapters by scanlation group</string>
@@ -111,6 +132,11 @@
     <plurals name="manga_selection_count">
         <item quantity="one">%1$d selected</item>
         <item quantity="other">%1$d selected</item>
+    </plurals>
+    <!-- Download menu: %1$d is how many of the next unread chapters would be queued. -->
+    <plurals name="manga_download_next">
+        <item quantity="one">Download next chapter</item>
+        <item quantity="other">Download next %1$d chapters</item>
     </plurals>
     <plurals name="manga_chapters_total">
         <item quantity="one">%1$d total</item>
