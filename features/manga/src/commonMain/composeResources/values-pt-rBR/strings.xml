@@ -73,6 +73,7 @@
     <string name="manga_download_menu">Baixar capítulos</string>
     <string name="manga_download_all_unread">Baixar todos os não lidos</string>
     <string name="manga_download_all">Baixar todos</string>
+    <string name="manga_download_queue">Fila de downloads</string>
     <string name="manga_download_delete_all">Excluir todos os downloads</string>
     <string name="manga_download_delete_all_title">Excluir todos os downloads?</string>
     <string name="manga_download_delete_all_message">Todos os capítulos baixados desta obra serão removidos deste dispositivo. Você pode baixá-los de novo depois.</string>

@@ -27,6 +27,7 @@ import app.tanuki.core.domain.manga.usecase.SetReadingMode
 import app.tanuki.core.domain.manga.usecase.SetReadingStatus
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
+import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.manga.viewmodel.MangaState.Content
@@ -495,6 +496,15 @@ class MangaViewModel(
             io { deleteMangaDownloads(mangaId) }
         }
     }
+
+    /**
+     * The overflow's link to the download queue.
+     *
+     * A screen-scoped push, so the queue lands on whichever tab the user reached this series from and
+     * back returns them to it — rather than an [app.tanuki.core.navigation.AppNavigator] jump, which
+     * would send them to a tab they weren't in and lose the series behind them.
+     */
+    fun onOpenDownloadQueue() = navigateTo(Downloads)
 
     /** Adds or removes one chapter, working from the pruned selection the state exposes. */
     private fun toggleSelection(chapterId: Uuid) {

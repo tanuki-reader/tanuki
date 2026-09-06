@@ -193,9 +193,11 @@ private fun MangaScreen(
                         (state as? Content)?.takeIf { it.chapters.isNotEmpty() }?.let { content ->
                             MangaDownloadMenu(
                                 hasDownloads = content.hasDownloads,
+                                hasPendingDownloads = content.hasPendingDownloads,
                                 onDownloadNext = viewModel::onDownloadNextChapters,
                                 onDownloadAll = viewModel::onDownloadAllChapters,
-                                onDeleteAll = viewModel::onDeleteAllDownloads
+                                onDeleteAll = viewModel::onDeleteAllDownloads,
+                                onOpenQueue = viewModel::onOpenDownloadQueue
                             )
                         }
                     }

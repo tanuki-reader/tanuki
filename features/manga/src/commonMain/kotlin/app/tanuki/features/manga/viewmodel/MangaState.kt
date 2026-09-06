@@ -3,6 +3,7 @@ package app.tanuki.features.manga.viewmodel
 import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.download.model.ChapterDownload
+import app.tanuki.core.domain.download.model.DownloadState
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.source.model.Source
 import kotlin.uuid.Uuid
@@ -61,6 +62,17 @@ sealed interface MangaState {
          * downloads", so a destructive action is never offered when there is nothing to destroy.
          */
         val hasDownloads: Boolean get() = downloads.isNotEmpty()
+
+        /**
+         * Whether the queue still has something to say about this series — a chapter waiting, one being
+         * fetched, or one that stopped with an error. Gates the overflow's link to the queue screen, so
+         * the link is offered exactly when there is a queue worth opening.
+         */
+        val hasPendingDownloads: Boolean
+            get() =
+                downloads.values.any {
+                    it.isPending || it.state == DownloadState.Failed
+                }
 
         /** Whether the chapter list is worth offering a group filter for — i.e. more than one group. */
         val canFilterScanlators: Boolean get() = scanlators.size > 1

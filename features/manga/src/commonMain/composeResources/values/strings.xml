@@ -75,6 +75,7 @@
     <string name="manga_download_menu">Download chapters</string>
     <string name="manga_download_all_unread">Download all unread</string>
     <string name="manga_download_all">Download all</string>
+    <string name="manga_download_queue">Downloads queue</string>
     <string name="manga_download_delete_all">Delete all downloads</string>
     <string name="manga_download_delete_all_title">Delete all downloads?</string>
     <string name="manga_download_delete_all_message">Every downloaded chapter of this series will be removed from this device. You can download them again later.</string>

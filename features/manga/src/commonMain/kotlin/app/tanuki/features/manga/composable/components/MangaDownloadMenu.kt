@@ -28,6 +28,7 @@ import app.tanuki.features.manga.resources.manga_download_delete_all_message
 import app.tanuki.features.manga.resources.manga_download_delete_all_title
 import app.tanuki.features.manga.resources.manga_download_menu
 import app.tanuki.features.manga.resources.manga_download_next
+import app.tanuki.features.manga.resources.manga_download_queue
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -52,16 +53,22 @@ private val NextCounts = listOf(1, 5, 10)
  * destructive item never appears for a series it could not affect.
  *
  * @param hasDownloads whether this series has anything downloaded or queued — gates the delete item.
+ * @param hasPendingDownloads whether this series has anything still waiting, downloading, or failed —
+ *   gates the queue item. Offered here because this is where the user *starts* a batch, so it is where
+ *   they look for it afterwards; the Settings index carries the same entry for everyone else.
  * @param onDownloadNext queue the next [Int] unread chapters, or every unread one when `null`.
  * @param onDownloadAll queue every chapter the list is showing.
  * @param onDeleteAll remove this series' downloads from the device; called only after confirmation.
+ * @param onOpenQueue open the download queue screen.
  */
 @Composable
 internal fun MangaDownloadMenu(
     hasDownloads: Boolean,
+    hasPendingDownloads: Boolean,
     onDownloadNext: (Int?) -> Unit,
     onDownloadAll: () -> Unit,
     onDeleteAll: () -> Unit,
+    onOpenQueue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var menuOpen by remember { mutableStateOf(false) }
@@ -99,6 +106,16 @@ internal fun MangaDownloadMenu(
                     onDownloadAll()
                 }
             )
+            if (hasPendingDownloads) {
+                TanukiMenuDivider()
+                TanukiMenuItem(
+                    text = stringResource(Res.string.manga_download_queue),
+                    onClick = {
+                        menuOpen = false
+                        onOpenQueue()
+                    }
+                )
+            }
             if (hasDownloads) {
                 TanukiMenuDivider()
                 TanukiMenuItem(
