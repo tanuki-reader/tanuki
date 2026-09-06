@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -51,6 +52,10 @@ object TanukiListRowDefaults {
  * @param leading a leading icon/thumbnail slot.
  * @param trailing a trailing control slot, placed before the chevron.
  * @param showChevron whether to show the drill-down chevron; defaults to `true` when [onClick] is set.
+ * @param subtitleColor overrides the subtitle's colour. For a row whose second line reports a *state*
+ *   rather than a value — a download that failed, a source that couldn't install — where the muted
+ *   default reads as "here is a detail" when it needs to read as "here is a problem". Colour is never the
+ *   whole signal: such a row is expected to carry the same meaning in its [leading] glyph and its words.
  */
 @Composable
 fun TanukiListRow(
@@ -60,7 +65,8 @@ fun TanukiListRow(
     subtitle: String? = null,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
-    showChevron: Boolean = onClick != null
+    showChevron: Boolean = onClick != null,
+    subtitleColor: Color? = null
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -96,7 +102,7 @@ fun TanukiListRow(
                 Text(
                     text = subtitle,
                     style = TanukiTheme.typography.caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = subtitleColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
