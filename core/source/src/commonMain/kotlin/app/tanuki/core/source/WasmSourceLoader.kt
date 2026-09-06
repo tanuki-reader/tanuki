@@ -3,7 +3,9 @@ package app.tanuki.core.source
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.model.toUrlOrNull
+import app.tanuki.core.domain.common.service.ConnectionObserver
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.OfflineException
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.SourceLoader
@@ -51,6 +53,13 @@ import kotlinx.coroutines.withContext
  *    on demand; blocking [DispatcherProvider.default] would contend with every `flowOn(default)` UI
  *    state pipeline in the app for a pool only as wide as the CPU count.
  *
+ * Every `fetch*` call is gated on [ConnectionObserver] first (see [requireConnection]). That guard lives
+ * here rather than in [SourceHost] — the seam the guest's HTTP actually crosses — because the host call
+ * runs *inside* the engine, on the far side of a synchronous WASM import: on iOS that is a C callback
+ * invoked from Rust, and a Kotlin exception thrown across it terminates the process instead of
+ * unwinding. Refusing before entering the engine keeps an offline failure an ordinary Kotlin exception
+ * on both platforms.
+ *
  * Modules are cached per source id behind a [Mutex] so a source is instantiated once (and its ABI
  * version checked once) and concurrent calls don't double-instantiate. The shared [host] is bound to
  * every module's imports, so all source HTTP flows through one Ktor client.
@@ -71,6 +80,7 @@ class WasmSourceLoader(
     private val bundleStore: SourceBundleStore,
     private val sourceRepository: SourceRepository,
     private val dispatchers: DispatcherProvider,
+    private val connectionObserver: ConnectionObserver,
 ) : SourceLoader {
 
     private val modulesLock = Mutex()
@@ -132,6 +142,7 @@ class WasmSourceLoader(
         // blocks its thread for the whole round-trip (see the dispatcher note on the class).
     ): MangaPage = withContext(dispatchers.io) {
         require(page >= 1) { "Page index is 1-based, but was $page." }
+        requireConnection(sourceId, SourceAbi.Exports.MANGA_LIST)
         val request = SourceCodec.encode(
             // A blank query is normalised to null so a cleared search box browses rather than
             // searching for "" — guests only have to handle the null case.
@@ -148,6 +159,7 @@ class WasmSourceLoader(
 
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing =
         withContext(dispatchers.io) {
+            requireConnection(sourceId, SourceAbi.Exports.MANGA_DETAILS)
             val request = SourceCodec.encode(Wire.MangaDetailsRequest(mangaKey = mangaKey))
             SourceCodec.decodeEnvelope<Wire.MangaWire>(
                 callModule(sourceId, SourceAbi.Exports.MANGA_DETAILS, request),
@@ -156,6 +168,7 @@ class WasmSourceLoader(
 
     override suspend fun fetchChapterList(sourceId: String, mangaKey: String): List<ChapterListing> =
         withContext(dispatchers.io) {
+            requireConnection(sourceId, SourceAbi.Exports.CHAPTER_LIST)
             val request = SourceCodec.encode(Wire.ChapterListRequest(mangaKey = mangaKey))
             SourceCodec.decodeEnvelope<List<Wire.ChapterWire>>(
                 callModule(sourceId, SourceAbi.Exports.CHAPTER_LIST, request),
@@ -164,11 +177,31 @@ class WasmSourceLoader(
 
     override suspend fun fetchChapterPages(sourceId: String, chapterId: String): List<Page> =
         withContext(dispatchers.io) {
+            requireConnection(sourceId, SourceAbi.Exports.CHAPTER_PAGES)
             val request = SourceCodec.encode(Wire.ChapterPagesRequest(chapterKey = chapterId))
             SourceCodec.decodeEnvelope<List<Wire.PageWire>>(
                 callModule(sourceId, SourceAbi.Exports.CHAPTER_PAGES, request),
             ).map(Wire.PageWire::toDomain)
         }
+
+    /**
+     * Refuses a source call the device has no network to make, before any of it happens.
+     *
+     * Every `fetch*` export exists to reach the source's server, so offline there is no partial answer
+     * to give — the guest would issue its request, the host would fail it, and the guest would surface an
+     * ABI error that says nothing about *why*. Failing here instead is both faster and legible: callers
+     * get an [OfflineException] they can tell apart from a broken source, and no engine instance is
+     * entered (which on iOS is what keeps the failure a Kotlin exception rather than a process abort).
+     *
+     * Only [ConnectionObserver.ConnectionStatus.OFFLINE] is refused. A slow or metered link is still a
+     * link, and it is not this layer's place to decide that a screen the user is looking at isn't worth
+     * the bytes.
+     */
+    private fun requireConnection(sourceId: String, export: String) {
+        if (!connectionObserver.isOnline) {
+            throw OfflineException("Cannot run \"$export\" for source \"$sourceId\" while offline")
+        }
+    }
 
     /**
      * Calls [export] on [sourceId]'s module, **one call at a time per source**.

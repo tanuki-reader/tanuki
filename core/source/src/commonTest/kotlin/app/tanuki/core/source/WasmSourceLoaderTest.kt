@@ -1,6 +1,9 @@
 package app.tanuki.core.source
 
+import app.tanuki.core.domain.common.service.ConnectionObserver
+import app.tanuki.core.domain.common.service.ConnectionObserver.ConnectionStatus
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.OfflineException
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.model.Source
@@ -244,6 +247,45 @@ class WasmSourceLoaderTest {
         }
 
     @Test
+    fun `every source fetch is refused offline without entering the engine`() =
+        runTest {
+            // Refused *before* the module runs: on iOS the guest's HTTP import is a C callback, and an
+            // exception thrown inside it aborts the process instead of unwinding — so an offline fetch
+            // must never get as far as the engine.
+            val engine = FakeWasmEngine(catalog = mapOf("mangadex" to emptyList()))
+            val loader =
+                loader(
+                    engine,
+                    FakeBundleStore("mangadex"),
+                    connection = FakeConnectionObserver(ConnectionStatus.OFFLINE)
+                )
+
+            assertFailsWith<OfflineException> { loader.fetchMangaList("mangadex") }
+            assertFailsWith<OfflineException> { loader.fetchMangaDetails("mangadex", "one-piece") }
+            assertFailsWith<OfflineException> { loader.fetchChapterList("mangadex", "one-piece") }
+            assertFailsWith<OfflineException> { loader.fetchChapterPages("mangadex", "c1") }
+            assertEquals(emptyList(), engine.requests)
+        }
+
+    @Test
+    fun `a low-speed connection still fetches`() =
+        runTest {
+            // Being frugal on a constrained link is a policy the caller may adopt; the loader refusing
+            // outright is not the same thing, and would strand a user on hotel Wi-Fi.
+            val engine = FakeWasmEngine(catalog = mapOf("mangadex" to emptyList()))
+            val loader =
+                loader(
+                    engine,
+                    FakeBundleStore("mangadex"),
+                    connection = FakeConnectionObserver(ConnectionStatus.LOW_SPEED)
+                )
+
+            loader.fetchMangaList("mangadex")
+
+            assertEquals(1, engine.requests.size)
+        }
+
+    @Test
     fun `fetchMangaDetails fills in the full record`() =
         runTest {
             val engine =
@@ -433,8 +475,9 @@ class WasmSourceLoaderTest {
     private fun loader(
         engine: WasmEngine,
         store: SourceBundleStore,
-        repository: SourceRepository = FakeSourceRepository()
-    ) = WasmSourceLoader(engine, NoOpSourceHost, store, repository, testDispatchers())
+        repository: SourceRepository = FakeSourceRepository(),
+        connection: ConnectionObserver = FakeConnectionObserver()
+    ) = WasmSourceLoader(engine, NoOpSourceHost, store, repository, testDispatchers(), connection)
 
     private fun metaWire(
         id: String,

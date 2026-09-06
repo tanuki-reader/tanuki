@@ -6,6 +6,10 @@
          network capability of their own, so all traffic goes through the app's one client. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Read by AndroidConnectionObserver, which watches the default network so the app can refuse a
+         source request it has no connection to make instead of discovering it a timeout later. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Announcing new chapters found by the background library update. Requested at runtime by
          MainActivity: this has been a runtime permission since API 33 and minSdk is past that, so it
          is never granted at install time. The notifier no-ops without it. -->

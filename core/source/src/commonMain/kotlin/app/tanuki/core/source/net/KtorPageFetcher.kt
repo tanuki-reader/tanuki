@@ -1,5 +1,6 @@
 package app.tanuki.core.source.net
 
+import app.tanuki.core.domain.common.service.ConnectionObserver
 import app.tanuki.core.domain.download.model.DownloadError
 import app.tanuki.core.domain.download.service.FetchedPage
 import app.tanuki.core.domain.download.service.PageFetchException
@@ -35,8 +36,17 @@ import kotlinx.coroutines.CancellationException
 @ContributesBinding(AppScope::class)
 class KtorPageFetcher(
     private val client: HttpClient,
+    private val connectionObserver: ConnectionObserver,
 ) : PageFetcher {
     override suspend fun fetch(page: Page): FetchedPage {
+        // Checked before the URL is even resolved. A download queue offline would otherwise spend a
+        // transport timeout per page working out what the device already knows, and
+        // DownloadError.Network is exactly the classification that failure deserves — it is the
+        // retryable "try again, maybe on another network" case, which is precisely what this is.
+        if (!connectionObserver.isOnline) {
+            throw PageFetchException(DownloadError.Network, "Cannot fetch page ${page.index} while offline")
+        }
+
         // Sources publish either a direct image URL or a page URL to resolve; the reader picks the same
         // way (`ToImageRequest`), so a download fetches exactly the bytes the reader would have shown.
         val url =

@@ -1,9 +1,12 @@
 package app.tanuki.core.source.net
 
 import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.common.service.ConnectionObserver
+import app.tanuki.core.domain.common.service.ConnectionObserver.ConnectionStatus
 import app.tanuki.core.domain.download.model.DownloadError
 import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.source.model.Page
+import app.tanuki.core.source.FakeConnectionObserver
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -161,10 +164,41 @@ class KtorPageFetcherTest {
             assertEquals(0, requests)
         }
 
+    @Test
+    fun `an offline device fails the page as a network error without a request`() =
+        runTest {
+            var requests = 0
+            val fetcher =
+                fetcherReturning(FakeConnectionObserver(ConnectionStatus.OFFLINE)) {
+                    requests++
+                    respondImage("image/jpeg", byteArrayOf(1))
+                }
+
+            val error = assertFailsWith<PageFetchException> { fetcher.fetch(page()) }
+
+            // Network, not Unknown: the queue may retry this one — the user plausibly reconnects.
+            assertEquals(DownloadError.Network, error.error)
+            assertEquals(0, requests)
+        }
+
+    @Test
+    fun `a constrained connection is still a connection`() =
+        runTest {
+            // LOW_SPEED must not read as offline anywhere: refusing to download on a slow link is a
+            // policy decision, and it isn't the fetcher's to make.
+            val fetcher =
+                fetcherReturning(FakeConnectionObserver(ConnectionStatus.LOW_SPEED)) {
+                    respondImage("image/jpeg", byteArrayOf(1, 2))
+                }
+
+            assertContentEquals(byteArrayOf(1, 2), fetcher.fetch(page()).bytes)
+        }
+
     private fun page(url: String = "https://cdn.example/chapter/0.jpg") =
         Page(index = 0u, imageUrl = Url(url), url = null)
 
     private fun fetcherReturning(
+        connection: ConnectionObserver = FakeConnectionObserver(),
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): KtorPageFetcher =
         KtorPageFetcher(
@@ -172,6 +206,7 @@ class KtorPageFetcherTest {
                 expectSuccess = false
                 engine { addHandler(handler) }
             },
+            connection,
         )
 
     private fun MockRequestHandleScope.respondImage(
