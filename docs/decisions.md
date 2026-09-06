@@ -6,6 +6,40 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-06 — Downloads run in a foreground service on Android and only in the foreground on iOS
+
+**Decision:** the Android queue is a WorkManager job that promotes itself to a `dataSync` foreground
+service, and it is the *only* runner — there is no separate in-app path. The iOS queue runs on the
+application scope with a `beginBackgroundTask` grace period and a `BGProcessingTask` continuation, and
+`DownloadScheduler.runsInBackground` is `false` so the queue screen tells the user to keep the app open.
+
+**Why iOS does not download in the background properly:** it would need `URLSession(background:)`, which
+is per-request and lives outside the app, so it cannot use the Ktor client — and therefore cannot use the
+Cloudflare interceptor, the shared cookie jar, or the host-owned `User-Agent` (see the
+`source-user-agent-is-host-owned` note). A downloader missing all three gets challenged on its own
+account and stops working on exactly the sources this app exists to support. Revisit if users report
+stalled queues; the fix would be a second transport with its own session story, not a flag.
+
+**One runner per platform, not one per situation.** Android could have kept the app-scope coroutine for
+the in-app case and used the worker only when backgrounded. Two runners are two ways for the same rows to
+be picked up, and the guarantee this subsystem rests on is that exactly one thing works the queue at a
+time. The engine's mutex would catch a collision; a design that cannot collide is better than one that
+detects it.
+
+**The notification observes the queue rather than being told about it.** `DownloadManager` is not given a
+notifier. A new `RunDownloadQueue` composes the engine with `ObserveDownloadQueue` — the same flow the
+queue screen renders — so the engine keeps its three ports, the notification cannot disagree with the
+screen, and progress survives a process death because it was never in memory to begin with. The collector
+race that made this shape wrong for the pause flag is harmless here: it costs a stale notification frame,
+not a queue that keeps downloading after being told to stop.
+
+**A run that did nothing says nothing, and a skipped run says nothing at all.** Every launch asks the
+queue to run; notifying each time would train the user to dismiss the notifications that matter. And the
+run that *owns* the queue owns what is displayed about it — clearing from a skipped run would take down a
+live progress notification for work still in flight.
+
+---
+
 ## 2026-09-06 — Pausing the queue is a re-read preference, and "verify" is just retry
 
 **Decision:** `DownloadManager` re-reads `SettingsRepository.observeDownloadsPaused()` before every

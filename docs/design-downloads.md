@@ -1,8 +1,9 @@
 # Design — Chapter downloads (offline reading)
 
-Status: **phases 0–5 built** (the storage spine, the engine, the offline read path, the manga screen
-that drives them, and the queue screen that controls them — see §12–§17). The feature is usable end to
-end from a series page, and the queue is visible, pausable and clearable from Settings.
+Status: **phases 0–6 built** (the storage spine, the engine, the offline read path, the manga screen
+that drives them, the queue screen that controls them, and the platform runners that keep them going —
+see §12–§18). The feature is usable end to end from a series page; the queue is visible, pausable and
+clearable from Settings, and on Android it survives leaving the app.
 Read alongside `decisions.md`, `design-page-image-abi.md` and `session-source-and-browse.md`.
 
 Goal: the user can keep chapters on the device and read them with no network, with a queue they can
@@ -416,7 +417,7 @@ Each phase is independently mergeable and leaves both platforms green.
 | **3** ✅ | `PageImage` + `GetReaderPages` + `ToImageRequest`/`ReaderState` ripple | **A downloaded chapter reads in airplane mode** (once something downloads one) |
 | **4** ✅ | Manga screen: row states, bulk actions, "download next N" | **The feature becomes usable** |
 | **5** ✅ | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry, pause | The queue is visible and controllable |
-| **6** | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
+| **6** ✅ | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
 | **7** | Settings → Downloads (auto-download, Wi‑Fi only, delete-after-read, storage usage); library badge + `downloaded` filter | Automation + housekeeping |
 | **8** | `VerifyDownloads`, cascade hooks, source-uninstall prompt | No orphaned bytes |
 
@@ -793,3 +794,91 @@ What landed:
   unstable and every visible row recomposes on each per-page progress emission. Lazy-list keys keep this
   cheap enough today; a `stabilityConfigurationFile` listing `app.tanuki.core.domain.*` would fix it for
   this screen, the library grid and the chapter list at once.
+
+
+---
+
+## 18. As built — phase 6 (2026-09-06)
+
+The queue stopped being tied to the screen. On Android it is a `dataSync` foreground-service job that
+keeps fetching with the app closed; on iOS it is a foreground run with a grace period and a
+`BGProcessingTask` continuation, and the screen now says so. What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `download/model/` | `DownloadProgress` |
+| `:core:domain` `download/service/` | `DownloadNotifier`; `DownloadScheduler.runsInBackground` |
+| `:core:domain` `download/usecase/` | `RunDownloadQueue` |
+| `:shared` `androidMain/download/` | `DownloadWorker`, `WorkManagerDownloadScheduler`, `AndroidDownloadNotifier`; `ic_stat_download` |
+| `:shared` `androidMain/di/` | `TanukiWorkerFactory` moved here, now building two workers |
+| `:shared` `iosMain/download/` | `IosDownloadScheduler`, `IosDownloadTasks`, `IosDownloadNotifier` |
+| `:shared` commonMain | `ForegroundDownloadScheduler` **deleted**; 12 notification strings × 2 languages |
+| `androidApp` | `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_DATA_SYNC`; `foregroundServiceType="dataSync"` merged onto WorkManager's service |
+| `iosApp` | `processing` background mode, the `app.tanuki.downloads` task identifier, `registerDownloadTask()` |
+| `:features:downloads` | `runsInBackground` in state; the iOS-only "keep Tanuki open" footnote |
+
+6 new tests (`RunDownloadQueueTest`).
+
+### Where the code differs from §7, and why
+
+- **The notification is *observed*, not reported.** §4 sketched a `DownloadNotifier` the engine calls.
+  It is driven from `ObserveDownloadQueue` instead — the same flow the queue screen renders — inside a
+  new `RunDownloadQueue` that composes the engine with the notifier. Three things come out of that:
+  `DownloadManager` keeps its three ports and never has to resolve a series title mid-download; the
+  notification and the queue screen cannot disagree, because there is one source and it is the database;
+  and a lagging collector costs a stale notification frame rather than correctness — unlike the pause
+  flag, where the same shape *was* a correctness problem and was removed for it (§17).
+- **`DownloadNotifier.onProgress` is a legitimate no-op on iOS.** Android needs it — the queue runs in a
+  foreground service and the notification is what makes that legal. iOS has no stretch of time where a
+  progress notification would be seen instead of the queue screen itself, so posting one would mean a
+  notification appearing and vanishing while the app is open in front of the user. The interface is
+  shaped so that asymmetry is stated rather than faked.
+- **There is no separate in-app runner on Android.** `ensureRunning()` enqueues the worker whether or not
+  the app is open. Two runners would be two ways for the same rows to be picked up, and the guarantee the
+  subsystem rests on is that exactly one thing works the queue — a design that cannot collide beats one
+  that detects collisions.
+- **`ExistingWorkPolicy.KEEP`, one-time work.** A queue is not a schedule: it exists because the user
+  asked for chapters and it is done when they are on the device. `KEEP` is what lets every enqueue, the
+  launch resume and the un-pause all call `ensureRunning()` without knowing about each other — a request
+  arriving mid-run is dropped, because the run in flight re-reads the queue after every chapter.
+- **`setForeground` is allowed to fail.** It throws when Android will not permit a foreground-service
+  start (background-start restrictions, notifications revoked). The response is to download anyway under
+  the ordinary background limits rather than abandon a queue the user asked for.
+- **Two Android channels, not one.** Progress is `IMPORTANCE_LOW` (a status line; fifty chapters must not
+  buzz fifty times) and the summary is `IMPORTANCE_DEFAULT`. A user who wants one and not the other can
+  turn each off, which is what channels are for. `setOnlyAlertOnce` matters just as much: without it a
+  forty-page chapter is forty notification sounds.
+- **iOS submits a continuation only when the run left work behind.** §7 implied one per run. Submitting
+  after a run that emptied the queue asks iOS to wake the app for nothing, and that is precisely what
+  spends the background budget the runs with real work then need.
+- **`requiresExternalPower = false` on the continuation.** A queue is work the user explicitly asked for;
+  requiring the phone to be plugged in would mean most queues never resume.
+- **A run that did nothing says nothing.** Every launch asks the queue to run, and a "0 downloaded"
+  notification each time would train the user to dismiss the ones that matter. A *skipped* run touches
+  the notifier not at all — the run that owns the queue owns what is shown about it, and clearing from a
+  skipped one would take down a live progress notification for work still in flight.
+- **`runsInBackground` lives on `DownloadScheduler`.** The scheduler is the thing that decides where work
+  runs, so it is the thing that can answer whether that survives the app; a separate capability port
+  would be a second answer to a question this interface already owns. The queue screen renders it as a
+  footnote, in `onSurfaceVariant` rather than a warning colour — it is a platform fact with an action
+  attached ("keep Tanuki open"), not a fault.
+
+### Still open going into phase 7
+
+- **Wi-Fi-only is not wired.** The worker's constraint is `NetworkType.CONNECTED`; the
+  `downloadOnWifiOnly` setting (§8.3) and the `UNMETERED` constraint that follows from it are phase 7.
+  Imposing it now would silently strand every mobile-only user's queue.
+- **The notifications have no actions.** §7 asked for pause and cancel buttons on the progress
+  notification. Both need a `BroadcastReceiver` (or a trampolining Activity) that can reach the graph,
+  which is a piece of Android plumbing this app does not have yet — and the queue screen the notification
+  opens has both controls.
+- **Neither notification deep-links.** A tap opens the app where the launcher would, because destinations
+  live in `:core:navigation` and the host that renders them is a single Activity `:shared` cannot name —
+  the same limitation `AndroidLibraryUpdateNotifier` already documents, and the same fix for both.
+- **`DownloadError.OutOfSpace` is still never produced** (phase 7, with storage usage). The worker's
+  `requiresStorageNotLow` constraint keeps a queue from *starting* on a full device, which is not the
+  same as failing gracefully partway through one.
+- **The iOS grace period is unverified on a device.** `beginBackgroundTask` gives a system-determined
+  window that the simulator does not model, and `BGProcessingTask` is never delivered there at all —
+  both need a real device to observe.
+
