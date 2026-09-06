@@ -6,6 +6,41 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-06 — The download queue is worked one chapter at a time, in order
+
+**Decision:** `DownloadManager` takes the queue strictly in `queuedAt` order, one chapter at a time,
+with a few *pages* of that chapter in flight at once (`MAX_CONCURRENT_PAGES = 3`). It does **not** copy
+`UpdateLibrary`'s "sequential per source, three sources at once", which `design-downloads.md` §5 had
+asked for.
+
+**Why:** the two runs look alike and are not. A library update is invisible work over N sources, where
+throughput is the only thing that matters and nobody can tell what order it happened in. A download
+queue is something the user is *looking at*: they queued twelve chapters and expect the first one to
+finish first. Working three at once also triples the page bytes held in memory, and turns "downloading
+2 of 12" into a number that is true of nothing. The parallelism that actually pays — hiding per-request
+latency — is inside a chapter, and there it costs nothing extra because those pages were going to be
+fetched anyway. `DownloadRepository.nextQueued()`, written in phase 1, is already exactly this shape.
+
+**Cancelling is a flag the engine checks, not a coroutine cancellation.** `DownloadManager.abort(ids)`
+marks chapters abandoned; the run checks the mark either side of each page fetch, drops any bytes that
+arrive after it, and discards the part. The alternative — holding the run's `Job` and cancelling it —
+needs atomic cross-thread state to buy back at most one page's latency, and introduces a way to leave a
+half-written file. The residual race (a cancel landing inside the store's write) leaves a part directory
+that the phase-8 reconciliation sweep reclaims, which is a sweep that has to exist regardless for a user
+who clears app storage.
+
+**There is no `DownloadScheduler.stop()`.** A run ends when the queue is empty, so ending one early
+means taking its work away — abort plus deleting the rows, which is what cancel and delete already do.
+A `stop()` would create the one state that cannot be recovered from: an engine told to stop with rows
+still waiting for it.
+
+**Consequence for phase 3:** `GetChapterPages` must *not* become download-aware, contrary to
+`design-downloads.md` §6. The downloader calls it and must always reach the source; a local-first
+decision inside it would have the engine download a chapter from its own copy. The local-or-remote
+choice belongs in a new use case above it.
+
+---
+
 ## 2026-09-05 — Downloads: the shape settled before the engine was written
 
 **Decision:** the four questions `design-downloads.md` §11 left open are answered as recommended there,

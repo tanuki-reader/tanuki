@@ -101,9 +101,10 @@ fun MangaEntity.toDomain(
             ),
         sourceMangaKey = sourceMangaKey.toTextOrNull(),
         url = Url(url),
-        // `chapter_downloads` exists (schema v10) but nothing writes to it yet, so projecting a
-        // `downloaded_count` here would only ever be zero; it lands with the download engine. See
-        // docs/design-downloads.md. `unread_count` is derived by the read queries.
+        // The download engine writes `chapter_downloads` (schema v10) now, but nothing enqueues a
+        // chapter yet, so projecting a `downloaded_count` here would still only ever be zero. It lands
+        // with the chapter-row actions. See docs/design-downloads.md §12 (phases 4/7).
+        // `unread_count` is derived by the read queries.
         unreadCount = unreadCount,
         dateAdded = dateAdded,
         lastRead = lastRead,

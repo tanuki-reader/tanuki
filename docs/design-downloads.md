@@ -1,6 +1,6 @@
 # Design — Chapter downloads (offline reading)
 
-Status: **phases 0–1 built** (the storage spine; nothing user-visible yet — see §12 and §13).
+Status: **phases 0–2 built** (the storage spine and the engine; nothing user-visible yet — see §12, §13 and §14).
 Read alongside `decisions.md`, `design-page-image-abi.md` and `session-source-and-browse.md`.
 
 Goal: the user can keep chapters on the device and read them with no network, with a queue they can
@@ -410,7 +410,7 @@ Each phase is independently mergeable and leaves both platforms green.
 |---|---|---|
 | **0** ✅ | `decisions.md` entries for §11 (2026-09-05) | — |
 | **1** ✅ | Schema v10 + entity/DAO/repository, `ChapterDownloadStore` + okio impl, domain models, platform path bindings, tests | Nothing user-visible; storage layer proven on `FakeFileSystem` |
-| **2** | `PageFetcher` in `:core:source`, `DownloadManager`, enqueue/cancel/delete use cases, tests | A chapter can be downloaded from a debug action |
+| **2** ✅ | `PageFetcher` in `:core:source`, `DownloadManager`, enqueue/cancel/delete use cases, tests | A queued chapter is fetched and committed; nothing queues one yet (phase 4) |
 | **3** | `PageImage` + download-aware `GetChapterPages` + `ToImageRequest`/`ReaderState` ripple | **Downloaded chapters read in airplane mode** |
 | **4** | Manga screen: row states, bulk actions, "download next N" | The feature becomes usable |
 | **5** | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry | The queue is visible and controllable |
@@ -481,3 +481,80 @@ delete paths, `usedBytes`, and what `storedChapters` does and does not report.
 - The silent-first Cloudflare tier (§5.1) is implemented but **still unverified on an iOS device**: that
   `UIKitView` composites *under* Compose content is assumed, not measured. It gates phase 2's promise
   that a queue never hijacks the screen.
+
+---
+
+## 14. As built — phase 2 (2026-09-06)
+
+The engine, on top of phase 1's storage spine. A chapter that reaches the queue is now fetched,
+committed and marked downloaded, and everything the UI will bind to exists — but nothing in the app
+enqueues anything yet, so the behaviour is still unchanged for the user. What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `download/service/` | `PageFetcher` + `FetchedPage` + `PageFetchException`, `DownloadScheduler` |
+| `:core:domain` `download/usecase/` | `DownloadManager` + `DownloadRunResult`, `EnqueueChapterDownloads`, `EnqueueNextChapters`, `CancelChapterDownloads`, `DeleteChapterDownloads`, `DeleteMangaDownloads`, `DeleteAllDownloads` |
+| `:core:source` `net/` | `KtorPageFetcher` over the shared CF/UA-carrying client |
+| `:shared` `download/` | `ForegroundDownloadScheduler`; `AppGraph.downloadScheduler` + the launch-time resume in `App` |
+
+41 tests: 16 on the engine (`DownloadManagerTest`), 14 on the actions (`DownloadUseCasesTest`), 11 on
+the fetcher's classification (`KtorPageFetcherTest`, over Ktor's `MockEngine`). The engine tests run the
+**real** `GetChapterPages` over fakes rather than a double — a use case is a sealed interface and cannot
+be implemented from a test compilation, and it also proves the downloader resolves a chapter exactly the
+way the reader does.
+
+### Where the code differs from §4–§5 above, and why
+
+- **One chapter at a time, in queue order** — not `MAX_CONCURRENT_SOURCES = 3`. A queue is something the
+  user *watches*, and they expect the first chapter to finish first; three at once also triples the page
+  bytes held in memory and makes "downloading 2 of 12" untrue. Parallelism moved inside the chapter
+  (`MAX_CONCURRENT_PAGES = 3`), which is where it hides latency without bursting a host. `nextQueued()`,
+  which phase 1 already committed to, is exactly this shape.
+- **Pages are addressed by their position in the source's list, not by `Page.index`.** The list is
+  already in reading order and the manifest requires contiguous indices from `0`, so a source that
+  numbers from `1` or leaves a gap would otherwise produce a chapter that can never commit. A part whose
+  held pages no longer fit the current list (the source's page list shrank) is discarded and **reopened**
+  rather than reused — a discarded part is gone from disk, and so is the handle to it.
+- **`DownloadScheduler` has no `stop()`.** A run ends when the queue is empty, so the way to end one
+  early is to take its work away — `DownloadManager.abort` plus deleting the rows, which is what
+  cancelling and deleting already do. A `stop()` would add a window in which a stopped engine still had
+  rows waiting for it.
+- **`abort` is a flag, not a coroutine cancellation.** A page already in flight is allowed to arrive and
+  is then dropped, so abandoning costs at most one page's latency and can never leave a half-written
+  file. Holding the run's `Job` to cancel it would need atomic cross-thread state for a saving measured
+  in seconds.
+- **`EnqueueChapterDownloads` re-queues a `Failed` chapter, keeping its original `queuedAt`.** The design
+  said "dedupes, drops already-downloaded"; in practice tapping download on a failed chapter is the retry
+  affordance, and a chapter that failed at position three belongs back at position three rather than
+  behind everything queued since.
+- **`EnqueueNextChapters(mangaId, count = null)` means "all unread".** "All chapters", read ones
+  included, is `EnqueueChapterDownloads` over the visible list and belongs to the UI that has that list.
+- **The engine requeues interrupted rows itself**, at the top of every run, rather than exposing a
+  startup use case: it is the only thing that ever writes `Downloading`, so it is the only thing that can
+  tell a live row from debris.
+- **`DownloadRunResult.Completed` counts an aborted chapter as neither downloaded nor failed** — the user
+  asked for it not to happen, which is not a failure.
+- **The queue drain has a re-pick guard.** A chapter still `Queued` after its turn would be selected
+  forever; every path leaves a terminal state or deletes the row, so seeing one is a bug, and stopping the
+  run is far better than spinning on it.
+
+### Still open going into phase 3
+
+- **Nothing enqueues a chapter yet.** The engine is reachable only from the use cases, and their callers
+  are phase 4's chapter rows and bulk actions. The launch-time `ensureRunning()` in `App` covers the one
+  case that exists today: a queue an earlier process was killed in the middle of.
+- **Pause is not implemented.** `SettingsRepository.downloadsPaused` (§4) and the loop's check on it land
+  with the queue screen in phase 5, which is the first thing that can turn it on or off.
+- **`DownloadError.OutOfSpace` is still never produced.** Free-space checking needs a port neither okio
+  nor common Kotlin offers; a write failure currently fails its chapter as `Unknown`. It belongs with the
+  settings surface that shows storage usage (phase 7).
+- **`DownloadNotifier` (§4) was not built** — it is only meaningful alongside the platform runners in
+  phase 6.
+- **Phase 3 must not make `GetChapterPages` download-aware**, contrary to §6's sketch. The downloader is
+  a caller of it that must *always* reach the source, so a local-first decision inside it would have the
+  engine download a chapter from its own copy. The local-or-remote choice belongs in a new use case
+  *above* it (`GetReaderPages`), leaving `GetChapterPages` as what its name and KDoc already say: the
+  source's pages.
+- **Cancel racing a page write** can leave a part directory behind — abort is checked either side of the
+  fetch, but not inside the store's write. Reclaiming it is `VerifyDownloads`' job in phase 8, which is
+  the same sweep that already has to handle a user clearing app storage.
