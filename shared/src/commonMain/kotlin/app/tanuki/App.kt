@@ -64,6 +64,14 @@ fun App(appGraph: AppGraph) {
         appGraph.applicationScope.launch { appGraph.updateLibrary(UpdateLibrary.Trigger.Foreground) }
     }
 
+    // Pick the download queue back up. Nothing else would: enqueueing starts a run, but a queue the user
+    // left behind — the app was killed, the chapter was still fetching — has no enqueue coming to wake
+    // it, and would sit there looking active while nothing fetched it. The engine requeues the rows an
+    // interrupted run left mid-flight and carries on; an empty queue makes this a no-op.
+    LaunchedEffect(appGraph) {
+        appGraph.downloadScheduler.ensureRunning()
+    }
+
     // Hand the platform scheduler the user's interval, and re-hand it whenever they change it. Runs for
     // the app's lifetime — it's a subscription, not a one-shot.
     LaunchedEffect(appGraph) {

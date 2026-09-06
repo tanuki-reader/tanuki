@@ -2,6 +2,7 @@ package app.tanuki.di
 
 import app.tanuki.core.domain.common.service.CrashReporter
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.update.usecase.KeepLibraryUpdateScheduled
@@ -75,6 +76,13 @@ interface AppGraph : ViewModelGraph {
      * same reason as [updateLibrary]: it belongs to the app's lifetime, not to any screen.
      */
     val keepLibraryUpdateScheduled: KeepLibraryUpdateScheduled
+
+    /**
+     * Gets the download queue moving. Exposed on the graph because the launch-time resume in [App] has
+     * no screen behind it: a queue the app was killed in the middle of has to be picked up before the
+     * user opens anything, and every other caller reaches it through a use case.
+     */
+    val downloadScheduler: DownloadScheduler
 
     /** Temporary dev helper: seed sample manga into an empty library. Remove once sources exist. */
     val librarySeeder: LibrarySeeder
