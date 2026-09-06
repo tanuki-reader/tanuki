@@ -24,9 +24,9 @@ class DownloadRepositoryImp(
     private val chapterDownloadDao: ChapterDownloadDao,
     private val dispatcherProvider: DispatcherProvider
 ) : DownloadRepository {
-    override fun observePending(): Flow<List<ChapterDownload>> =
+    override fun observeQueue(): Flow<List<ChapterDownload>> =
         chapterDownloadDao
-            .observeInStates(PENDING_STATES)
+            .observeInStates(QUEUE_STATES)
             .map { downloads -> downloads.map(ChapterDownloadEntity::toDomain) }
             .flowOn(dispatcherProvider.io)
 
@@ -109,7 +109,11 @@ class DownloadRepositoryImp(
         withContext(dispatcherProvider.io) { chapterDownloadDao.getAll().map(ChapterDownloadEntity::toDomain) }
 
     private companion object {
-        /** The states the queue still owes work for. */
-        val PENDING_STATES = listOf(DownloadState.Queued, DownloadState.Downloading)
+        /**
+         * The states the queue screen shows. `Downloaded` is the one left out: it is no longer queue,
+         * it is library — the chapter list is where it belongs, and a queue that never empties would
+         * make "is anything still downloading?" unanswerable at a glance.
+         */
+        val QUEUE_STATES = listOf(DownloadState.Queued, DownloadState.Downloading, DownloadState.Failed)
     }
 }

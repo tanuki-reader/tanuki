@@ -112,7 +112,12 @@ internal class DownloadWorld(
 
     val deleteAll: DeleteAllDownloads = DeleteAllDownloads.Default(downloads, store, manager)
 
+    val cancelAll: CancelAllDownloads = CancelAllDownloads.Default(downloads, store, manager)
+
     val setPaused: SetDownloadsPaused = SetDownloadsPaused.Default(settings, scheduler)
+
+    val queueView: ObserveDownloadQueue =
+        ObserveDownloadQueue.Default(downloads, mangaRepository, chapterRepository, dispatchers)
 
     /** Puts [chapters] straight into the queue, bypassing the enqueue use case's own rules. */
     suspend fun queue(vararg chapters: Chapter) {
@@ -216,8 +221,12 @@ internal class FakeDownloadRepository : DownloadRepository {
     /** Every [setProgress] write, in order — how "progress is written per page" is checked. */
     val progressWrites = mutableListOf<Pair<Int, Long>>()
 
-    override fun observePending(): Flow<List<ChapterDownload>> =
-        records.map { held -> held.values.filter(ChapterDownload::isPending).sortedBy { it.queuedAt } }
+    override fun observeQueue(): Flow<List<ChapterDownload>> =
+        records.map { held ->
+            held.values
+                .filter { it.state != DownloadState.Downloaded }
+                .sortedBy { it.queuedAt }
+        }
 
     override fun observeForManga(mangaId: Uuid): Flow<Map<Uuid, ChapterDownload>> =
         records.map { held -> held.filterValues { it.mangaId == mangaId } }
@@ -696,4 +705,5 @@ internal class FakeSourceRepository(
 }
 
 /** The pending queue as it stands, for tests that assert on ordering. */
-internal suspend fun DownloadRepository.pending(): List<ChapterDownload> = observePending().first()
+internal suspend fun DownloadRepository.pending(): List<ChapterDownload> =
+    observeQueue().first().filter(ChapterDownload::isPending)

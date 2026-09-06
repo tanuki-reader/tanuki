@@ -20,10 +20,19 @@ import kotlin.uuid.Uuid
  */
 interface DownloadRepository {
     /**
-     * Observes everything the queue still has work for, oldest-queued first — what the queue screen
-     * renders, and the order the engine works in.
+     * Observes the queue as the user sees it, oldest-queued first — everything still waiting, the one
+     * being fetched, and everything that stopped with an error.
+     *
+     * Deliberately **wider than [ChapterDownload.isPending]**, which covers only the work the engine
+     * still owes. A failed chapter owes nothing and must not be picked up again on its own, but it is
+     * exactly what the user opened this screen to deal with: dropping it here would make a chapter
+     * disappear from the queue at the moment it needed a decision, leaving nothing anywhere in the app
+     * to retry it from except the series it came from.
+     *
+     * The order is [ChapterDownload.queuedAt], which is also the order the engine works in — so the
+     * screen reads top-to-bottom as "what happens next".
      */
-    fun observePending(): Flow<List<ChapterDownload>>
+    fun observeQueue(): Flow<List<ChapterDownload>>
 
     /**
      * Observes one series' records, keyed by chapter, for the chapter list's per-row state.
