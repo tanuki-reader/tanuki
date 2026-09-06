@@ -13,10 +13,16 @@ package app.tanuki.core.domain.download.model
  * clear app storage — and the row is the index, never the authority.
  */
 enum class DownloadState {
-    /** Waiting its turn. Also the state a chapter returns to when the queue is paused. */
+    /** Waiting its turn. Also, the state a chapter returns to when the queue is paused. */
     Queued,
 
-    /** Being fetched right now. At most a handful of chapters are ever in this state at once. */
+    /**
+     * Being fetched right now — exactly one chapter at a time, since the queue is worked in order (see
+     * [app.tanuki.core.domain.download.usecase.DownloadManager]).
+     *
+     * It only ever describes a *running* engine, which is what makes a row found in it at startup
+     * recognizable as debris from a process that died rather than as work in flight.
+     */
     Downloading,
 
     /** Every page is on disk and the manifest is committed. */
