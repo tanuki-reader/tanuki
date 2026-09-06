@@ -19,6 +19,12 @@
         <item quantity="one">%1$d instalada</item>
         <item quantity="other">%1$d instaladas</item>
     </plurals>
+    <string name="settings_downloads">Downloads</string>
+    <plurals name="settings_download_queue">
+        <item quantity="one">%1$d capítulo na fila</item>
+        <item quantity="other">%1$d capítulos na fila</item>
+    </plurals>
+    <string name="settings_downloads_idle">Nada na fila</string>
 
     <!-- Tela de aparência -->
     <string name="settings_theme">Tema</string>

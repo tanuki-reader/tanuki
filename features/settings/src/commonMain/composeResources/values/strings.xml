@@ -19,6 +19,12 @@
         <item quantity="one">%1$d installed</item>
         <item quantity="other">%1$d installed</item>
     </plurals>
+    <string name="settings_downloads">Downloads</string>
+    <plurals name="settings_download_queue">
+        <item quantity="one">%1$d chapter in the queue</item>
+        <item quantity="other">%1$d chapters in the queue</item>
+    </plurals>
+    <string name="settings_downloads_idle">Nothing in the queue</string>
 
     <!-- Appearance screen -->
     <string name="settings_theme">Theme</string>

@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ContrastIcon
+import app.tanuki.assets.designSystem.component.DownloadIcon
 import app.tanuki.assets.designSystem.component.ExtensionIcon
 import app.tanuki.assets.designSystem.component.LabelIcon
 import app.tanuki.assets.designSystem.component.ShieldCheckIcon
@@ -26,6 +27,7 @@ import app.tanuki.assets.designSystem.component.TanukiRowDivider
 import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
+import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.SettingsAppearance
 import app.tanuki.core.navigation.SettingsCategories
 import app.tanuki.core.navigation.SettingsPrivacy
@@ -34,6 +36,9 @@ import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_appearance
 import app.tanuki.features.settings.resources.settings_categories
 import app.tanuki.features.settings.resources.settings_category_count
+import app.tanuki.features.settings.resources.settings_download_queue
+import app.tanuki.features.settings.resources.settings_downloads
+import app.tanuki.features.settings.resources.settings_downloads_idle
 import app.tanuki.features.settings.resources.settings_privacy
 import app.tanuki.features.settings.resources.settings_privacy_off
 import app.tanuki.features.settings.resources.settings_privacy_on
@@ -145,6 +150,30 @@ fun SettingsRoute(
                         ),
                     leading = { ExtensionIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = { onNavigate(SettingsSources) }
+                )
+                TanukiRowDivider(startInset = RowDividerInset)
+                // The queue's only entry point that doesn't require already being on a series' page —
+                // and the reason it names its count: a download that stopped on an error is otherwise
+                // invisible from anywhere in the app the user is likely to be.
+                TanukiListRow(
+                    title = stringResource(Res.string.settings_downloads),
+                    subtitle =
+                        if (state.downloadQueueCount == 0) {
+                            stringResource(Res.string.settings_downloads_idle)
+                        } else {
+                            pluralStringResource(
+                                Res.plurals.settings_download_queue,
+                                state.downloadQueueCount,
+                                state.downloadQueueCount
+                            )
+                        },
+                    leading = {
+                        DownloadIcon(
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            size = SettingsIconSize
+                        )
+                    },
+                    onClick = { onNavigate(Downloads) }
                 )
             }
         }

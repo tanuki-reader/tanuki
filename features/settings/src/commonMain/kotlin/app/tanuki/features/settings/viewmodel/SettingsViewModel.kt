@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.download.usecase.ObserveDownloadQueueCount
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
@@ -33,6 +34,7 @@ class SettingsViewModel(
     observeCrashReportingEnabled: ObserveCrashReportingEnabled,
     observeCategories: ObserveCategories,
     getInstalledSources: GetInstalledSources,
+    observeDownloadQueueCount: ObserveDownloadQueueCount,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : TanukiViewModel(dispatcher, logger) {
@@ -41,13 +43,15 @@ class SettingsViewModel(
             observeThemePreference(),
             observeCategories(),
             getInstalledSources(),
-            observeCrashReportingEnabled()
-        ) { theme, categories, sources, crashReporting ->
+            observeCrashReportingEnabled(),
+            observeDownloadQueueCount()
+        ) { theme, categories, sources, crashReporting, queued ->
             SettingsState(
                 theme = theme,
                 categoryCount = categories.size,
                 sourceCount = sources.size,
-                crashReportingEnabled = crashReporting
+                crashReportingEnabled = crashReporting,
+                downloadQueueCount = queued
             )
         }.asState(SettingsState())
 }
