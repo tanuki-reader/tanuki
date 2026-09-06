@@ -1,7 +1,7 @@
 # Design — Chapter downloads (offline reading)
 
-Status: **phases 0–3 built** (the storage spine, the engine, and the offline read path — see §12–§15).
-Nothing enqueues a chapter yet, so the feature is still not reachable from the UI; that is phase 4.
+Status: **phases 0–4 built** (the storage spine, the engine, the offline read path, and the manga
+screen that drives them — see §12–§16). The feature is usable end to end from a series page.
 Read alongside `decisions.md`, `design-page-image-abi.md` and `session-source-and-browse.md`.
 
 Goal: the user can keep chapters on the device and read them with no network, with a queue they can
@@ -413,7 +413,7 @@ Each phase is independently mergeable and leaves both platforms green.
 | **1** ✅ | Schema v10 + entity/DAO/repository, `ChapterDownloadStore` + okio impl, domain models, platform path bindings, tests | Nothing user-visible; storage layer proven on `FakeFileSystem` |
 | **2** ✅ | `PageFetcher` in `:core:source`, `DownloadManager`, enqueue/cancel/delete use cases, tests | A queued chapter is fetched and committed; nothing queues one yet (phase 4) |
 | **3** ✅ | `PageImage` + `GetReaderPages` + `ToImageRequest`/`ReaderState` ripple | **A downloaded chapter reads in airplane mode** (once something downloads one) |
-| **4** | Manga screen: row states, bulk actions, "download next N" | The feature becomes usable |
+| **4** ✅ | Manga screen: row states, bulk actions, "download next N" | **The feature becomes usable** |
 | **5** | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry | The queue is visible and controllable |
 | **6** | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
 | **7** | Settings → Downloads (auto-download, Wi‑Fi only, delete-after-read, storage usage); library badge + `downloaded` filter | Automation + housekeeping |
@@ -602,3 +602,63 @@ them what it means to the engine — a committed manifest, not a row.
 As §6 promised, a downloaded chapter never enters the image loader's *disk* cache — that tier only backs
 the network fetcher — so a download costs its bytes once. Decode sizing, prefetch, the sliding chapter
 window and the zoom/strip layouts are untouched.
+
+---
+
+## 16. As built — phase 4 (2026-09-06)
+
+The manga screen now drives the whole subsystem: a chapter can be queued, watched, cancelled, retried and
+deleted, and a series can be queued or cleared in bulk. This is the phase where phases 1–3 become
+reachable. What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `download/usecase/` | `ObserveChapterDownloads` |
+| `:assets:designSystem` | `TanukiProgressRing` (determinate, the component §8 said was missing); `DownloadedIcon`, `ErrorIcon`; `TanukiMenu`/`TanukiMenuItem`/`TanukiMenuDivider`; a fix to `CheckOffIcon` |
+| `:features:manga` viewmodel | `Content.downloads` + `hasDownloads`; `ChapterSelection.canDownload` / `canDeleteDownload`; seven actions |
+| `:features:manga` UI | `ChapterDownloadButton` (five row states), `MangaDownloadMenu` (app-bar bulk menu + confirm), two more cells in the selection bar |
+| `:features:manga` strings | 15 new keys in `values/` and `values-pt-rBR/`, including a `download next N` plural |
+
+### Where the code differs from §8.1, and why
+
+- **The bulk menu hangs off the detail app bar, not the bottom bar's overflow.** The bottom bar is a
+  single full-width "Read" button with no overflow to put anything in, and the design project's own
+  `ui_kits/android/AndroidMangaDetailScreen.jsx` puts a `download` action in the top bar. Same contents
+  as §8.1 — next 1 / 5 / 10, all unread, all, and a destructive delete-all behind a confirm.
+- **The row's affordance opens a menu only when the chapter is finished.** §8.1 asked for that, and the
+  reason is worth keeping: queue, cancel and retry are single reversible acts, so putting them behind a
+  menu would tax the common case to protect the rare one. Deleting files is the only irreversible tap.
+- **`canDeleteDownload` is "has any record", not "is downloaded".** One verb removes a finished chapter's
+  files *and* takes an unfinished one out of the queue, so a selection spanning both does the obvious
+  thing instead of making the user work out which of two verbs applies to which row.
+- **The selection bar is six cells, and that is its ceiling.** At 360dp each cell is ~58dp wide and 56dp
+  tall — past the 44dp tap floor — with two-line labels. A seventh verb would have to displace one into
+  the top bar rather than squeeze in.
+- **The trailing slot is a fixed `tapMin` box in both selected and unselected rows**, so starting a
+  selection swaps the mark without re-flowing the list — the same reason the existing selection marks sit
+  *around* the row layout rather than inserting a leading checkbox column.
+- **Both download menus are `TanukiMenu`, not a bare `DropdownMenu`.** Phase 4 is the first surface in
+  the app to need a dropdown, and Material's default arrives tonally elevated — on a near-black canvas
+  that reads as a lighter, bluer card belonging to a different app than the screen behind it. The themed
+  wrapper pins the surface, radius and hairline to the same tokens `TanukiDialog` and the sheets use, and
+  gives destructive items a `danger` label; tonal elevation is zeroed so depth comes from the shadow and
+  border, as it does on a dialog.
+- **`TanukiProgressRing` treats unknown progress as a state, not a zero.** A queued chapter's page count
+  is only discovered when the download reaches it (§5), so `ChapterDownload.progress` is nullable and the
+  ring sweeps instead of sitting empty — a ring pinned at 0% and a ring that does not know are otherwise
+  the same picture, and the first reads as "stuck".
+
+### Still open going into phase 5
+
+- **No queue screen yet**, so a `NeedsVerification` failure has no "verify to continue" affordance — the
+  row shows the error glyph and a tap retries, which will fail the same way until the user browses to the
+  source. That is phase 5's to fix.
+- **Pause is still not implemented** (§4's `downloadsPaused`), for the same reason: the queue screen is
+  the first surface that can toggle it.
+- **`Manga.isDownloaded` is still hardcoded `false`.** There are now real rows to count, so projecting
+  `downloaded_count` beside `unread_count` is finally worth doing — it lands with the library badge and
+  filter in phase 7.
+- **No `MangaViewModel` test.** No `:features:*` module has a test source set, and the ViewModel takes a
+  dozen sealed-interface use cases that cannot be doubled from a test compilation, so covering the two new
+  selection flags means standing up a fixture of a dozen real `Default`s over fake repositories. Worth
+  doing deliberately rather than as a side effect of this phase.
