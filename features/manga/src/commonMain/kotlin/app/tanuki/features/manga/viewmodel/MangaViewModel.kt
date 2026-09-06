@@ -10,6 +10,13 @@ import app.tanuki.core.domain.chapter.usecase.SetChaptersRead
 import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.download.model.DownloadState
+import app.tanuki.core.domain.download.usecase.CancelChapterDownloads
+import app.tanuki.core.domain.download.usecase.DeleteChapterDownloads
+import app.tanuki.core.domain.download.usecase.DeleteMangaDownloads
+import app.tanuki.core.domain.download.usecase.EnqueueChapterDownloads
+import app.tanuki.core.domain.download.usecase.EnqueueNextChapters
+import app.tanuki.core.domain.download.usecase.ObserveChapterDownloads
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.usecase.AddToLibrary
@@ -70,6 +77,12 @@ class MangaViewModel(
     observeChapters: ObserveChapters,
     observeCategories: ObserveCategories,
     observeSources: ObserveSources,
+    observeChapterDownloads: ObserveChapterDownloads,
+    private val enqueueChapterDownloads: EnqueueChapterDownloads,
+    private val enqueueNextChapters: EnqueueNextChapters,
+    private val cancelChapterDownloads: CancelChapterDownloads,
+    private val deleteChapterDownloads: DeleteChapterDownloads,
+    private val deleteMangaDownloads: DeleteMangaDownloads,
     private val setMangaCategories: SetMangaCategories,
     private val addToLibrary: AddToLibrary,
     private val removeMangaFromLibrary: RemoveMangaFromLibrary,
@@ -126,10 +139,14 @@ class MangaViewModel(
                     source = source
                 )
             }
+        }.combine(observeChapterDownloads(mangaId)) { state, downloads ->
+            if (state is Content) state.copy(downloads = downloads) else state
         }.combine(selectedChapterIds) { state, selected ->
-            // Selection is folded in after the fact rather than being a sixth `combine` source: the chapter
-            // pipeline above is what defines which rows exist, and the selection is only ever a subset of
-            // its output — so it has to be resolved against the list the user is actually looking at.
+            // Selection is folded in last rather than being another `combine` source: the chapter pipeline
+            // above is what defines which rows exist, and the selection is only ever a subset of its
+            // output — so it has to be resolved against the list the user is actually looking at. Download
+            // records are folded in before it for the same reason in reverse: what a selection may *do*
+            // depends on them, so they have to be there by the time the flags are computed.
             if (state is Content) state.copy(selection = state.selectionOf(selected)) else state
         }.flowOn(dispatcher.default)
             .onEach { uiState.value = it }
@@ -380,6 +397,105 @@ class MangaViewModel(
         }
     }
 
+    /**
+     * The download affordance on a chapter row was tapped. One control, and what it means depends on
+     * where the chapter is — which is the point: the row shows a single state, and tapping it does the
+     * only thing that state affords.
+     *
+     *  - never queued, or **failed** → queue it (a failed row's tap is the retry).
+     *  - **queued** or **downloading** → cancel it, keeping whatever it fetched for a later resume.
+     *  - **downloaded** → nothing. Removing files is destructive and has its own menu item
+     *    ([onDeleteChapterDownload]), so a mistaken tap on a finished chapter can never lose it.
+     */
+    fun onChapterDownloadClick(chapterId: Uuid) {
+        val content = uiState.value as? Content ?: return
+        when (content.downloads[chapterId]?.state) {
+            null, DownloadState.Failed -> viewModelScope.launch { io { enqueueChapterDownloads(listOf(chapterId)) } }
+
+            DownloadState.Queued, DownloadState.Downloading ->
+                viewModelScope.launch { io { cancelChapterDownloads(listOf(chapterId)) } }
+
+            DownloadState.Downloaded -> Unit
+        }
+    }
+
+    /** A row's "delete download" was chosen — remove that chapter's files and its record. */
+    fun onDeleteChapterDownload(chapterId: Uuid) {
+        viewModelScope.launch {
+            io { deleteChapterDownloads(listOf(chapterId)) }
+        }
+    }
+
+    /**
+     * The selection bar's download action — queues everything picked.
+     *
+     * The selection is dropped before the write lands, exactly as [onMarkSelectionRead] does and for the
+     * same reason: the mode exists to stage the action, so leaving it *is* the acknowledgement, and the
+     * rows take on their queued state as the database emits.
+     */
+    fun onDownloadSelection() {
+        val selected = selection().ids
+        if (selected.isEmpty()) return
+        selectedChapterIds.value = emptySet()
+        viewModelScope.launch {
+            io { enqueueChapterDownloads(selected) }
+        }
+    }
+
+    /** The selection bar's delete-download action — removes files and records for everything picked. */
+    fun onDeleteSelectionDownloads() {
+        val selected = selection().ids
+        if (selected.isEmpty()) return
+        selectedChapterIds.value = emptySet()
+        viewModelScope.launch {
+            io { deleteChapterDownloads(selected) }
+        }
+    }
+
+    /**
+     * The overflow's "download next N" — queues the next [count] unread chapters, or every unread one
+     * when [count] is `null`.
+     *
+     * The picking is [EnqueueNextChapters]' job, not this screen's: "next" has to mean the same thing
+     * here as it does anywhere else that offers it, and the rules that define it (reading order, unread
+     * only, the scanlator filter) are already written down there once.
+     */
+    fun onDownloadNextChapters(count: Int?) {
+        viewModelScope.launch {
+            io { enqueueNextChapters(mangaId, count) }
+        }
+    }
+
+    /**
+     * The overflow's "download all" — queues every chapter the list is *showing*, read ones included.
+     *
+     * Deliberately the shown list rather than the whole series: a group the user filtered out is not
+     * something they asked to keep, and on an aggregator where three groups publish the same chapter it
+     * would be three times the bytes for one chapter's worth of reading.
+     */
+    fun onDownloadAllChapters() {
+        val content = uiState.value as? Content ?: return
+        val ids = content.chapters.map(Chapter::id)
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            io { enqueueChapterDownloads(ids) }
+        }
+    }
+
+    /**
+     * The overflow's "delete all downloads" — clears this series from the device. Destructive, so the UI
+     * confirms before calling it.
+     *
+     * A whole-series call rather than a loop over the shown chapters: it has to reach a chapter the list
+     * is currently hiding, and a directory whose rows a sync already pruned, which is exactly what
+     * [DeleteMangaDownloads] is for.
+     */
+    fun onDeleteAllDownloads() {
+        viewModelScope.launch {
+            io { deleteMangaDownloads(mangaId) }
+        }
+    }
+
     /** Adds or removes one chapter, working from the pruned selection the state exposes. */
     private fun toggleSelection(chapterId: Uuid) {
         val selected = selection().ids
@@ -409,6 +525,9 @@ class MangaViewModel(
             // Unread has progress of its own to clear: a chapter left half-read keeps a page to rewind
             // even though it was never marked read.
             canMarkUnread = shown.any { it.progress?.alreadyRead == true || (it.progress?.lastPageRead ?: 0u) > 0u },
+            // Never queued, or queued and failed — the two states downloading one would actually change.
+            canDownload = shown.any { downloads[it.id].let { d -> d == null || d.state == DownloadState.Failed } },
+            canDeleteDownload = shown.any { it.id in downloads },
             allSelected = ids.size == chapters.size
         )
     }

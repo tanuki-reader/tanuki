@@ -2,6 +2,7 @@ package app.tanuki.features.manga.viewmodel
 
 import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.source.model.Source
 import kotlin.uuid.Uuid
@@ -36,6 +37,11 @@ sealed interface MangaState {
      *   do. Empty means no selection mode is running and the screen is in its normal reading chrome.
      * @param inLibrary whether the manga is in the user's library (has a `date_added`). Drives the Info
      *   tab's add/remove toggle and whether category edits implicitly add it (see the ViewModel).
+     * @param downloads the download record of every chapter of this series that has one, keyed by chapter
+     *   id. A map rather than a field on each row because a row does a single lookup into it: the list
+     *   runs to thousands of rows, and anything per-row — a flow, or a scan — is exactly what makes
+     *   scrolling one expensive. A chapter absent from it has never been queued, which is the
+     *   overwhelmingly common case and does not deserve a record.
      */
     data class Content(
         val manga: Manga,
@@ -45,9 +51,16 @@ sealed interface MangaState {
         val categories: List<MangaCategoryChip>,
         val scanlators: List<ScanlatorChip>,
         val source: Source?,
-        val selection: ChapterSelection = ChapterSelection.None
+        val selection: ChapterSelection = ChapterSelection.None,
+        val downloads: Map<Uuid, ChapterDownload> = emptyMap()
     ) : MangaState {
         val inLibrary: Boolean get() = manga.dateAdded != null
+
+        /**
+         * Whether this series has anything downloaded or queued — what gates the overflow's "delete all
+         * downloads", so a destructive action is never offered when there is nothing to destroy.
+         */
+        val hasDownloads: Boolean get() = downloads.isNotEmpty()
 
         /** Whether the chapter list is worth offering a group filter for — i.e. more than one group. */
         val canFilterScanlators: Boolean get() = scanlators.size > 1
@@ -85,6 +98,13 @@ sealed interface MangaState {
      * @param canMarkRead whether any picked chapter is not read yet.
      * @param canMarkUnread whether any picked chapter has reading state to clear — read, or merely opened
      *   and left partway through.
+     * @param canDownload whether any picked chapter is worth queueing: one that has never been queued, or
+     *   one that failed and can be retried. Chapters already queued, downloading or downloaded are not —
+     *   the action would be a no-op on them (see `EnqueueChapterDownloads`).
+     * @param canDeleteDownload whether any picked chapter has a download record at all. Deliberately
+     *   broader than "is downloaded": the same verb removes a finished chapter's files and takes an
+     *   unfinished one out of the queue, so that a selection spanning both does the obvious thing rather
+     *   than needing the user to work out which of two verbs applies to which row.
      * @param allSelected whether every shown chapter is picked, which flips the select-all control into
      *   its "clear" meaning.
      */
@@ -94,6 +114,8 @@ sealed interface MangaState {
         val canSelectBelow: Boolean,
         val canMarkRead: Boolean,
         val canMarkUnread: Boolean,
+        val canDownload: Boolean,
+        val canDeleteDownload: Boolean,
         val allSelected: Boolean
     ) {
         /** Whether a selection is running — the screen swaps to its selection chrome exactly when true. */
@@ -110,6 +132,8 @@ sealed interface MangaState {
                     canSelectBelow = false,
                     canMarkRead = false,
                     canMarkUnread = false,
+                    canDownload = false,
+                    canDeleteDownload = false,
                     allSelected = false
                 )
         }
