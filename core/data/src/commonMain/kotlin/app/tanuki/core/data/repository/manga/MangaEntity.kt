@@ -66,8 +66,9 @@ data class MangaEntity(
 /**
  * A [MangaEntity] plus the columns the read queries derive via LEFT JOINs / subqueries: `last_read`
  * (latest `history.read_at`, `null` when never read), the `library` row's `date_added` /
- * `reading_status` (`null` when the manga is not in the library), and `unread_count` (chapters with
- * no progress or `already_read = 0`). Library membership is exactly `dateAdded != null`.
+ * `reading_status` (`null` when the manga is not in the library), `unread_count` (chapters with
+ * no progress or `already_read = 0`), and `downloaded_count` (committed `chapter_downloads` rows).
+ * Library membership is exactly `dateAdded != null`.
  */
 data class MangaWithDetails(
     @Embedded val manga: MangaEntity,
@@ -75,16 +76,18 @@ data class MangaWithDetails(
     @ColumnInfo(name = "date_added") val dateAdded: Instant?,
     @ColumnInfo(name = "reading_status") val readingStatus: ReadingStatus?,
     @ColumnInfo(name = "unread_count") val unreadCount: Long,
+    @ColumnInfo(name = "downloaded_count") val downloadedCount: Long,
 )
 
 fun MangaWithDetails.toDomain(): Manga =
-    manga.toDomain(lastRead, dateAdded, readingStatus, unreadCount.toUInt())
+    manga.toDomain(lastRead, dateAdded, readingStatus, unreadCount.toUInt(), downloadedCount > 0)
 
 fun MangaEntity.toDomain(
     lastRead: Instant?,
     dateAdded: Instant?,
     readingStatus: ReadingStatus?,
     unreadCount: UInt,
+    isDownloaded: Boolean,
 ): Manga =
     Manga(
         id = id,
@@ -101,11 +104,12 @@ fun MangaEntity.toDomain(
             ),
         sourceMangaKey = sourceMangaKey.toTextOrNull(),
         url = Url(url),
-        // The download engine writes `chapter_downloads` (schema v10) now, but nothing enqueues a
-        // chapter yet, so projecting a `downloaded_count` here would still only ever be zero. It lands
-        // with the chapter-row actions. See docs/design-downloads.md §12 (phases 4/7).
-        // `unread_count` is derived by the read queries.
+        // Both are derived by the read queries rather than stored on the row: they are counts over
+        // other tables, and a column here would need invalidating from every write that touches them.
+        // `isDownloaded` is "has at least one committed chapter", which is what the library badge and
+        // the `downloaded` filter both ask.
         unreadCount = unreadCount,
+        isDownloaded = isDownloaded,
         dateAdded = dateAdded,
         lastRead = lastRead,
         readingMode = readingMode,

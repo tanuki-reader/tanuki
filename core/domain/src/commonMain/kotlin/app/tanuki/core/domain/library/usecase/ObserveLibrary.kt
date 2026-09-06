@@ -86,6 +86,7 @@ sealed interface ObserveLibrary {
             filter { manga ->
                 (filter.readingStatus == null || manga.readingStatus == filter.readingStatus) &&
                     filter.publicationCompleted.matches(manga.publishStatus == COMPLETED) &&
+                    filter.downloaded.matches(manga.isDownloaded) &&
                     manga.matchesCategories(filter, memberships)
             }
 

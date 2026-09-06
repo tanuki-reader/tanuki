@@ -54,4 +54,9 @@
         <item quantity="one">%1$d title</item>
         <item quantity="other">%1$d titles</item>
     </plurals>
+    <!-- Downloaded filter -->
+    <string name="library_sheet_section_downloaded">Downloaded</string>
+    <string name="library_downloaded_any">Any</string>
+    <string name="library_downloaded_yes">Downloaded</string>
+    <string name="library_downloaded_no">Not downloaded</string>
 </resources>

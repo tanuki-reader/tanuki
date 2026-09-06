@@ -155,6 +155,16 @@ class LibraryViewModel(
     }
 
     /**
+     * Gate the library on whether a series has anything on the device.
+     *
+     * `EXCLUDED` is the arm worth having: "show me what I have *not* kept" is how a user finds the
+     * series to download before a flight, and no plain on/off toggle can express it.
+     */
+    fun onDownloadedChange(triState: TriState) {
+        filter.value = filter.value.copy(downloaded = triState)
+    }
+
+    /**
      * Toggle a category chip. Membership is keyed by [Category.id] (not structural equality), so a stored
      * selection survives an unrelated change to the category's member set; [ObserveLibrary] then re-filters
      * using [LibraryFilter.categoryMatchMode].

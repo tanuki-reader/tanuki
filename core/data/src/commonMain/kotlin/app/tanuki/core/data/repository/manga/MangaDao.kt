@@ -42,7 +42,13 @@ interface MangaDao {
                          OR instr(char(10) || manga.filtered_scanlators || char(10),
                                   char(10) || chapters.scanlator || char(10)) = 0
                      )
-               ) AS unread_count
+               ) AS unread_count,
+               (
+                   SELECT COUNT(*)
+                   FROM chapter_downloads
+                   WHERE chapter_downloads.manga_id = manga.id
+                     AND chapter_downloads.state = 'Downloaded'
+               ) AS downloaded_count
         FROM manga
         LEFT JOIN history ON history.manga_id = manga.id
         LEFT JOIN library ON library.id = manga.id
@@ -68,7 +74,13 @@ interface MangaDao {
                          OR instr(char(10) || manga.filtered_scanlators || char(10),
                                   char(10) || chapters.scanlator || char(10)) = 0
                      )
-               ) AS unread_count
+               ) AS unread_count,
+               (
+                   SELECT COUNT(*)
+                   FROM chapter_downloads
+                   WHERE chapter_downloads.manga_id = manga.id
+                     AND chapter_downloads.state = 'Downloaded'
+               ) AS downloaded_count
         FROM library
         JOIN manga ON manga.id = library.id
         LEFT JOIN history ON history.manga_id = manga.id
@@ -94,7 +106,13 @@ interface MangaDao {
                          OR instr(char(10) || manga.filtered_scanlators || char(10),
                                   char(10) || chapters.scanlator || char(10)) = 0
                      )
-               ) AS unread_count
+               ) AS unread_count,
+               (
+                   SELECT COUNT(*)
+                   FROM chapter_downloads
+                   WHERE chapter_downloads.manga_id = manga.id
+                     AND chapter_downloads.state = 'Downloaded'
+               ) AS downloaded_count
         FROM manga
         LEFT JOIN history ON history.manga_id = manga.id
         LEFT JOIN library ON library.id = manga.id

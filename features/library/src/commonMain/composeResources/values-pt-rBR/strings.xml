@@ -54,4 +54,9 @@
         <item quantity="one">%1$d título</item>
         <item quantity="other">%1$d títulos</item>
     </plurals>
+    <!-- Filtro de baixados -->
+    <string name="library_sheet_section_downloaded">Baixados</string>
+    <string name="library_downloaded_any">Qualquer</string>
+    <string name="library_downloaded_yes">Baixados</string>
+    <string name="library_downloaded_no">Não baixados</string>
 </resources>

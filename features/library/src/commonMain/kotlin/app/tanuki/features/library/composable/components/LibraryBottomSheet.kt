@@ -64,11 +64,15 @@ import app.tanuki.features.library.resources.library_category_help_all
 import app.tanuki.features.library.resources.library_category_help_any
 import app.tanuki.features.library.resources.library_category_match_all
 import app.tanuki.features.library.resources.library_category_match_any
+import app.tanuki.features.library.resources.library_downloaded_any
+import app.tanuki.features.library.resources.library_downloaded_no
+import app.tanuki.features.library.resources.library_downloaded_yes
 import app.tanuki.features.library.resources.library_publication_any
 import app.tanuki.features.library.resources.library_publication_completed
 import app.tanuki.features.library.resources.library_publication_ongoing
 import app.tanuki.features.library.resources.library_sheet_reset
 import app.tanuki.features.library.resources.library_sheet_section_categories
+import app.tanuki.features.library.resources.library_sheet_section_downloaded
 import app.tanuki.features.library.resources.library_sheet_section_publication
 import app.tanuki.features.library.resources.library_sheet_section_status
 import app.tanuki.features.library.resources.library_sheet_show_count
@@ -119,6 +123,7 @@ private enum class SheetTab { Sort, Filter }
  * @param onSortChange a new [LibrarySort] was chosen (tap a row to select, tap it again to flip).
  * @param onReadingStatusChange a reading-status chip was picked (`null` = Any / no status filter).
  * @param onPublicationChange the publication tri-state was changed.
+ * @param onDownloadedChange the downloaded tri-state was changed.
  * @param onCategoryToggle a category chip was tapped — add/remove it from the selection.
  * @param onCategoryMatchModeChange the category match mode (ANY/ALL) was switched.
  * @param onReset the reset control was tapped — clear all filters and restore default sort.
@@ -134,6 +139,7 @@ internal fun LibraryBottomSheet(
     onSortChange: (LibrarySort) -> Unit,
     onReadingStatusChange: (ReadingStatus?) -> Unit,
     onPublicationChange: (TriState) -> Unit,
+    onDownloadedChange: (TriState) -> Unit,
     onCategoryToggle: (Category) -> Unit,
     onCategoryMatchModeChange: (CategoryMatchMode) -> Unit,
     onReset: () -> Unit,
@@ -199,6 +205,7 @@ internal fun LibraryBottomSheet(
                             categories = categories,
                             onReadingStatusChange = onReadingStatusChange,
                             onPublicationChange = onPublicationChange,
+                            onDownloadedChange = onDownloadedChange,
                             onCategoryToggle = onCategoryToggle,
                             onCategoryMatchModeChange = onCategoryMatchModeChange
                         )
@@ -327,6 +334,7 @@ private fun FilterBlock(
     categories: List<CategoryChip>,
     onReadingStatusChange: (ReadingStatus?) -> Unit,
     onPublicationChange: (TriState) -> Unit,
+    onDownloadedChange: (TriState) -> Unit,
     onCategoryToggle: (Category) -> Unit,
     onCategoryMatchModeChange: (CategoryMatchMode) -> Unit
 ) {
@@ -352,6 +360,24 @@ private fun FilterBlock(
                 )
             }
         }
+
+        Spacer(Modifier.size(spacing.lg))
+        GroupLabel(stringResource(Res.string.library_sheet_section_downloaded))
+        Spacer(Modifier.size(spacing.sm))
+        TanukiSegmentedControl(
+            segments =
+                listOf(
+                    // REQUIRED keeps only series with something on the device; EXCLUDED only those
+                    // with nothing — the arm a plain switch would not have, and the one that makes a
+                    // cleanup pass ("what have I not kept?") possible at all.
+                    Segment(TriState.DISABLED, stringResource(Res.string.library_downloaded_any)),
+                    Segment(TriState.REQUIRED, stringResource(Res.string.library_downloaded_yes)),
+                    Segment(TriState.EXCLUDED, stringResource(Res.string.library_downloaded_no))
+                ),
+            selected = filter.downloaded,
+            onSelect = onDownloadedChange,
+            modifier = Modifier.fillMaxWidth()
+        )
 
         Spacer(Modifier.size(spacing.lg))
         GroupLabel(stringResource(Res.string.library_sheet_section_publication))

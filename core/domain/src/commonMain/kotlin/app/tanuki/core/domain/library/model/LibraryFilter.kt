@@ -9,12 +9,16 @@ import kotlin.uuid.Uuid
 /**
  * The active library filters. An item is shown only if it satisfies every set criterion.
  *
- * Criteria backed by data already on `Manga` (reading status, publication) and by the
- * manga↔category join ([categories]) exist today. Downloaded / unread / tracked filters wait on the
- * download, chapter, and tracking subsystems respectively; add them here when those land.
+ * Criteria backed by data already on `Manga` (reading status, publication, downloads) and by the
+ * manga↔category join ([categories]) exist today. Unread and tracked filters wait on the chapter and
+ * tracking subsystems respectively; add them here when those land.
  *
  * @property readingStatus When non-null, keep only manga with this user reading status; `null` = any.
  * @property publicationCompleted Gate on whether the series' publication has finished; see [TriState].
+ * @property downloaded Gate on whether the series has any chapter on the device. Tri-state rather than a
+ *   toggle because both directions are useful: `REQUIRED` is "what can I read on the plane", and
+ *   `EXCLUDED` — the arm a plain switch would not have — is how a cleanup pass finds what it has not
+ *   kept. Matched against [app.tanuki.core.domain.manga.model.Manga.isDownloaded].
  * @property categories Local ids of the categories to filter by; empty = any. How multiple selected
  *   categories combine is governed by [categoryMatchMode].
  * @property categoryMatchMode Whether a manga must be in ANY or ALL of the selected [categories].
@@ -22,6 +26,7 @@ import kotlin.uuid.Uuid
 data class LibraryFilter(
     val readingStatus: ReadingStatus? = null,
     val publicationCompleted: TriState = TriState.DISABLED,
+    val downloaded: TriState = TriState.DISABLED,
     val categories: Set<Category> = emptySet(),
     val categoryMatchMode: CategoryMatchMode = Any
 ) {
@@ -30,6 +35,7 @@ data class LibraryFilter(
         get() =
             readingStatus != null ||
                 publicationCompleted != TriState.DISABLED ||
+                downloaded != TriState.DISABLED ||
                 categories.isNotEmpty()
 
     companion object {

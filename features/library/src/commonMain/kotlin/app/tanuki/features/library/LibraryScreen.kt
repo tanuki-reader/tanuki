@@ -148,6 +148,7 @@ private fun LibraryScreen(
                     onSortChange = viewModel::onSortChange,
                     onReadingStatusChange = viewModel::onReadingStatusChange,
                     onPublicationChange = viewModel::onPublicationCompletedChange,
+                    onDownloadedChange = viewModel::onDownloadedChange,
                     onCategoryToggle = viewModel::onCategoryToggle,
                     onCategoryMatchModeChange = viewModel::onCategoryMatchModeChange,
                     onReset = viewModel::onResetFilters
