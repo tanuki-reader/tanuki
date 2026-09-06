@@ -6,6 +6,43 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-06 — Pausing the queue is a re-read preference, and "verify" is just retry
+
+**Decision:** `DownloadManager` re-reads `SettingsRepository.observeDownloadsPaused()` before every
+chapter *and* before every page, rather than mirroring the flag into a field a collector keeps current
+for the length of a run.
+
+**Why:** the mirror was written first and is the worse design. Whether it is up to date depends on the
+collector coroutine being scheduled between two pages, so how promptly the queue stops comes down to a
+race — which is exactly what the pause test caught: with a synchronous fake fetcher the whole chapter
+finished before the collector ever delivered. The cost being optimised away was one cached preference
+read against an HTTP image download, which is not a cost. Correctness that does not depend on
+scheduling is worth more than a saving too small to measure.
+
+**A paused chapter goes back to `Queued`, carrying the run's counters.** Not `Downloading`: that state
+means "an engine is fetching this", so a row left in it is requeued at the next launch as debris from a
+process that died, and shown in the queue screen as active while nothing runs. The row is written with
+the live page/byte totals rather than the snapshot the chapter's turn began with — `update` writes the
+whole row, so reusing the snapshot would roll it back behind pages that had already landed. The `.part`
+directory stays, so resuming re-fetches only what is missing. A chapter that finished every page while
+the user was reaching for pause is committed, matching the rule that cancelling keeps a chapter that
+just landed.
+
+**`NeedsVerification` has no dedicated "solve the challenge" call.** A Cloudflare challenge is raised by
+the request itself, and can only be solved while the app is on screen (see the 2026-08-22 entry) — which
+is the one thing being on the queue screen guarantees. So a failed-for-verification row relabels its
+button and calls `EnqueueChapterDownloads` like any other retry; the existing interceptor does the rest.
+Building a separate path would have meant reaching from `:features:downloads` into `:core:source`'s
+session coordinator to re-raise something the retry raises anyway.
+
+**`DownloadRepository.observePending()` became `observeQueue()`, widened to include `Failed`.** It had
+no production caller — it was written for this screen — and the screen has to show what stopped, which
+is precisely not "pending". Keeping the name would have put the repository at odds with
+`ChapterDownload.isPending`, which still means "the engine owes work on this". `Downloaded` stays out:
+a queue that never empties cannot answer "is anything still downloading?" at a glance.
+
+---
+
 ## 2026-09-06 — The download queue is worked one chapter at a time, in order
 
 **Decision:** `DownloadManager` takes the queue strictly in `queuedAt` order, one chapter at a time,

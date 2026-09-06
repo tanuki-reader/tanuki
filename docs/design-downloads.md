@@ -1,7 +1,8 @@
 # Design — Chapter downloads (offline reading)
 
-Status: **phases 0–4 built** (the storage spine, the engine, the offline read path, and the manga
-screen that drives them — see §12–§16). The feature is usable end to end from a series page.
+Status: **phases 0–5 built** (the storage spine, the engine, the offline read path, the manga screen
+that drives them, and the queue screen that controls them — see §12–§17). The feature is usable end to
+end from a series page, and the queue is visible, pausable and clearable from Settings.
 Read alongside `decisions.md`, `design-page-image-abi.md` and `session-source-and-browse.md`.
 
 Goal: the user can keep chapters on the device and read them with no network, with a queue they can
@@ -414,7 +415,7 @@ Each phase is independently mergeable and leaves both platforms green.
 | **2** ✅ | `PageFetcher` in `:core:source`, `DownloadManager`, enqueue/cancel/delete use cases, tests | A queued chapter is fetched and committed; nothing queues one yet (phase 4) |
 | **3** ✅ | `PageImage` + `GetReaderPages` + `ToImageRequest`/`ReaderState` ripple | **A downloaded chapter reads in airplane mode** (once something downloads one) |
 | **4** ✅ | Manga screen: row states, bulk actions, "download next N" | **The feature becomes usable** |
-| **5** | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry | The queue is visible and controllable |
+| **5** ✅ | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry, pause | The queue is visible and controllable |
 | **6** | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
 | **7** | Settings → Downloads (auto-download, Wi‑Fi only, delete-after-read, storage usage); library badge + `downloaded` filter | Automation + housekeeping |
 | **8** | `VerifyDownloads`, cascade hooks, source-uninstall prompt | No orphaned bytes |
@@ -662,3 +663,133 @@ reachable. What landed:
   dozen sealed-interface use cases that cannot be doubled from a test compilation, so covering the two new
   selection flags means standing up a fixture of a dozen real `Default`s over fake repositories. Worth
   doing deliberately rather than as a side effect of this phase.
+
+
+---
+
+## 17. As built — phase 5 (2026-09-06)
+
+The queue became a place rather than an implementation detail: it can be looked at, paused, retried and
+emptied, and a chapter that stopped on a Cloudflare challenge finally has somewhere to be dealt with.
+What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `settings/` | `SettingsRepository.observeDownloadsPaused` / `setDownloadsPaused` |
+| `:core:domain` `download/repository/` | `observePending` → **`observeQueue`**, widened to include `Failed` |
+| `:core:domain` `download/model/` | `DownloadQueueSeries` + `QueuedChapter` |
+| `:core:domain` `download/usecase/` | `ObserveDownloadQueue`, `ObserveDownloadQueueCount`, `CancelAllDownloads`, `ObserveDownloadsPaused`, `SetDownloadsPaused`; pause handling in `DownloadManager` |
+| `:core:domain` `chapter/model/` | `ChapterNumber.display`, moved down from `:features:manga` |
+| `:core:data` | the `downloads_paused` DataStore key; `QUEUE_STATES` |
+| `:core:navigation` | `Destination.Downloads` |
+| `:assets:designSystem` | `PauseIcon`, `PlayIcon` |
+| **`:features:downloads`** (new module) | `DownloadsRoute`/`DownloadsScreen`, `DownloadsViewModel`/`DownloadsState`, `DownloadSeriesHeader`, `DownloadQueueRow`, 24 strings × 2 languages |
+| `:features:settings` | a Downloads row on the index, subtitled with the queue count |
+| `:features:manga` | `Content.hasPendingDownloads` + a *Downloads queue* item in the series download menu |
+| `:shared` | the `Downloads` leaf in `TanukiNavHost` |
+
+12 new tests (`DownloadPauseTest`, `DownloadQueueViewTest`) over the same `DownloadWorld` fixture.
+
+### Where the code differs from §8.2, and why
+
+- **`observePending()` became `observeQueue()` rather than gaining a sibling.** It had no production
+  caller — it was written *for* this screen — and the screen must show failed chapters, which are
+  precisely not "pending". Keeping the old name would have put the repository at odds with
+  `ChapterDownload.isPending`, which still means "the engine owes work". `Downloaded` stays out: a queue
+  that never empties makes "is anything still downloading?" unanswerable at a glance.
+- **The header counts chapters, not "3 of 12".** A `Downloaded` row persists for the life of the
+  download, so a denominator taken from all of a series' records would grow forever and describe batches
+  the user queued months ago. What the screen can say honestly is how many chapters are left, and — when
+  any of them stopped — how many failed, which is the only number on the row that needs acting on.
+- **Pause is re-read per page, not mirrored into a field.** The first cut kept a `MutableStateFlow`
+  updated by a collector for the length of a run. It is measurably worse: whether the mirror is current
+  depends on that collector being scheduled between two pages, so how promptly the queue stops comes down
+  to a race — which is exactly what the pause test caught. One cached preference read against an HTTP
+  image download is not a cost worth a race.
+- **A paused chapter is written back to `Queued`, with the run's counters.** Left `Downloading` it would
+  be requeued at the next launch as debris from a dead process, and shown in this very screen as active
+  while nothing ran. Its `.part` directory stays, so resuming re-fetches only what is missing —
+  `DownloadManager` writes the live page/byte totals rather than the snapshot the chapter's turn started
+  with, which would otherwise roll the row back behind the pages that had already landed.
+- **A chapter that finished every page while the user was reaching for pause is committed**, not thrown
+  back in the queue — the same rule that makes `CancelChapterDownloads` keep a chapter that just landed.
+- **"Verify to continue" is the retry path, not a separate call.** A challenge is raised by the request
+  itself, and it can only be solved while the app is on screen (`decisions.md`, 2026-08-22) — which is
+  the one thing being on this screen guarantees. So a `NeedsVerification` row relabels its button and
+  calls `EnqueueChapterDownloads` like every other retry, and the existing interceptor does the rest.
+- **The group header opens the series; it does not collapse the group.** Collapsing is what a header of
+  this shape usually does and is the wrong verb here: groups are a handful of rows, the queue is
+  transient, and the question the screen raises — "what is this and why is it downloading?" — is answered
+  by the series page.
+- **Only "cancel all" confirms.** Cancelling one chapter or one series costs a re-tap of a button the
+  user has just found; emptying the queue is not something they can reconstruct. The dialog also says
+  explicitly that downloaded chapters are kept, because "cancel all" and "delete all downloads" are the
+  one pair of actions in this feature that must never be confusable.
+- **`ChapterNumber.display` moved onto the domain model.** It was an `internal` extension in
+  `:features:manga`, and the queue names the same chapters. Copying it would let "Chapter 4" and
+  "Chapter 4.0" drift apart across two screens, and a feature→feature dependency is not allowed — so how
+  a source's chapter number is written now lives with the number.
+- **The queue rows are `TanukiListRow`s, not a bespoke row.** The row's anatomy — leading status glyph,
+  title over a secondary line, trailing control — *is* the design system's list row, so the screen
+  inherits its 56dp floor (past the 44dp tap minimum), its leading gap, its type styles and its
+  truncation rather than restating them. The one thing the component could not express was a subtitle
+  that reports a *failure* rather than a value, so it gained an optional `subtitleColor`; the Sources
+  screen has the same need for its failed installs.
+- **The series header is deliberately *not* a `TanukiListRow`.** It has the identical anatomy, which is
+  exactly the problem: a list row fixes its title to `body`, so a header built from one would weigh the
+  same as the rows it heads and the group would read as four peers instead of a heading over three. The
+  queue is a flat lazy list — it cannot use the recessed `TanukiSectionGroup` panel that gives the
+  Settings index its grouping, because that would collapse every chapter into one un-recycled item — so
+  hierarchy comes from `headline` weight and the cover instead. Everything else is borrowed: the same
+  56dp floor, spacing tokens, `MangaCoverTile` and `TanukiIconButton`.
+- **Group separation is two weights of `TanukiRowDivider`**: full-bleed between series, inset to the
+  title column (`TanukiListRowDefaults.dividerInset`) between chapters. That difference is what says "new
+  series" versus "next chapter" without a second heading style.
+- **Three text colours were wrong in the light dialect, and two were mine to fix.** Measured against the
+  paper canvas: `textFaint` is 2.5:1 and `accent` 3.35:1 — both under the floor for small text, and
+  `textFaint` under even the 3:1 secondary bar. The status line and the series' chapter count moved to
+  `onSurfaceVariant` (5.2:1 light, 8.4:1 dark), which is also the token `TanukiListRow` gives its own
+  subtitles, so the whole screen's second tier now matches. The paused message no longer carries its
+  meaning in the accent hue at all: it is a pause glyph plus full-weight `onSurface` text, which reads
+  for a colour-blind user and outranks the count by weight rather than by colour. The third,
+  `TanukiPaletteLight.Danger` at 4.14:1, is a **token** problem and is left flagged — deepening it
+  changes every destructive button in the app.
+- **The unknown-progress ring now honours reduce-motion.** A queue shows a column of perpetually sweeping
+  rings, which is precisely the case the OS setting exists for, and the design system had no way to see
+  it: the platform call lives in `:shared`, which depends on the design system rather than the reverse.
+  So `TanukiTheme` takes `reducedMotion` and provides `LocalReducedMotion`, `App` passes
+  `rememberReducedMotion()` into it, and the ring holds its arc still instead of spinning. The same pass
+  stopped the infinite transition being *started* for determinate rings, where it animated a value
+  nothing read, once per row, for as long as the screen was open.
+- **Two icon buttons in the app bar, no overflow.** Pause/resume and cancel-all are the whole control
+  surface, and a menu holding two items costs a tap to reveal what a bar can just show.
+
+### Still open going into phase 6
+
+- **Nothing keeps the queue running once the screen is left.** `ForegroundDownloadScheduler` launches on
+  the application scope, so it survives navigation within the app, but not the process being backgrounded
+  and killed. The Android FGS worker and the iOS background task are phase 6, and the queue screen is
+  what phase 6's progress notification will deep-link into.
+- **`DownloadError.OutOfSpace` is still never produced** (phase 7, with storage usage).
+- **`Manga.isDownloaded` is still hardcoded `false`** (phase 7, with the library badge and filter).
+- **Settings → Downloads (§8.3) does not exist yet.** The Settings row added here opens the *queue*; the
+  settings sub-screen with auto-download, Wi-Fi-only and delete-after-read is phase 7, and will sit
+  beside it rather than replace it — a queue you watch and a set of rules you configure are different
+  errands.
+- **No ViewModel tests for either screen.** Unchanged from phase 4: no `:features:*` module has a test
+  source set, and standing one up is worth doing deliberately.
+- **`TanukiPaletteLight.Danger` is 4.14:1 on the paper canvas**, just under the 4.5:1 floor for small
+  text. It reaches caption-sized text here (a failed row's reason, a group's failure count) and on every
+  destructive menu item elsewhere. Deepening the token is an app-wide visual change and belongs to the
+  design system rather than to this screen; in the meantime no failure rests on colour alone — the row's
+  glyph changes shape and the reason is spelled out.
+- **`TanukiListRow` and `TanukiIconButton` suppress their press indication** (`indication = null`,
+  written explicitly in both), so a tap on a row or an icon button gives no ripple. That reads as a
+  deliberate design-system decision rather than an oversight, so this phase did not override it — but it
+  is the one item on the platform interaction checklist the screen does not meet, and it is app-wide, not
+  local to the queue.
+- **Domain models are unstable to the Compose compiler.** `:core:domain` has no Compose plugin and there
+  is no stability configuration file, so every `Chapter`/`Manga`/`ChapterDownload` is treated as
+  unstable and every visible row recomposes on each per-page progress emission. Lazy-list keys keep this
+  cheap enough today; a `stabilityConfigurationFile` listing `app.tanuki.core.domain.*` would fix it for
+  this screen, the library grid and the chapter list at once.
