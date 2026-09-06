@@ -4,6 +4,7 @@ import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.Easing
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
 
 /**
  * Tanuki motion tokens — durations and easings for screen-level transitions, both platforms.
@@ -37,3 +38,19 @@ object TanukiMotion {
     /** Accelerate — for exiting content. */
     val EaseExit: Easing = EaseInCubic
 }
+
+/**
+ * Whether the OS "reduce motion" / "remove animations" preference is on, for components that animate on
+ * their own rather than under a caller that already branches on it.
+ *
+ * The reading of the setting is a platform call and lives in `:shared` (`rememberReducedMotion`), which
+ * depends on this module and not the other way round — so the answer is *pushed down* here through the
+ * theme instead. `TanukiTheme` takes it as a parameter and provides it; a component that never sees a
+ * provider (a `@Preview`, a test) gets `false`, which is the right default: the design system's job is to
+ * respect a preference that has been expressed, never to assume one.
+ *
+ * A component reads this only when it starts motion the user did not ask for — a perpetual indicator, an
+ * auto-advancing carousel. A transition that runs *because* the user tapped something is what
+ * [TanukiMotion.reducedMillis] is for.
+ */
+val LocalReducedMotion = staticCompositionLocalOf { false }

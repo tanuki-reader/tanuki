@@ -19,6 +19,7 @@ import app.tanuki.di.AppGraph
 import app.tanuki.features.reader.LocalPageImageLoader
 import app.tanuki.navigation.TanukiNavHost
 import app.tanuki.platform.SystemBarsEffect
+import app.tanuki.platform.rememberReducedMotion
 import app.tanuki.platform.imaging.newTanukiImageLoader
 import app.tanuki.platform.web.SiteSessionHost
 import app.tanuki.platform.web.WebEngineWarmupEffect
@@ -116,7 +117,10 @@ fun App(appGraph: AppGraph) {
         SystemBarsEffect(darkTheme)
         // Start the browser engine early, so the first Cloudflare challenge doesn't pay for it mid-scroll.
         WebEngineWarmupEffect()
-        TanukiTheme(darkTheme = darkTheme) {
+        // Read once, here, and pushed into the theme: the design system's self-animating components
+        // (the progress ring's indeterminate sweep) have no other way to see the OS setting, since the
+        // platform call lives in this module and the design system sits below it.
+        TanukiTheme(darkTheme = darkTheme, reducedMotion = rememberReducedMotion()) {
             // An explicit stacking parent, because the session layer moves *through* the nav host rather
             // than simply sitting on top of it: a Cloudflare challenge starts underneath the app and solves
             // there unseen, and only comes over the top if it turns out to need the user (see

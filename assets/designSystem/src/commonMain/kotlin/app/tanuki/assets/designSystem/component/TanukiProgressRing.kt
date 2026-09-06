@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.LocalReducedMotion
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.assets.designSystem.TanukiTheme
 
@@ -46,6 +47,13 @@ import app.tanuki.assets.designSystem.TanukiTheme
  * The determinate arc is animated between values rather than jumping, because progress arrives one page
  * at a time and an un-eased step reads as a flicker on a 20dp glyph.
  *
+ * ### Reduced motion
+ *
+ * The unknown-progress sweep is perpetual motion the user never asked for, and a queue screen can show a
+ * column of them at once — the exact case the OS "reduce motion" setting exists for. With it on, the arc
+ * is drawn once and held still. Nothing is lost: every caller pairs this ring with a text status, so the
+ * state was never carried by the motion alone.
+ *
  * @param progress how much is done, `0f..1f`, or `null` when it is not yet known.
  * @param size the ring's outer diameter. Keep the caller's tap target at
  *   [app.tanuki.assets.designSystem.TanukiSpacing.tapMin] regardless of this.
@@ -60,15 +68,24 @@ fun TanukiProgressRing(
     color: Color = TanukiTheme.colors.accent,
     trackColor: Color = TanukiTheme.colors.scrimSoft
 ) {
-    // Kept above the branch so switching between unknown and known progress doesn't restart the
-    // composition's animation state — a chapter crosses that boundary exactly once, mid-download.
-    val transition = rememberInfiniteTransition(label = "progress-ring")
-    val sweepStart by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = FULL_CIRCLE,
-        animationSpec = infiniteRepeatable(tween(INDETERMINATE_MILLIS, easing = LinearEasing), RepeatMode.Restart),
-        label = "sweep"
-    )
+    // Only started when it is actually going to be drawn: a determinate ring that kept an infinite
+    // transition running would animate a value nothing reads, once per row, for as long as the screen is
+    // open. Reduce-motion collapses it to a fixed angle for the same reason it exists at all.
+    val spinning = progress == null && !LocalReducedMotion.current
+    val sweepStart =
+        if (spinning) {
+            val transition = rememberInfiniteTransition(label = "progress-ring")
+            val angle by transition.animateFloat(
+                initialValue = 0f,
+                targetValue = FULL_CIRCLE,
+                animationSpec =
+                    infiniteRepeatable(tween(INDETERMINATE_MILLIS, easing = LinearEasing), RepeatMode.Restart),
+                label = "sweep"
+            )
+            angle
+        } else {
+            START_ANGLE
+        }
     val fraction by animateFloatAsState(
         targetValue = progress?.coerceIn(0f, 1f) ?: 0f,
         animationSpec = tween(TanukiMotion.reducedMillis, easing = LinearEasing),

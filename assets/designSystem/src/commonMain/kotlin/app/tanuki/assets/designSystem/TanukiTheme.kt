@@ -14,10 +14,14 @@ import androidx.compose.runtime.CompositionLocalProvider
  * tokens via:
  * - `MaterialTheme.colorScheme` / `MaterialTheme.typography` for Material slots, or
  * - `TanukiTheme.colors` / `TanukiTheme.spacing` / `TanukiTheme.typography` for the brand extras.
+ *
+ * @param reducedMotion whether the OS "reduce motion" setting is on. Passed in rather than read here:
+ *   the platform call lives in `:shared`, which depends on this module. See [LocalReducedMotion].
  */
 @Composable
 fun TanukiTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    reducedMotion: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val extendedColors = if (darkTheme) tanukiDarkExtendedColors else tanukiLightExtendedColors
@@ -25,7 +29,8 @@ fun TanukiTheme(
     CompositionLocalProvider(
         LocalTanukiColors provides extendedColors,
         LocalTanukiSpacing provides TanukiSpacing,
-        LocalTanukiTypography provides TanukiTextStyles
+        LocalTanukiTypography provides TanukiTextStyles,
+        LocalReducedMotion provides reducedMotion
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
