@@ -500,6 +500,9 @@ internal class FakeSourceLoader(
     /** Chapter keys the source serves no pages for. */
     val empty = mutableSetOf<String>()
 
+    /** Exact page lists per chapter key, for tests that care what a page carries rather than how many. */
+    val scripted = mutableMapOf<String, List<Page>>()
+
     override suspend fun fetchChapterPages(
         sourceId: String,
         chapterId: String,
@@ -507,6 +510,7 @@ internal class FakeSourceLoader(
         asked += chapterId
         if (chapterId in failing) error("the source is down")
         if (chapterId in empty) return emptyList()
+        scripted[chapterId]?.let { return it }
         return List(pagesPerChapter) { index ->
             Page(
                 index = index.toUInt(),

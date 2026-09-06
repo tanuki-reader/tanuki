@@ -12,17 +12,23 @@ import kotlinx.coroutines.flow.first
 import kotlin.uuid.Uuid
 
 /**
- * Use case: fetch the ordered pages of a chapter for the reader.
+ * Use case: fetch the ordered pages of a chapter **from its source**.
  *
- * The reader is opened with a local chapter [Uuid] (what navigation and history speak), but the source
- * layer addresses content by *source-native* ids — a source id like `"mangadex"` plus the chapter's own
- * key. This use case is the translation: it resolves the local chapter to its owning manga and source,
- * then asks the [SourceLoader] for the pages. Keeping that resolution here (not in the ViewModel) is
- * what lets the reader stay unaware of source-native ids, mirroring how
- * [SyncSourceChapters] resolves a manga before fetching its chapter list.
+ * Callers speak a local chapter [Uuid] (what navigation and history use), but the source layer addresses
+ * content by *source-native* ids — a source id like `"mangadex"` plus the chapter's own key. This use
+ * case is the translation: it resolves the local chapter to its owning manga and source, then asks the
+ * [SourceLoader] for the pages. Keeping that resolution here (not in a ViewModel) is what lets callers
+ * stay unaware of source-native ids, mirroring how [SyncSourceChapters] resolves a manga before fetching
+ * its chapter list.
  *
- * Returns the source's own page order. [Page] is a descriptor only (never image bytes) — the reader
- * fetches the images from each page's URL through the image pipeline.
+ * It always goes to the source, and deliberately knows nothing about downloads. Its two callers want
+ * different things and are served by different use cases: the reader asks
+ * [GetReaderPages], which prefers a downloaded copy, while the download engine
+ * ([app.tanuki.core.domain.download.usecase.DownloadManager]) asks *this* — it must reach the source, or
+ * it would be fetching a chapter from the copy it is in the middle of writing.
+ *
+ * Returns the source's own page order. [Page] is a descriptor only (never image bytes) — the image
+ * pipeline fetches from each page's URL.
  *
  * Failure is surfaced by throwing, not by returning an empty list: an empty result is a *valid* answer
  * (a chapter a source genuinely serves no pages for) and must be distinguishable from "we couldn't ask".
