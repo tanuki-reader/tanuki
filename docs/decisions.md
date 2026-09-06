@@ -6,6 +6,40 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-06 — Automatic downloads and deletions are conservative by construction
+
+**Decision:** every download setting defaults to the option that does nothing — `AutoDownloadMode.Off`,
+`DeleteAfterReading.Off`, Wi-Fi-only `false` — and an unreadable or unknown stored value falls back to
+the same. Turning delete-after-reading on is **not retroactive**.
+
+**Why:** these are the two settings in the app that spend a user's resources without being asked. One
+downloads over mobile data; the other removes files. A default that leaks in either direction is
+discovered *after* the damage, and the person it happens to has no way to connect it to a screen they
+never opened. So the defaults are chosen for what happens when the store is empty, corrupt, or written by
+a newer build — not for what most users would probably want.
+
+The retroactivity call is the same reasoning one step further. Switching "delete after reading" on could
+plausibly mean "and tidy up what is already there", and that reading would remove a hundred existing
+downloads on one tap of a row that said nothing about it. It changes what happens from now on; the screen
+says so, in a hint shown only once the setting actually deletes something.
+
+**"Keep the last N read chapters" is applied to the series, not to the chapter just read.** N can only be
+answered by looking at all of them — marking chapter 40 read is what makes chapter 35 the one to delete —
+so the ids that trigger the rule are a trigger, not a target, and `Immediately` is the same rule with
+`N = 0` rather than a special case. Bookmarked chapters are exempt: a bookmark is the user saying "come
+back to this", which is the opposite of what the setting is for.
+
+**An empty category selection downloads nothing.** "Download for these categories", with none picked,
+cannot mean "all of them". The generous reading would spend data on a half-configured setting, so the
+strict one wins and the screen says so at the moment the selection is empty.
+
+**Storage is measured on disk, not summed from the records.** The two drift — a write that died, a
+`.part` an abandoned run left behind, storage cleared from the OS — and the number the screen exists to
+justify ("should I delete something?") is only useful if it matches what the system reports. It is also
+why the phase-8 orphan sweep has something to reconcile *against*.
+
+---
+
 ## 2026-09-06 — Downloads run in a foreground service on Android and only in the foreground on iOS
 
 **Decision:** the Android queue is a WorkManager job that promotes itself to a `dataSync` foreground

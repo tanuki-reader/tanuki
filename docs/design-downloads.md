@@ -1,9 +1,10 @@
 # Design — Chapter downloads (offline reading)
 
-Status: **phases 0–6 built** (the storage spine, the engine, the offline read path, the manga screen
-that drives them, the queue screen that controls them, and the platform runners that keep them going —
-see §12–§18). The feature is usable end to end from a series page; the queue is visible, pausable and
-clearable from Settings, and on Android it survives leaving the app.
+Status: **phases 0–7 built** (the storage spine, the engine, the offline read path, the manga screen
+that drives them, the queue screen that controls them, the platform runners that keep them going, and the
+settings that automate them — see §12–§19). The feature is usable end to end; the queue is visible,
+pausable and clearable, on Android it survives leaving the app, and downloads can now happen — and be
+cleaned up — without being asked for each time.
 Read alongside `decisions.md`, `design-page-image-abi.md` and `session-source-and-browse.md`.
 
 Goal: the user can keep chapters on the device and read them with no network, with a queue they can
@@ -418,7 +419,7 @@ Each phase is independently mergeable and leaves both platforms green.
 | **4** ✅ | Manga screen: row states, bulk actions, "download next N" | **The feature becomes usable** |
 | **5** ✅ | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry, pause | The queue is visible and controllable |
 | **6** ✅ | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
-| **7** | Settings → Downloads (auto-download, Wi‑Fi only, delete-after-read, storage usage); library badge + `downloaded` filter | Automation + housekeeping |
+| **7** ✅ | Settings → Downloads (auto-download, Wi‑Fi only, delete-after-read, storage usage); library badge + `downloaded` filter | Automation + housekeeping |
 | **8** | `VerifyDownloads`, cascade hooks, source-uninstall prompt | No orphaned bytes |
 
 Phases 1–3 are the spine: after phase 3 the app genuinely reads offline, and everything after is
@@ -882,3 +883,110 @@ keeps fetching with the app closed; on iOS it is a foreground run with a grace p
   window that the simulator does not model, and `BGProcessingTask` is never delivered there at all —
   both need a real device to observe.
 
+
+---
+
+## 19. As built — phase 7 (2026-09-06)
+
+The subsystem stopped needing to be asked. Chapters can arrive downloaded, read ones can clear
+themselves away, and what the whole thing costs is finally visible next to the button that empties it.
+What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `settings/model/` | `AutoDownloadMode`, `DeleteAfterReading` |
+| `:core:domain` `settings/repository/` | four new settings on `SettingsRepository` (auto-download mode + categories, Wi-Fi only, delete-after-reading) |
+| `:core:domain` `download/model/` | `DownloadSettings`, `DownloadStorageUsage` + `SeriesStorage` |
+| `:core:domain` `download/usecase/` | `ObserveDownloadSettings`, `SetAutoDownload`, `SetDownloadOnWifiOnly`, `SetDeleteAfterReading`, `ObserveDownloadStorageUsage`, `AutoDownloadNewChapters`, `DeleteReadChapterDownloads` |
+| `:core:domain` hooks | `SyncSourceChapters` → auto-download; `SetChaptersRead` and `UpdateReadingProgress` → delete-after-reading |
+| `:core:domain` `library/` | `LibraryFilter.downloaded` (+ `isActive`, + `ObserveLibrary`) |
+| `:core:data` | the four DataStore keys; `downloaded_count` in all three `MangaDao` queries → real `Manga.isDownloaded` |
+| `:shared` androidMain | `WorkManagerDownloadScheduler` reads the Wi-Fi setting and picks `UNMETERED`/`CONNECTED` |
+| `:assets:designSystem` | `TanukiSwitchRow`, `TanukiChoiceRow`; `TanukiListRow.destructive` |
+| `:core:navigation` | `Destination.SettingsDownloads` |
+| `:features:settings` | the Downloads settings screen + ViewModel/state, byte formatting, 35 strings × 2 languages; `PrivacyScreen` refactored onto `TanukiSwitchRow` |
+| `:features:library` | the `downloaded` tri-state control in the filter sheet |
+
+11 new tests (`DownloadAutomationTest`).
+
+### Where the code differs from §8.3–§8.4, and why
+
+- **"Keep last N" is a fixed set of options, not a number picker.** `DeleteAfterReading` is
+  `Off / Immediately / KeepLastOne / KeepLastFive`. A stepper implies the difference between 3 and 4
+  matters; it does not. What matters is the shape of the choice — never delete, delete at once, or keep
+  enough slack to flick back — and four named options say that in a way a number never does.
+- **The rule is applied to the *series*, not to the chapters it was handed.** "Keep the last N read" can
+  only be answered by looking at all of them: marking chapter 40 read is what makes chapter 35 the one to
+  delete. So the ids that trigger it are a trigger, and `Immediately` is the same rule with `N = 0`
+  rather than a special case.
+- **Bookmarked chapters are never deleted.** Not in §8.3, and it is the one exception the rule needs: a
+  bookmark is the user saying "come back to this", which is precisely the opposite of what
+  delete-after-reading is for.
+- **Turning delete-after-reading on is not retroactive.** It changes what happens from now on and sweeps
+  nothing. A setting that silently removed a hundred existing downloads the moment it was switched on is
+  the one outcome the user cannot undo, and nothing in the row they tapped would have suggested it. The
+  screen says so, in a hint that appears only once the setting actually deletes something.
+- **An empty category selection downloads nothing.** "Download for these categories", with none picked,
+  cannot mean "all of them" — the generous reading would spend a user's data on a half-configured
+  setting. The screen says so at exactly that moment rather than as permanent copy.
+- **Auto-download skips series outside the library.** A sync also runs while the user is merely browsing
+  a source; downloading a series they have not saved would spend their storage on something they were
+  only looking at. `SyncSourceChapters` already applies the same guard to chapter updates.
+- **The hook lives inside `SyncSourceChapters`, not in its callers.** Both callers — the scheduled
+  library update and a manual pull on a series page — mean the same thing by "a new chapter arrived", so
+  neither needs to know the rule.
+- **Storage is measured, not summed.** The totals come from `ChapterDownloadStore` walking the files
+  rather than from adding up `ChapterDownload.bytes`. The two drift (a write that died, a `.part` an
+  abandoned run left, storage cleared from the OS), and the number this screen exists to justify —
+  "should I delete something?" — is only useful if it matches what the system would report.
+- **Decimal units, not binary.** `1000`, so "2.1 GB" here is "2.1 GB" in the OS storage screen the user
+  is about to go and check. Being 7% off the binary figure matters far less than disagreeing with the
+  thing being compared against.
+- **The breakdown stops at five series.** A full list would be a second library grid on a settings
+  screen; the question here is "what is taking the room", which the largest few answer. Anything finer is
+  a per-series decision, and the series' own page is where that is made.
+- **`downloaded_count` is a correlated subquery, mirroring `unread_count`.** Not a column on `manga`: it
+  is a count over another table, and a stored one would need invalidating from every write that touches
+  `chapter_downloads`. `Manga.isDownloaded` is "has at least one committed chapter", which is what both
+  the library badge and the filter ask.
+- **The settings index row now opens the settings, which link on to the queue.** Two destinations, one
+  entry point. The row's subtitle still names the queue's count — a download that stopped on an error is
+  otherwise invisible from anywhere the user is likely to be.
+
+### On the UI
+
+- **Two new design-system components, both encoding a rule callers forget.** `TanukiSwitchRow` makes the
+  *whole row* the target (a switch is ~52×32dp; the row is 56dp and full-width) and announces
+  `Role.Switch`. `TanukiChoiceRow` reserves the tick's slot whether or not it is showing one, so changing
+  the selection does not shift the list sideways, and announces `Role.RadioButton` with a `selected`
+  state so a screen reader hears one group of alternatives rather than a stack of buttons.
+- **Rows, not a segmented control, for these choices.** The decision is about labels, not counts: a
+  segmented control needs every label to survive being a third of the screen wide. "Off / Light / Dark"
+  does; "Keep the last five read chapters" does not.
+- **Every option carries a subtitle saying what it does.** These settings spend storage and mobile data,
+  and "Keep the last five" means nothing alone. A control whose consequence has to be guessed at is one
+  the user will either avoid or regret.
+- **The per-category mode is hidden, not disabled, when there are no categories.** A disabled row invites
+  the user to work out how to enable it, and the answer — "go and make a library category" — is on a
+  different screen with no way to say so from here.
+- **`TanukiListRow` gained `destructive`, matching `TanukiMenuItem`'s.** The first cut set `subtitleColor`
+  on a row with no subtitle, so the delete-everything row rendered as an ordinary one — the exact defect
+  the `destructive-emphasis` rule names. Same word, same meaning in both components now, so a
+  "delete everything" reads identically whether it is a menu item or a row.
+- **The confirmation says what is *not* touched.** The fear the dialog has to answer is "will I lose my
+  library", and only naming it answers it.
+
+### Still open going into phase 8
+
+- **Wi-Fi-only is not enforced on iOS.** Android gets it free from WorkManager's `UNMETERED` constraint.
+  iOS needs a metered-connection signal (`NWPathMonitor.isExpensive`), and the natural home for it is the
+  `ConnectionObserver` seam that is currently in flight — so the toggle is stored and honoured on one
+  platform only. The setting is not hidden on iOS: a preference that exists on one device and vanishes on
+  another is worse than one that is not yet applied, and the row says as much.
+- **`DownloadError.OutOfSpace` is still never produced.** Free-space checking needs a port neither okio
+  nor common Kotlin offers. The storage screen now at least tells the user what they are using, which is
+  the half that does not need one.
+- **No ViewModel tests.** Unchanged since phase 4: no `:features:*` module has a test source set.
+- **`VerifyDownloads` and the cascade hooks are phase 8** — the orphan sweep is what reconciles the
+  measured storage total against the records, and it is the reason the total is measured rather than
+  summed.
