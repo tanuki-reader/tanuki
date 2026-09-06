@@ -3,6 +3,7 @@ package app.tanuki.di
 import app.tanuki.core.domain.common.service.CrashReporter
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.service.DownloadScheduler
+import app.tanuki.core.domain.download.usecase.RunDownloadQueue
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.update.usecase.KeepLibraryUpdateScheduled
@@ -83,6 +84,13 @@ interface AppGraph : ViewModelGraph {
      * user opens anything, and every other caller reaches it through a use case.
      */
     val downloadScheduler: DownloadScheduler
+
+    /**
+     * Works the queue and reports on it. Exposed for the same reason as [updateLibrary]: iOS's
+     * `BGProcessingTask` handler is a static launch handler with no injected collaborators, so the one
+     * thing it needs has to be reachable from the graph itself.
+     */
+    val runDownloadQueue: RunDownloadQueue
 
     /** Temporary dev helper: seed sample manga into an empty library. Remove once sources exist. */
     val librarySeeder: LibrarySeeder

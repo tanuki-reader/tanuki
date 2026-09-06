@@ -20,6 +20,28 @@
     <!-- One series' line inside a multi-series notification: "One Piece · 3 new chapters" -->
     <string name="notification_updates_line">%1$s · %2$s</string>
 
+    <!-- Download queue notifications -->
+    <string name="notification_channel_downloads">Downloading</string>
+    <string name="notification_channel_downloads_description">Shown while chapters are being saved to this device.</string>
+    <string name="notification_channel_downloads_done">Downloads finished</string>
+    <string name="notification_channel_downloads_done_description">Told when a download queue finishes or a chapter fails.</string>
+    <string name="notification_downloads_title">Downloading chapters</string>
+    <string name="notification_downloads_starting">Starting…</string>
+    <string name="notification_downloads_chapter">Chapter %1$s</string>
+    <string name="notification_downloads_pages">%1$d of %2$d pages</string>
+    <plurals name="notification_downloads_remaining">
+        <item quantity="one">%1$d more chapter</item>
+        <item quantity="other">%1$d more chapters</item>
+    </plurals>
+    <plurals name="notification_downloads_done">
+        <item quantity="one">%1$d chapter downloaded</item>
+        <item quantity="other">%1$d chapters downloaded</item>
+    </plurals>
+    <plurals name="notification_downloads_failed">
+        <item quantity="one">%1$d chapter could not be downloaded</item>
+        <item quantity="other">%1$d chapters could not be downloaded</item>
+    </plurals>
+
     <!-- In-app browser shown when a site needs the user: a Cloudflare check, or signing in -->
     <string name="site_session_challenge_title">Verifying your connection</string>
     <string name="site_session_challenge_message">%1$s is checking that you’re not a bot. Complete the check below and this will close by itself.</string>

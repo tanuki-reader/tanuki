@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Status-bar icon for the download notifications: an arrow landing in a tray.
+
+  Android renders a small icon as a stencil — every non-transparent pixel is repainted in the system's
+  tint — so this is drawn as solid shapes rather than strokes with a fill behind them, which would
+  flatten into a block. It is the same glyph the app uses for "download" everywhere else
+  (`TanukiIcons.DownloadIcon`), redrawn filled at the 24dp status-bar scale: the arrow is a shaft plus a
+  triangular head, and the tray is an open-topped U, so the arrow reads as landing *in* it rather than
+  crossing a line.
+
+  Deliberately not the tanuki mark (`ic_stat_library_update`). The two notifications sit in the same
+  shade and mean different things — chapters arrived, versus chapters are being saved — and a status
+  icon that is identical for both is the one place the user cannot tell them apart at a glance.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFFFF">
+
+    <!-- Shaft and head: one path so the arrow is a single solid form at 24dp. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10.85,3 h2.3 v7.2 h3.35 l-4.5,4.8 l-4.5,-4.8 h3.35 z" />
+
+    <!-- Tray: an open-topped U, drawn as a filled outline so it survives the stencil. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4,15 h2.2 v3.8 h11.6 v-3.8 h2.2 v6 h-16 z" />
+</vector>

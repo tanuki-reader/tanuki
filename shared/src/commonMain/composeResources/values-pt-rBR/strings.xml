@@ -19,6 +19,28 @@
     </plurals>
     <!-- Linha de uma série numa notificação com várias: "One Piece · 3 novos capítulos" -->
     <string name="notification_updates_line">%1$s · %2$s</string>
+    <!-- Notificações da fila de downloads -->
+    <string name="notification_channel_downloads">Baixando</string>
+    <string name="notification_channel_downloads_description">Exibida enquanto capítulos são salvos neste aparelho.</string>
+    <string name="notification_channel_downloads_done">Downloads concluídos</string>
+    <string name="notification_channel_downloads_done_description">Avisa quando uma fila de downloads termina ou um capítulo falha.</string>
+    <string name="notification_downloads_title">Baixando capítulos</string>
+    <string name="notification_downloads_starting">Iniciando…</string>
+    <string name="notification_downloads_chapter">Capítulo %1$s</string>
+    <string name="notification_downloads_pages">%1$d de %2$d páginas</string>
+    <plurals name="notification_downloads_remaining">
+        <item quantity="one">mais %1$d capítulo</item>
+        <item quantity="other">mais %1$d capítulos</item>
+    </plurals>
+    <plurals name="notification_downloads_done">
+        <item quantity="one">%1$d capítulo baixado</item>
+        <item quantity="other">%1$d capítulos baixados</item>
+    </plurals>
+    <plurals name="notification_downloads_failed">
+        <item quantity="one">Não foi possível baixar %1$d capítulo</item>
+        <item quantity="other">Não foi possível baixar %1$d capítulos</item>
+    </plurals>
+
 
     <!-- Navegador interno mostrado quando um site precisa do usuário: verificação da Cloudflare ou login -->
     <string name="site_session_challenge_title">Verificando sua conexão</string>

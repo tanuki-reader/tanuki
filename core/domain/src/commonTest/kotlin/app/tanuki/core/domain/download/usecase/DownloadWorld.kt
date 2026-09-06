@@ -13,11 +13,13 @@ import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.model.DownloadError
 import app.tanuki.core.domain.download.model.DownloadManifest
+import app.tanuki.core.domain.download.model.DownloadProgress
 import app.tanuki.core.domain.download.model.DownloadState
 import app.tanuki.core.domain.download.model.DownloadedPage
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.download.service.ChapterDownloadPart
 import app.tanuki.core.domain.download.service.ChapterDownloadStore
+import app.tanuki.core.domain.download.service.DownloadNotifier
 import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.service.FetchedPage
 import app.tanuki.core.domain.download.service.PageFetchException
@@ -118,6 +120,11 @@ internal class DownloadWorld(
 
     val queueView: ObserveDownloadQueue =
         ObserveDownloadQueue.Default(downloads, mangaRepository, chapterRepository, dispatchers)
+
+    val notifier = FakeDownloadNotifier()
+
+    val runQueue: RunDownloadQueue =
+        RunDownloadQueue.Default(manager, queueView, notifier, RecordingLogger())
 
     /** Puts [chapters] straight into the queue, bypassing the enqueue use case's own rules. */
     suspend fun queue(vararg chapters: Chapter) {
@@ -534,6 +541,32 @@ internal class FakeSettingsRepository : SettingsRepository {
     ) = unused()
 
     private fun unused(): Nothing = error("FakeSettingsRepository only implements the download pause")
+}
+
+/**
+ * Records what the user would have been told, so the notification contract can be asserted without a
+ * platform notification anywhere near the test.
+ */
+internal class FakeDownloadNotifier : DownloadNotifier {
+    val progress = mutableListOf<DownloadProgress>()
+    val finished = mutableListOf<Pair<Int, Int>>()
+    var clears: Int = 0
+        private set
+
+    override suspend fun onProgress(progress: DownloadProgress) {
+        this.progress += progress
+    }
+
+    override suspend fun onFinished(
+        downloaded: Int,
+        failed: Int,
+    ) {
+        finished += downloaded to failed
+    }
+
+    override suspend fun clear() {
+        clears++
+    }
 }
 
 /** Records that the queue was asked to run, without running it. */
