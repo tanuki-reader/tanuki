@@ -8,6 +8,7 @@ import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.model.DownloadError
 import app.tanuki.core.domain.download.model.DownloadState
+import app.tanuki.core.domain.download.model.DownloadHold
 import app.tanuki.core.domain.download.model.DownloadedPage
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.download.service.ChapterDownloadPart
@@ -17,7 +18,6 @@ import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.download.service.PageFetcher
 import app.tanuki.core.domain.download.usecase.DownloadRunResult.Completed
 import app.tanuki.core.domain.download.usecase.DownloadRunResult.Skipped
-import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.model.Page
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -77,14 +77,17 @@ import kotlin.uuid.Uuid
  * [CancellationException] is always rethrown — that is the app being torn down, not a chapter going
  * wrong.
  *
- * ### Pausing stops the run, not the chapter
+ * ### A hold stops the run, not the chapter
  *
- * The pause is a single app preference, re-read before every chapter and before every page. When it
- * comes on the engine stops taking pages, puts the chapter it was working on back to
- * [DownloadState.Queued] and ends the run — it does not fail anything and does not delete anything, so
- * resuming picks the same chapter back up from its `.part` directory. Checking it *inside* a chapter as
- * well as between chapters is what makes the button feel like a button: a forty-page chapter on mobile
- * data is a long time to keep downloading after being told to stop.
+ * [ObserveDownloadHold] is re-read before every chapter and before every page, and answers one question
+ * for both reasons a queue may legitimately stop: the user paused it, or "only on Wi-Fi" is on and the
+ * connection is metered. When it says stop, the engine stops taking pages, puts the chapter it was
+ * working on back to [DownloadState.Queued] and ends the run — nothing is failed and nothing is deleted,
+ * so resuming picks the same chapter back up from its `.part` directory.
+ *
+ * Checking *inside* a chapter as well as between chapters is what makes it feel immediate: a forty-page
+ * chapter on mobile data is a long time to keep downloading after being told to stop, and — for the
+ * Wi-Fi case — a long time to keep spending data the user asked the app not to.
  *
  * Progress is written to the database per page, so the UI, a process death and a resume all agree
  * without any in-memory state being authoritative.
@@ -115,7 +118,7 @@ sealed interface DownloadManager {
         private val store: ChapterDownloadStore,
         private val pageFetcher: PageFetcher,
         private val getChapterPages: GetChapterPages,
-        private val settingsRepository: SettingsRepository,
+        private val observeDownloadHold: ObserveDownloadHold,
         private val dispatchers: DispatcherProvider,
         private val logger: Logger,
     ) : DownloadManager {
@@ -156,8 +159,9 @@ sealed interface DownloadManager {
             val handled = mutableSetOf<Uuid>()
 
             while (true) {
-                if (paused()) {
-                    logger.info(TAG, "The queue is paused; ending the run")
+                val hold = hold()
+                if (!hold.isRunnable) {
+                    logger.info(TAG, "The queue is held ($hold); ending the run")
                     break
                 }
                 val next = downloadRepository.nextQueued() ?: break
@@ -174,7 +178,7 @@ sealed interface DownloadManager {
                     Outcome.Abandoned -> Unit
                     // The chapter is back in the queue exactly where it was; nothing is left to do until
                     // the user resumes, and `handled` would refuse to pick it again anyway.
-                    Outcome.Paused -> break
+                    Outcome.Held -> break
                 }
             }
 
@@ -249,7 +253,7 @@ sealed interface DownloadManager {
             // Checked before the commit, not instead of it: a chapter that finished every page while the
             // user was reaching for pause is committed rather than thrown back in the queue, for the same
             // reason cancelling a chapter that just landed keeps its files.
-            if (progress.pages() < pages.size && paused()) return pause(record, pages.size, progress)
+            if (progress.pages() < pages.size && !hold().isRunnable) return holdChapter(record, pages.size, progress)
 
             val manifest = store.commit(part, expectedPageCount = pages.size)
             downloadRepository.markDownloaded(
@@ -293,7 +297,7 @@ sealed interface DownloadManager {
             page: Page,
             progress: ChapterProgress,
         ) {
-            if (chapterId in aborted.value || paused()) return
+            if (chapterId in aborted.value || !hold().isRunnable) return
             val fetched = fetch(page)
             // Checked again on the way out: the fetch is the slow part, so this is where an abort most
             // often lands. Dropping the bytes is cheaper than writing a file the next line deletes.
@@ -358,18 +362,18 @@ sealed interface DownloadManager {
         }
 
         /**
-         * Whether the user has paused the queue.
+         * Whether anything is holding the queue, and what.
          *
          * Read at the point of use rather than mirrored into a field a collector keeps current. A mirror
          * looks cheaper and is worse: whether it is up to date depends on a collector coroutine being
          * scheduled between two pages, so how promptly the queue stops would come down to a race. This
-         * is one cached preference read against an HTTP image download — the cost is not measurable, and
-         * the answer is never stale.
+         * is a cached preference read and an in-memory boolean against an HTTP image download — the cost
+         * is not measurable, and the answer is never stale.
          */
-        private suspend fun paused(): Boolean = settingsRepository.observeDownloadsPaused().first()
+        private suspend fun hold(): DownloadHold = observeDownloadHold().first()
 
         /**
-         * Puts a chapter the user paused back where it was.
+         * Puts a chapter the queue stopped on back where it was.
          *
          * Written back to [DownloadState.Queued] rather than left [DownloadState.Downloading]: that state
          * means "an engine is fetching this", and a row left in it would be requeued at the next startup
@@ -377,12 +381,12 @@ sealed interface DownloadManager {
          * screen as active while nothing is running. Its part directory stays, so resuming re-fetches
          * only the pages that are missing.
          */
-        private suspend fun pause(
+        private suspend fun holdChapter(
             record: ChapterDownload,
             pageCount: Int,
             progress: ChapterProgress,
         ): Outcome {
-            logger.info(TAG, "Pausing on chapter ${record.chapterId}")
+            logger.info(TAG, "Holding on chapter ${record.chapterId}")
             // The counters come from the run, not from [record], which is the snapshot this turn started
             // with: `update` writes the whole row, so reusing the snapshot's totals would roll the row
             // back to where the chapter was before any of this turn's pages landed.
@@ -395,11 +399,11 @@ sealed interface DownloadManager {
                     bytes = progress.bytes(),
                 ),
             )
-            return Outcome.Paused
+            return Outcome.Held
         }
 
         /** What became of one chapter's turn. */
-        private enum class Outcome { Downloaded, Failed, Abandoned, Paused }
+        private enum class Outcome { Downloaded, Failed, Abandoned, Held }
 
         /**
          * A chapter's running page/byte totals, seeded from whatever an interrupted attempt left behind.

@@ -42,6 +42,8 @@ import app.tanuki.assets.designSystem.component.TanukiListRowDefaults
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.assets.designSystem.component.TanukiRowDivider
 import app.tanuki.assets.designSystem.component.TrashIcon
+import app.tanuki.assets.designSystem.component.WifiIcon
+import app.tanuki.core.domain.download.model.DownloadHold
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.downloads.composable.components.DownloadQueueRow
@@ -60,6 +62,7 @@ import app.tanuki.features.downloads.resources.downloads_paused_banner
 import app.tanuki.features.downloads.resources.downloads_queue_count
 import app.tanuki.features.downloads.resources.downloads_resume
 import app.tanuki.features.downloads.resources.downloads_title
+import app.tanuki.features.downloads.resources.downloads_waiting_for_wifi
 import app.tanuki.features.downloads.viewmodel.DownloadsState
 import app.tanuki.features.downloads.viewmodel.DownloadsViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
@@ -325,29 +328,53 @@ private fun StatusLine(state: DownloadsState) {
         horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (state.paused) {
-            PauseIcon(tint = TanukiTheme.colors.accent, size = StatusGlyphSize)
-            Text(
-                text = stringResource(Res.string.downloads_paused_banner),
-                style = TanukiTheme.typography.caption,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        } else {
-            Text(
-                text =
-                    pluralStringResource(
-                        Res.plurals.downloads_queue_count,
-                        state.chapterCount,
-                        state.chapterCount
-                    ),
-                style = TanukiTheme.typography.caption,
-                // `onSurfaceVariant`, not `textFaint`: the faint token is 2.5:1 on the light canvas,
-                // which is below the 3:1 floor for even secondary text. This is the same token the
-                // list rows' own subtitles use, so the whole screen's second tier matches.
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        when (state.hold) {
+            DownloadHold.None ->
+                Text(
+                    text =
+                        pluralStringResource(
+                            Res.plurals.downloads_queue_count,
+                            state.chapterCount,
+                            state.chapterCount
+                        ),
+                    style = TanukiTheme.typography.caption,
+                    // `onSurfaceVariant`, not `textFaint`: the faint token is 2.5:1 on the light canvas,
+                    // which is below the 3:1 floor for even secondary text. This is the same token the
+                    // list rows' own subtitles use, so the whole screen's second tier matches.
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+            DownloadHold.Paused -> {
+                PauseIcon(tint = TanukiTheme.colors.accent, size = StatusGlyphSize)
+                HoldText(stringResource(Res.string.downloads_paused_banner))
+            }
+
+            // A different glyph as well as different words: the two holds look identical on the rows
+            // (nothing moves either way), so the line explaining them has to be distinguishable at a
+            // glance and not only by reading it.
+            DownloadHold.WaitingForWifi -> {
+                WifiIcon(tint = TanukiTheme.colors.accent, size = StatusGlyphSize)
+                HoldText(stringResource(Res.string.downloads_waiting_for_wifi))
+            }
         }
     }
+}
+
+/**
+ * The sentence explaining a hold.
+ *
+ * Full `onSurface` weight rather than the muted colour the count uses: when the queue has stopped, why
+ * it stopped is the most important thing on the screen, and it outranks the count by weight rather than
+ * by hue — which is also what keeps it legible for a colour-blind reader and above the small-text
+ * contrast floor in the light dialect.
+ */
+@Composable
+private fun HoldText(text: String) {
+    Text(
+        text = text,
+        style = TanukiTheme.typography.caption,
+        color = MaterialTheme.colorScheme.onSurface
+    )
 }
 
 /**

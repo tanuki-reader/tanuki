@@ -6,6 +6,36 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-07 — One rule decides whether the download queue may run
+
+**Decision:** `ObserveDownloadHold` is the single answer to "may the queue run, and if not why" —
+`None`, `Paused`, or `WaitingForWifi`. The engine stops on anything but `None`; the queue screen renders
+the same value as a sentence.
+
+**Why:** "only on Wi-Fi" shipped enforced on Android (a WorkManager `UNMETERED` constraint) and not on
+iOS, with a caveat string written for the settings row and never rendered. Two independent notions of
+"the queue is stopped" is how that happens: the platform that enforced it had no way to say so, and the
+platform that didn't had nothing to enforce. One rule read by both the actor and the explainer cannot
+drift that way, and the worst failure this feature has — a full queue, nothing happening, nothing on
+screen saying why — is exactly what drift produces.
+
+**Metered is a separate axis from `ConnectionStatus`.** `LOW_SPEED` deliberately excludes cellular
+because a 5G link is expensive and fast; folding cost into speed would throttle the app on most phones.
+So `ConnectionObserver` gained `metered`/`isMetered` alongside `connectivity`/`status` rather than a new
+status value. Android reads `NET_CAPABILITY_NOT_METERED`, iOS `nw_path_is_expensive`.
+
+**The engine enforces, the schedulers restart.** WorkManager's constraint still covers Android with the
+app closed, but it cannot stop a run already in flight, and iOS has no equivalent at all — so the check
+lives in the engine, per chapter and per page, reusing the pause path exactly (back to `Queued`, `.part`
+kept, nothing failed). Restarting is the scheduler's job: Android gets it free when WorkManager re-runs
+the constrained work, and `IosDownloadScheduler` watches the hold and asks for a run when it clears.
+
+**A hold is never a failure.** Nothing is marked `Failed`, because nothing went wrong and there is
+nothing to retry — the queue resumes by itself. `Paused` outranks `WaitingForWifi`, because a user who
+paused the queue is owed the answer they will remember giving.
+
+---
+
 ## 2026-09-06 — Automatic downloads and deletions are conservative by construction
 
 **Decision:** every download setting defaults to the option that does nothing — `AutoDownloadMode.Off`,

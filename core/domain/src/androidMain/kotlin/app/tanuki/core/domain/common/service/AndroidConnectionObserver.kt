@@ -30,10 +30,15 @@ internal class AndroidConnectionObserver(
     private val manager = context.applicationContext.getSystemService(ConnectivityManager::class.java)
 
     private val state = MutableStateFlow(manager.readStatus())
+    private val meteredState = MutableStateFlow(manager.readMetered())
 
     override val connectivity: Flow<ConnectionStatus> = state.asStateFlow()
 
     override val status: ConnectionStatus get() = state.value
+
+    override val metered: Flow<Boolean> = meteredState.asStateFlow()
+
+    override val isMetered: Boolean get() = meteredState.value
 
     init {
         manager.registerDefaultNetworkCallback(
@@ -54,6 +59,21 @@ internal class AndroidConnectionObserver(
 
     private fun refresh() {
         state.value = manager.readStatus()
+        meteredState.value = manager.readMetered()
+    }
+
+    /**
+     * Whether the default network charges by the byte.
+     *
+     * `TEMPORARILY_NOT_METERED` counts as unmetered: it is a metered link the carrier has opened up (a
+     * zero-rating window), and holding a download queue back through one would be refusing the very
+     * thing the window is for. No network at all reads as metered — the safe direction, since the
+     * setting exists to stop the app spending data the user did not offer.
+     */
+    private fun ConnectivityManager.readMetered(): Boolean {
+        val capabilities = activeNetwork?.let(::getNetworkCapabilities) ?: return true
+        return !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) &&
+            !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED)
     }
 
     /**
@@ -78,11 +98,7 @@ internal class AndroidConnectionObserver(
                 capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
         if (!usable) return ConnectionStatus.OFFLINE
 
-        // TEMPORARILY_NOT_METERED covers a metered link the carrier has opened up (a zero-rating
-        // window); treating it as constrained would make the app frugal exactly when it needn't be.
-        val metered =
-            !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) &&
-                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED)
+        val metered = readMetered()
         // 0 means "unknown", not "no bandwidth" — a link that declines to say is not a slow one.
         val slow = capabilities.linkDownstreamBandwidthKbps in 1 until LOW_SPEED_KBPS
         return if (slow || (metered && isDataSaverRestricted())) {

@@ -5,6 +5,8 @@ import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.download.service.DownloadScheduler
+import app.tanuki.core.domain.download.model.DownloadHold
+import app.tanuki.core.domain.download.usecase.ObserveDownloadHold
 import app.tanuki.core.domain.download.usecase.RunDownloadQueue
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -13,6 +15,10 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import platform.UIKit.UIApplication
 import platform.UIKit.UIBackgroundTaskIdentifier
@@ -38,6 +44,15 @@ import platform.UIKit.UIBackgroundTaskInvalid
  * the app is backgrounded. It is enough to finish the chapter in flight rather than abandoning it
  * mid-page, which is the difference between a resume that re-fetches two pages and one that re-fetches
  * twenty. The expiration handler ends the assertion; iOS kills apps that let one lapse.
+ *
+ * ### Getting going again after a hold
+ *
+ * The engine stops itself when [ObserveDownloadHold] says so — the user paused, or "only on Wi-Fi" is on
+ * over cellular — but nothing restarts it, because a stopped run is simply a run that ended. Android
+ * gets this for free: its work is enqueued with an `UNMETERED` constraint and WorkManager re-runs the job
+ * when the constraint is met again. iOS has no such machinery, so this watches the hold itself and asks
+ * for a run the moment it clears. Without it, plugging into Wi-Fi would do nothing until the user next
+ * opened the app and something happened to enqueue a chapter.
  */
 @OptIn(ExperimentalForeignApi::class)
 @Inject
@@ -47,10 +62,28 @@ class IosDownloadScheduler(
     private val applicationScope: CoroutineScope,
     private val runDownloadQueue: RunDownloadQueue,
     private val downloadRepository: DownloadRepository,
+    observeDownloadHold: ObserveDownloadHold,
     private val logger: Logger,
 ) : DownloadScheduler {
     /** Foreground plus a grace period is not "in the background", and must not be presented as it. */
     override val runsInBackground: Boolean = false
+
+    init {
+        applicationScope.launch {
+            // `drop(1)` so construction does not trigger a run of its own: the launch-time
+            // `ensureRunning()` in `App` already covers starting up, and running twice at launch is
+            // wasted work the engine's mutex would only have to reject.
+            observeDownloadHold()
+                .map { hold -> hold.isRunnable }
+                .distinctUntilChanged()
+                .drop(1)
+                .filter { runnable -> runnable }
+                .collect {
+                    logger.info(TAG, "The hold cleared; asking the queue to run")
+                    ensureRunning()
+                }
+        }
+    }
 
     override fun ensureRunning() {
         // Nothing here tracks whether a run is already going: the engine refuses a concurrent one, so a

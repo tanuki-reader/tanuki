@@ -10,6 +10,7 @@
     <string name="downloads_pause">Pausar downloads</string>
     <string name="downloads_resume">Retomar downloads</string>
     <string name="downloads_paused_banner">Os downloads estão pausados.</string>
+    <string name="downloads_waiting_for_wifi">Aguardando o Wi-Fi — os downloads voltam sozinhos.</string>
     <string name="downloads_cancel_all">Cancelar todos os downloads</string>
     <string name="downloads_cancel_all_title">Cancelar todos os downloads?</string>
     <string name="downloads_cancel_all_message">Tudo que está na fila será removido. Os capítulos já baixados no aparelho serão mantidos.</string>

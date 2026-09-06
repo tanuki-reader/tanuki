@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import platform.Network.nw_path_get_status
 import platform.Network.nw_path_is_constrained
+import platform.Network.nw_path_is_expensive
 import platform.Network.nw_path_monitor_create
 import platform.Network.nw_path_monitor_set_queue
 import platform.Network.nw_path_monitor_set_update_handler
@@ -32,15 +33,31 @@ import platform.darwin.dispatch_queue_create
 internal class IosConnectionObserver : ConnectionObserver {
     private val state = MutableStateFlow(ConnectionStatus.ONLINE)
 
+    /**
+     * Starts `false` for the same reason [state] starts `ONLINE`: the first update lands within
+     * milliseconds, and guessing "metered" in that window would hold a download queue back on a
+     * perfectly good Wi-Fi network — a stall the user would have no way to explain.
+     */
+    private val meteredState = MutableStateFlow(false)
+
     override val connectivity: Flow<ConnectionStatus> = state.asStateFlow()
 
     override val status: ConnectionStatus get() = state.value
+
+    override val metered: Flow<Boolean> = meteredState.asStateFlow()
+
+    override val isMetered: Boolean get() = meteredState.value
 
     private val monitor = nw_path_monitor_create()
 
     init {
         nw_path_monitor_set_queue(monitor, dispatch_queue_create(QUEUE_LABEL, null))
-        nw_path_monitor_set_update_handler(monitor) { path -> state.value = path.toStatus() }
+        nw_path_monitor_set_update_handler(monitor) { path ->
+            state.value = path.toStatus()
+            // `expensive` is the same signal `NWPath.isExpensive` reports in Swift: cellular, or a
+            // personal hotspot. Deliberately kept off [ConnectionStatus] — see [toStatus].
+            meteredState.value = nw_path_is_expensive(path)
+        }
         nw_path_monitor_start(monitor)
     }
 
@@ -53,7 +70,9 @@ internal class IosConnectionObserver : ConnectionObserver {
      *
      * Constrained (the user's Low Data Mode) is [ConnectionStatus.LOW_SPEED], not offline — it is a
      * request to be frugal, not a refusal. Expensive (cellular) deliberately is **not**: a 5G link is
-     * expensive and fast, and treating it as slow would throttle the app on most phones.
+     * expensive and fast, and treating it as slow would throttle the app on most phones. It is reported
+     * on its own axis instead, as [ConnectionObserver.metered], for the one caller that cares about
+     * cost rather than speed.
      */
     private fun nw_path_t.toStatus(): ConnectionStatus =
         when {

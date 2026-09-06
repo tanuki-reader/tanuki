@@ -9,6 +9,7 @@ import app.tanuki.core.domain.chapter.repository.ChapterRepository
 import app.tanuki.core.domain.chapter.usecase.GetChapterPages
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.common.service.ConnectionObserver
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.RecordingLogger
 import app.tanuki.core.domain.common.service.uuidV7
@@ -86,6 +87,10 @@ internal class DownloadWorld(
     val fetcher = FakePageFetcher()
     val scheduler = FakeDownloadScheduler()
     val settings = FakeSettingsRepository()
+    val connection = FakeConnectionObserver()
+
+    /** The one rule both the engine and the queue screen read. */
+    val hold: ObserveDownloadHold = ObserveDownloadHold.Default(settings, connection)
     val loader = FakeSourceLoader(pagesPerChapter)
     private val chapterRepository = FakeChapterRepository(chapters)
     private val mangaRepository = FakeMangaRepository(manga)
@@ -102,7 +107,7 @@ internal class DownloadWorld(
                     sourceRepository = FakeSourceRepository(SOURCE),
                     sourceLoader = loader,
                 ),
-            settingsRepository = settings,
+            observeDownloadHold = hold,
             dispatchers = dispatchers,
             logger = RecordingLogger(),
         )
@@ -649,6 +654,28 @@ internal class FakeCategoryRepository : CategoryRepository {
     override suspend fun upsertCategory(category: Category) = error("unused")
 
     override suspend fun deleteCategory(categoryId: Uuid) = error("unused")
+}
+
+/**
+ * A [ConnectionObserver] that is online and unmetered until a test says otherwise — the state almost
+ * every test wants, and the one the download rules treat as "just run".
+ */
+internal class FakeConnectionObserver : ConnectionObserver {
+    private val meteredState = MutableStateFlow(false)
+
+    override val connectivity: Flow<ConnectionObserver.ConnectionStatus> =
+        MutableStateFlow(ConnectionObserver.ConnectionStatus.ONLINE)
+
+    override val status: ConnectionObserver.ConnectionStatus = ConnectionObserver.ConnectionStatus.ONLINE
+
+    override val metered: Flow<Boolean> = meteredState
+
+    override val isMetered: Boolean get() = meteredState.value
+
+    /** Moves the device onto (or off) a connection the user pays for by the byte. */
+    fun setMetered(metered: Boolean) {
+        meteredState.value = metered
+    }
 }
 
 /** Records that the queue was asked to run, without running it. */

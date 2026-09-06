@@ -87,7 +87,6 @@
     <string name="settings_section_network">Rede</string>
     <string name="settings_wifi_only">Somente no Wi-Fi</string>
     <string name="settings_wifi_only_hint">Os downloads aguardam uma conexão sem limite de dados.</string>
-    <string name="settings_wifi_only_ios">Ainda não aplicado neste aparelho — os downloads rodam com o app aberto.</string>
 
     <string name="settings_section_delete_after_reading">Depois de ler</string>
     <string name="settings_delete_never">Manter tudo</string>

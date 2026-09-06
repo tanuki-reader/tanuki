@@ -9,7 +9,7 @@ import app.tanuki.core.domain.download.usecase.CancelAllDownloads
 import app.tanuki.core.domain.download.usecase.CancelChapterDownloads
 import app.tanuki.core.domain.download.usecase.EnqueueChapterDownloads
 import app.tanuki.core.domain.download.usecase.ObserveDownloadQueue
-import app.tanuki.core.domain.download.usecase.ObserveDownloadsPaused
+import app.tanuki.core.domain.download.usecase.ObserveDownloadHold
 import app.tanuki.core.domain.download.usecase.SetDownloadsPaused
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.presentation.TanukiViewModel
@@ -42,7 +42,7 @@ import kotlin.uuid.Uuid
 @ViewModelKey
 class DownloadsViewModel(
     observeDownloadQueue: ObserveDownloadQueue,
-    observeDownloadsPaused: ObserveDownloadsPaused,
+    observeDownloadHold: ObserveDownloadHold,
     private val setDownloadsPaused: SetDownloadsPaused,
     private val cancelChapterDownloads: CancelChapterDownloads,
     private val cancelAllDownloads: CancelAllDownloads,
@@ -56,13 +56,13 @@ class DownloadsViewModel(
     val uiState: StateFlow<DownloadsState> =
         combine(
             observeDownloadQueue(),
-            observeDownloadsPaused(),
+            observeDownloadHold(),
             busy,
-        ) { series, paused, busy ->
+        ) { series, hold, busy ->
             DownloadsState(
                 loading = false,
                 series = series,
-                paused = paused,
+                hold = hold,
                 busy = busy,
                 // A constant per platform, read once rather than observed: where work runs is decided
                 // by which binding the graph has, and that cannot change while the app is running.

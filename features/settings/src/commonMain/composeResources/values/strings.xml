@@ -87,7 +87,6 @@
     <string name="settings_section_network">Network</string>
     <string name="settings_wifi_only">Only on Wi-Fi</string>
     <string name="settings_wifi_only_hint">Downloads wait until you are on an unmetered connection.</string>
-    <string name="settings_wifi_only_ios">Not applied on this device yet — downloads run whenever the app is open.</string>
 
     <string name="settings_section_delete_after_reading">After reading</string>
     <string name="settings_delete_never">Keep everything</string>

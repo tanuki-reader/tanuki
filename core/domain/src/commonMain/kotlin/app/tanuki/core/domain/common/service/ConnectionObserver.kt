@@ -32,6 +32,25 @@ interface ConnectionObserver {
     /** Convenience for the one question nearly every caller asks. See [ConnectionStatus.isOnline]. */
     val isOnline: Boolean get() = status.isOnline
 
+    /**
+     * Whether the current connection is one the user is likely paying for by the byte — cellular, or a
+     * personal hotspot. Re-emitted on change, starting with the current answer.
+     *
+     * A **separate axis** from [ConnectionStatus], deliberately. Metered is not slow: a 5G link is
+     * expensive and fast, which is exactly why [ConnectionStatus.LOW_SPEED] does not cover it. Nothing
+     * is refused for being metered either — this only exists so *bulk, deferrable* work can honour a
+     * user who asked for it, which today means the download queue's "only on Wi-Fi" setting.
+     *
+     * Android reads `NET_CAPABILITY_NOT_METERED`; iOS reads `nw_path_is_expensive`.
+     */
+    val metered: Flow<Boolean>
+
+    /**
+     * Whether the connection is metered right now, without collecting [metered]. Already in memory, so
+     * the download engine can check it between pages for nothing.
+     */
+    val isMetered: Boolean
+
     enum class ConnectionStatus {
         /** A usable, unconstrained network. */
         ONLINE,

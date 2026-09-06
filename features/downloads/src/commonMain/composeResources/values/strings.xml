@@ -10,6 +10,7 @@
     <string name="downloads_pause">Pause downloads</string>
     <string name="downloads_resume">Resume downloads</string>
     <string name="downloads_paused_banner">Downloads are paused.</string>
+    <string name="downloads_waiting_for_wifi">Waiting for Wi-Fi — downloads resume automatically.</string>
     <string name="downloads_cancel_all">Cancel all downloads</string>
     <string name="downloads_cancel_all_title">Cancel all downloads?</string>
     <string name="downloads_cancel_all_message">Everything in the queue will be removed. Chapters already on your device are kept.</string>

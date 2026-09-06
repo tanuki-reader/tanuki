@@ -1,5 +1,6 @@
 package app.tanuki.features.downloads.viewmodel
 
+import app.tanuki.core.domain.download.model.DownloadHold
 import app.tanuki.core.domain.download.model.DownloadQueueSeries
 
 /**
@@ -10,9 +11,9 @@ import app.tanuki.core.domain.download.model.DownloadQueueSeries
  *   downloading is the one thing this screen must never do.
  * @property series the queue grouped by series, in the order the engine will work it — the first chapter
  *   of the first group is the one being fetched right now.
- * @property paused whether the user has stopped the queue. The rows stay exactly as they are while it is
- *   on; what changes is that nothing advances (see `DownloadState`, which has no `Paused` member for
- *   precisely this reason).
+ * @property hold why the queue is not advancing, when it isn't. The rows stay exactly as they are
+ *   whatever the reason (see `DownloadState`, which has no `Paused` member for precisely this reason),
+ *   so this is the *only* thing that can explain a full queue standing still.
  * @property busy `true` while a queue-wide action is in flight, so a second tap can't fire a duplicate
  *   cancel-all across an already-emptying queue.
  * @property runsInBackground whether the platform keeps working the queue once the user leaves the app.
@@ -22,7 +23,7 @@ import app.tanuki.core.domain.download.model.DownloadQueueSeries
 data class DownloadsState(
     val loading: Boolean = true,
     val series: List<DownloadQueueSeries> = emptyList(),
-    val paused: Boolean = false,
+    val hold: DownloadHold = DownloadHold.None,
     val busy: Boolean = false,
     val runsInBackground: Boolean = true,
 ) {
@@ -31,4 +32,7 @@ data class DownloadsState(
 
     /** Whether there is anything to pause, resume or cancel; drives the top bar's controls. */
     val isEmpty: Boolean get() = series.isEmpty()
+
+    /** Whether the user's own pause is on — what the top bar's toggle reflects. */
+    val paused: Boolean get() = hold == DownloadHold.Paused
 }

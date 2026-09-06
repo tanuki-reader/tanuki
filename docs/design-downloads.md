@@ -985,11 +985,7 @@ What landed:
 
 ### Still open going into phase 8
 
-- **Wi-Fi-only is not enforced on iOS.** Android gets it free from WorkManager's `UNMETERED` constraint.
-  iOS needs a metered-connection signal (`NWPathMonitor.isExpensive`), and the natural home for it is the
-  `ConnectionObserver` seam that is currently in flight — so the toggle is stored and honoured on one
-  platform only. The setting is not hidden on iOS: a preference that exists on one device and vanishes on
-  another is worse than one that is not yet applied, and the row says as much.
+- ~~**Wi-Fi-only is not enforced on iOS.**~~ *Closed on 2026-09-07 — see §20.*
 - **`DownloadError.OutOfSpace` is still never produced.** Free-space checking needs a port neither okio
   nor common Kotlin offers. The storage screen now at least tells the user what they are using, which is
   the half that does not need one.
@@ -997,3 +993,49 @@ What landed:
 - **`VerifyDownloads` and the cascade hooks are phase 8** — the orphan sweep is what reconciles the
   measured storage total against the records, and it is the reason the total is measured rather than
   summed.
+
+
+---
+
+## 20. As built — Wi-Fi-only on both platforms (2026-09-07)
+
+Phase 7 shipped "only on Wi-Fi" enforced on Android and **stored but never read on iOS**, with a caveat
+string written for the settings row and then never rendered — so an iOS user got a toggle that silently
+did nothing and said nothing. This closes it. What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `common/service/` | `ConnectionObserver.metered` / `isMetered` — a second axis beside `ConnectionStatus` |
+| `:core:domain` androidMain / iosMain | `NET_CAPABILITY_NOT_METERED` and `nw_path_is_expensive` |
+| `:core:domain` `download/model/` | `DownloadHold` |
+| `:core:domain` `download/usecase/` | `ObserveDownloadHold`; `ObserveDownloadsPaused` **deleted** |
+| `:core:domain` engine | `DownloadManager` holds on `ObserveDownloadHold` rather than on the pause flag |
+| `:shared` iosMain | `IosDownloadScheduler` re-runs the queue when the hold clears |
+| `:assets:designSystem` | `WifiIcon` |
+| `:features:downloads` | `DownloadsState.hold`; the status line explains either reason |
+| `:features:settings` | the false `settings_wifi_only_ios` caveat removed |
+
+7 new tests (`DownloadWifiOnlyTest`); five of them fail without the enforcement.
+
+### The decisions
+
+- **Metered is its own axis, not a `ConnectionStatus`.** `LOW_SPEED` deliberately excludes cellular —
+  a 5G link is expensive *and* fast, and folding the two together would throttle the app on most phones.
+  Cost and speed are different questions, and only one of them is what "only on Wi-Fi" asks about.
+- **The engine enforces it, not the schedulers.** Android's WorkManager `UNMETERED` constraint still
+  handles the app-closed case, but it cannot cover a run already in flight or an iOS foreground run. The
+  engine's per-chapter and per-page check does both, on both platforms, and reuses the pause machinery
+  exactly: the chapter goes back to `Queued`, its `.part` survives, nothing is failed.
+- **One rule, read by the engine *and* the screen.** `ObserveDownloadHold` answers "may the queue run,
+  and if not why" once. Deriving it twice is how a queue ends up stopped for a reason the UI does not
+  know about — which is precisely the bug being fixed, where the setting was enforced on one platform
+  and explained on neither.
+- **A hold is never a failure.** Nothing is marked `Failed` and nothing is deleted: there is nothing for
+  the user to retry, because the queue resumes on its own. That is also why the copy says "downloads
+  resume automatically" rather than offering an action.
+- **`Paused` outranks `WaitingForWifi`.** A user who paused the queue is owed that answer even when the
+  network would also have held it — their instruction is the one they remember giving.
+- **iOS watches the hold and restarts.** A stopped run is just a run that ended, and Android gets its
+  restart free from WorkManager re-running the constrained job. iOS has no such machinery, so the
+  scheduler subscribes and asks for a run the moment the hold clears; without it, joining Wi-Fi would do
+  nothing until the user next opened the app.

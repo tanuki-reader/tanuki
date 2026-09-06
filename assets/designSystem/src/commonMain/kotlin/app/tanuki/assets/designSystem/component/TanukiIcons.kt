@@ -792,6 +792,39 @@ fun PlayIcon(
     }
 }
 
+/**
+ * `wifi` — three widening arcs over a dot, for a queue waiting on an unmetered connection.
+ *
+ * Drawn as stroked arcs rather than a filled fan so it stays legible at status-line size, where a solid
+ * wedge collapses into a triangle. The dot is filled: at 14dp the smallest arc would otherwise be a
+ * two-pixel smudge.
+ */
+@Composable
+fun WifiIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val stroke = Stroke(width = ICON_STROKE, cap = StrokeCap.Round)
+            // Concentric arcs about the dot at (12, 18), each sweeping 100° centred on straight up.
+            listOf(10.5f, 6.5f).forEach { radius ->
+                drawArc(
+                    color = tint,
+                    startAngle = -140f,
+                    sweepAngle = 100f,
+                    useCenter = false,
+                    topLeft = Offset(12f - radius, 18f - radius),
+                    size = Size(radius * 2, radius * 2),
+                    style = stroke
+                )
+            }
+            drawCircle(color = tint, radius = 1.6f, center = Offset(12f, 18f))
+        }
+    }
+}
+
 /** The shared tick geometry behind [CheckIcon] and [CheckOffIcon]. */
 private fun DrawScope.drawCheck(tint: Color) {
     val tick =
