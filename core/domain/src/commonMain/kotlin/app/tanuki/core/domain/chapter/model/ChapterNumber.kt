@@ -40,6 +40,16 @@ value class ChapterNumber(
      */
     val wholeNumber: Int get() = floor(value).toInt()
 
+    /**
+     * How the number is written wherever a chapter is named: `4.0` → `"4"`, `4.5` → `"4.5"`.
+     *
+     * On the model rather than in a screen, because more than one screen names the same chapter — the
+     * chapter list and the download queue — and a chapter that reads "Chapter 4" in one place and
+     * "Chapter 4.0" in the other looks like two different chapters. It is not localized: this is the
+     * number the source published, not copy, and the surrounding "Chapter %s" is what gets translated.
+     */
+    val display: String get() = if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
+
     override fun compareTo(other: ChapterNumber): Int = value.compareTo(other.value)
 
     companion object {

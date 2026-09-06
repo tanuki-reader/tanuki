@@ -34,7 +34,6 @@ import app.tanuki.assets.designSystem.component.CheckIcon
 import app.tanuki.assets.designSystem.component.FilterIcon
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.core.domain.chapter.model.Chapter
-import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_chapter_date
@@ -356,7 +355,7 @@ private fun ChapterRow(
  */
 @Composable
 private fun Chapter.title(): String =
-    chapterNumber?.let { stringResource(Res.string.manga_chapter_number, it.display()) }
+    chapterNumber?.let { stringResource(Res.string.manga_chapter_number, it.display) }
         ?: name?.value
         ?: stringResource(Res.string.manga_chapter_untitled)
 
@@ -413,6 +412,3 @@ private fun monthAbbreviation(month: Month): String =
         stringResource(Res.string.manga_month_nov),
         stringResource(Res.string.manga_month_dec)
     )[month.ordinal]
-
-/** "4" for whole numbers, "4.5" otherwise — drops the trailing ".0" a raw [Double] would show. */
-internal fun ChapterNumber.display(): String = if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()

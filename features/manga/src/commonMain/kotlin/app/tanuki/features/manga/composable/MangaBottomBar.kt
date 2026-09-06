@@ -11,7 +11,6 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonSize
 import app.tanuki.core.domain.chapter.model.Chapter
-import app.tanuki.features.manga.composable.components.display
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_read_action
 import app.tanuki.features.manga.resources.manga_read_chapter
@@ -37,7 +36,7 @@ fun MangaBottomBar(
 ) {
     val spacing = TanukiTheme.spacing
     val label =
-        resumeChapter?.chapterNumber?.let { stringResource(Res.string.manga_read_chapter, it.display()) }
+        resumeChapter?.chapterNumber?.let { stringResource(Res.string.manga_read_chapter, it.display) }
             ?: stringResource(Res.string.manga_read_action)
 
     Column(modifier = modifier.fillMaxWidth()) {
