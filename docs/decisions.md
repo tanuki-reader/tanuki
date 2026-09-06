@@ -37,7 +37,7 @@ still waiting for it.
 **Consequence for phase 3:** `GetChapterPages` must *not* become download-aware, contrary to
 `design-downloads.md` §6. The downloader calls it and must always reach the source; a local-first
 decision inside it would have the engine download a chapter from its own copy. The local-or-remote
-choice belongs in a new use case above it.
+choice belongs in a new use case above it. *(Built on 2026-09-06 as `GetReaderPages`.)*
 
 ---
 

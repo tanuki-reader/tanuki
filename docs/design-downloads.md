@@ -1,6 +1,7 @@
 # Design — Chapter downloads (offline reading)
 
-Status: **phases 0–2 built** (the storage spine and the engine; nothing user-visible yet — see §12, §13 and §14).
+Status: **phases 0–3 built** (the storage spine, the engine, and the offline read path — see §12–§15).
+Nothing enqueues a chapter yet, so the feature is still not reachable from the UI; that is phase 4.
 Read alongside `decisions.md`, `design-page-image-abi.md` and `session-source-and-browse.md`.
 
 Goal: the user can keep chapters on the device and read them with no network, with a queue they can
@@ -411,7 +412,7 @@ Each phase is independently mergeable and leaves both platforms green.
 | **0** ✅ | `decisions.md` entries for §11 (2026-09-05) | — |
 | **1** ✅ | Schema v10 + entity/DAO/repository, `ChapterDownloadStore` + okio impl, domain models, platform path bindings, tests | Nothing user-visible; storage layer proven on `FakeFileSystem` |
 | **2** ✅ | `PageFetcher` in `:core:source`, `DownloadManager`, enqueue/cancel/delete use cases, tests | A queued chapter is fetched and committed; nothing queues one yet (phase 4) |
-| **3** | `PageImage` + download-aware `GetChapterPages` + `ToImageRequest`/`ReaderState` ripple | **Downloaded chapters read in airplane mode** |
+| **3** ✅ | `PageImage` + `GetReaderPages` + `ToImageRequest`/`ReaderState` ripple | **A downloaded chapter reads in airplane mode** (once something downloads one) |
 | **4** | Manga screen: row states, bulk actions, "download next N" | The feature becomes usable |
 | **5** | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry | The queue is visible and controllable |
 | **6** | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
@@ -558,3 +559,46 @@ way the reader does.
 - **Cancel racing a page write** can leave a part directory behind — abort is checked either side of the
   fetch, but not inside the store's write. Reclaiming it is `VerifyDownloads`' job in phase 8, which is
   the same sweep that already has to handle a user clearing app storage.
+
+---
+
+## 15. As built — phase 3 (2026-09-06)
+
+The offline read path. A chapter with a committed manifest is now read from disk, with no network and no
+source involved; everything else reads exactly as before. What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `chapter/model/` | `ReaderPage`, `PageImage` (`Remote` / `Local`) |
+| `:core:domain` `chapter/usecase/` | `GetReaderPages`; `GetChapterPages` KDoc narrowed to "the source's pages" |
+| `:core:domain` `download/usecase/` | `GetLocalChapterPages` |
+| `:features:reader` | `ToImageRequest` takes a `ReaderPage`; `ReaderItem.PageItem.page` is one; `ReaderViewModel` asks `GetReaderPages`; `PagePrefetch` simplified; the page composable renamed `ReaderPageImage` |
+
+9 tests (`GetReaderPagesTest`) over the download tests' own in-memory store, so "downloaded" means to
+them what it means to the engine — a committed manifest, not a row.
+
+### Where the code differs from §6 above, and why
+
+- **`GetChapterPages` did *not* become download-aware.** The decision recorded on 2026-09-06: the
+  download engine is one of its callers and must always reach the source, so a local-first branch inside
+  it would have the engine fetch a chapter from the copy it is in the middle of writing. The choice moved
+  up into a new `GetReaderPages`, and the two callers now ask the two different questions they actually
+  have — "what does the source serve" and "what should the reader show".
+- **`ReaderPage` carries no `index`.** The design's sketch had one; the reader already carries a page's
+  position on `ReaderItem.PageItem`, and a second copy could only ever disagree with the first. The type
+  is kept (rather than collapsing to `PageImage`) because it is the seam the deferred descramble
+  descriptor extends — see `design-page-image-abi.md`.
+- **A page with neither an image URL nor a page URL is dropped at this boundary**, so nothing below it
+  carries a "might have nothing to fetch" case. `PagePrefetch` lost exactly that check.
+- **A local page is handed to Coil as an `okio.Path`**, not as a `file://` string. Coil 3.5 registers
+  `PathMapper` + `FileUriFetcher` in common code, and it builds the URI structurally — which matters
+  because the iOS downloads root lives under "Application Support", so a hand-assembled `file://` string
+  would need escaping to survive the space.
+- **A chapter whose files vanished reads as not-downloaded** and goes to the source. The authority is the
+  manifest, never the `chapter_downloads` row, because only the row can outlive the bytes. A manifest
+  listing *no* pages is treated the same way — the engine refuses to commit one, so it can only be a
+  corrupted directory, and reading it as a download would show a blank reader instead of the chapter.
+
+As §6 promised, a downloaded chapter never enters the image loader's *disk* cache — that tier only backs
+the network fetcher — so a download costs its bytes once. Decode sizing, prefetch, the sliding chapter
+window and the zoom/strip layouts are untouched.
