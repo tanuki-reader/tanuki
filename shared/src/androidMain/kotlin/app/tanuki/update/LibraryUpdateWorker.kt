@@ -2,15 +2,10 @@ package app.tanuki.update
 
 import android.content.Context
 import androidx.work.CoroutineWorker
-import androidx.work.ListenableWorker
-import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
-import dev.zacsweers.metro.AppScope
-import dev.zacsweers.metro.Inject
-import dev.zacsweers.metro.SingleIn
 
 /**
  * The Android background run: wakes up on WorkManager's schedule and refreshes the library.
@@ -42,33 +37,4 @@ class LibraryUpdateWorker(
     private companion object {
         const val TAG = "LibraryUpdateWorker"
     }
-}
-
-/**
- * Builds [LibraryUpdateWorker] with its dependencies from the Metro graph.
- *
- * WorkManager instantiates workers reflectively and can only call a `(Context, WorkerParameters)`
- * constructor, so an injected worker needs a factory — installed by `TanukiApplication` through
- * `Configuration.Provider`. This is what lets the worker take constructor dependencies like every other
- * class in the app instead of reaching for a global.
- */
-@Inject
-@SingleIn(AppScope::class)
-class TanukiWorkerFactory(
-    private val updateLibrary: UpdateLibrary,
-    private val logger: Logger
-) : WorkerFactory() {
-    override fun createWorker(
-        appContext: Context,
-        workerClassName: String,
-        workerParameters: WorkerParameters
-    ): ListenableWorker? =
-        when (workerClassName) {
-            LibraryUpdateWorker::class.qualifiedName ->
-                LibraryUpdateWorker(appContext, workerParameters, updateLibrary, logger)
-
-            // Null hands the worker back to WorkManager's default factory rather than failing — so a
-            // worker added later that doesn't need injection still works without touching this.
-            else -> null
-        }
 }

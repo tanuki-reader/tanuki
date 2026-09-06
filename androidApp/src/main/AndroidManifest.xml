@@ -10,10 +10,18 @@
          source request it has no connection to make instead of discovering it a timeout later. -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Announcing new chapters found by the background library update. Requested at runtime by
-         MainActivity: this has been a runtime permission since API 33 and minSdk is past that, so it
-         is never granted at install time. The notifier no-ops without it. -->
+    <!-- Announcing new chapters found by the background library update, and showing the download
+         queue's progress. Requested at runtime by MainActivity: this has been a runtime permission
+         since API 33 and minSdk is past that, so it is never granted at install time. Both notifiers
+         no-op without it — and a download run that cannot show its notification simply runs under the
+         ordinary background limits instead of failing. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The download queue runs as a `dataSync` foreground service so it keeps going with the app
+         closed. Both are install-time permissions; from Android 14 the *type* must be declared too,
+         which is what the SystemForegroundService entry below does. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:name=".TanukiApplication"
@@ -35,6 +43,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- WorkManager owns this service; the app has to declare its foreground-service *type*, which
+             WorkManager cannot know. Merged rather than redeclared, so the rest of the library's own
+             definition (process, exported, permissions) stays exactly as WorkManager ships it. Without
+             it, DownloadWorker.setForeground throws on Android 14+ and the queue silently falls back
+             to the ordinary background limits. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <!-- WorkManager's automatic startup is removed so TanukiApplication's Configuration.Provider
              is the configuration that takes effect. Left in, the default initializer can install a

@@ -574,6 +574,9 @@ internal class FakeDownloadScheduler : DownloadScheduler {
     var starts: Int = 0
         private set
 
+    /** Android's answer, since it is the one that makes the queue survive leaving the app. */
+    override val runsInBackground: Boolean = true
+
     override fun ensureRunning() {
         starts++
     }

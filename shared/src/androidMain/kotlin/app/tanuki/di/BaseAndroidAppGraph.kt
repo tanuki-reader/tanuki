@@ -1,6 +1,5 @@
 package app.tanuki.di
 
-import app.tanuki.update.TanukiWorkerFactory
 import dev.zacsweers.metrox.android.MetroAppComponentProviders
 
 /**

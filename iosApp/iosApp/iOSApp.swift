@@ -35,6 +35,7 @@ struct iOSApp: App {
         // registered by then and throws otherwise. Doing it here, rather than when the Compose view
         // is created, is the difference between "registered in time" and a launch-time crash.
         IosBackgroundTasksKt.registerLibraryUpdateTask()
+        IosDownloadTasksKt.registerDownloadTask()
 
         // Asked while the app is on screen — the only moment the user has any context for the
         // question, and iOS shows this prompt once ever. The background refresh that actually posts

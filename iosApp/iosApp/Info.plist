@@ -5,16 +5,19 @@
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 
-	<!-- Background library update. `fetch` lets iOS wake the app to look for new chapters; the
-	     identifier must match LIBRARY_UPDATE_TASK_ID in the shared module, or registering the task
-	     throws at launch and every submitted request is rejected. -->
+	<!-- Background work. `fetch` lets iOS wake the app to look for new chapters; `processing` is the
+	     longer-running kind the download queue continues in. Each identifier must match its constant in
+	     the shared module (LIBRARY_UPDATE_TASK_ID, DOWNLOAD_TASK_ID), or registering the task throws at
+	     launch and every submitted request is rejected. -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
+		<string>processing</string>
 	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>app.tanuki.library-update</string>
+		<string>app.tanuki.downloads</string>
 	</array>
 
 	<!-- Launch screen: the brand mark on the app's dark canvas (the design system's `bg`, #0C0C0C),
