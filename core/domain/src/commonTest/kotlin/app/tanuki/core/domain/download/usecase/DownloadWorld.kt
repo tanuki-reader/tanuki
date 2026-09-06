@@ -31,6 +31,8 @@ import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.settings.model.AutoDownloadMode
+import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -510,11 +512,39 @@ internal class FakePageFetcher(
  */
 internal class FakeSettingsRepository : SettingsRepository {
     private val paused = MutableStateFlow(false)
+    private val autoDownloadMode = MutableStateFlow(AutoDownloadMode.Off)
+    private val autoDownloadCategories = MutableStateFlow(emptySet<Uuid>())
+    private val wifiOnly = MutableStateFlow(false)
+    private val deleteAfterReading = MutableStateFlow(DeleteAfterReading.Off)
 
     override fun observeDownloadsPaused(): Flow<Boolean> = paused
 
     override suspend fun setDownloadsPaused(paused: Boolean) {
         this.paused.value = paused
+    }
+
+    override fun observeAutoDownloadMode(): Flow<AutoDownloadMode> = autoDownloadMode
+
+    override fun observeAutoDownloadCategories(): Flow<Set<Uuid>> = autoDownloadCategories
+
+    override suspend fun setAutoDownload(
+        mode: AutoDownloadMode,
+        categories: Set<Uuid>,
+    ) {
+        autoDownloadMode.value = mode
+        autoDownloadCategories.value = categories
+    }
+
+    override fun observeDownloadOnWifiOnly(): Flow<Boolean> = wifiOnly
+
+    override suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean) {
+        this.wifiOnly.value = wifiOnly
+    }
+
+    override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> = deleteAfterReading
+
+    override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) {
+        deleteAfterReading.value = setting
     }
 
     override fun observeThemePreference(): Flow<ThemePreference> = unused()

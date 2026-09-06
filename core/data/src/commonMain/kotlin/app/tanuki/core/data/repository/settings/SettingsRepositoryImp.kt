@@ -10,6 +10,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.settings.model.AutoDownloadMode
+import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -26,6 +28,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okio.Path.Companion.toPath
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 /**
  * DataStore-backed [SettingsRepository]. App-level settings — the theme, the library update schedule,
@@ -113,6 +116,48 @@ class SettingsRepositoryImp(
         }
     }
 
+    override fun observeAutoDownloadMode(): Flow<AutoDownloadMode> =
+        preferences.map { it[AUTO_DOWNLOAD_MODE_KEY].toAutoDownloadMode() }
+
+    // Stored as canonical Uuid strings. An id whose category has since been deleted stays in the set and
+    // is simply never matched — cheaper than reconciling this store against the database on every
+    // category delete, and invisible either way.
+    override fun observeAutoDownloadCategories(): Flow<Set<Uuid>> =
+        preferences.map { stored ->
+            stored[AUTO_DOWNLOAD_CATEGORIES_KEY].orEmpty().mapNotNullTo(mutableSetOf()) { it.toUuidOrNull() }
+        }
+
+    override suspend fun setAutoDownload(
+        mode: AutoDownloadMode,
+        categories: Set<Uuid>
+    ) {
+        withContext(dispatcherProvider.io) {
+            // One edit, so a mode and the categories it refers to can never be half-written — a reader
+            // between two separate writes would apply a rule the user never chose.
+            dataStore.edit { preferences ->
+                preferences[AUTO_DOWNLOAD_MODE_KEY] = mode.name
+                preferences[AUTO_DOWNLOAD_CATEGORIES_KEY] = categories.mapTo(mutableSetOf()) { it.toString() }
+            }
+        }
+    }
+
+    override fun observeDownloadOnWifiOnly(): Flow<Boolean> = preferences.map { it[WIFI_ONLY_KEY] ?: false }
+
+    override suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[WIFI_ONLY_KEY] = wifiOnly }
+        }
+    }
+
+    override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> =
+        preferences.map { it[DELETE_AFTER_READING_KEY].toDeleteAfterReading() }
+
+    override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[DELETE_AFTER_READING_KEY] = setting.name }
+        }
+    }
+
     override suspend fun getRemovedSourceIds(): Set<String> = preferences.first()[REMOVED_SOURCES_KEY].orEmpty()
 
     override suspend fun setSourceRemoved(
@@ -136,6 +181,25 @@ class SettingsRepositoryImp(
         val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")
         val REMOVED_SOURCES_KEY = stringSetPreferencesKey("removed_source_ids")
         val DOWNLOADS_PAUSED_KEY = booleanPreferencesKey("downloads_paused")
+        val AUTO_DOWNLOAD_MODE_KEY = stringPreferencesKey("auto_download_mode")
+        val AUTO_DOWNLOAD_CATEGORIES_KEY = stringSetPreferencesKey("auto_download_categories")
+        val WIFI_ONLY_KEY = booleanPreferencesKey("download_on_wifi_only")
+        val DELETE_AFTER_READING_KEY = stringPreferencesKey("delete_after_reading")
+
+        /**
+         * Maps a stored name back to an [AutoDownloadMode]. An unknown name — written by a newer build,
+         * or a corrupt store — falls back to `Off`, which is the only safe direction: the failure mode
+         * of guessing the other way is downloading over someone's mobile data unasked.
+         */
+        fun String?.toAutoDownloadMode(): AutoDownloadMode =
+            AutoDownloadMode.entries.firstOrNull { it.name == this } ?: AutoDownloadMode.Off
+
+        /** The same, for [DeleteAfterReading] — where the safe direction is "never delete anything". */
+        fun String?.toDeleteAfterReading(): DeleteAfterReading =
+            DeleteAfterReading.entries.firstOrNull { it.name == this } ?: DeleteAfterReading.Off
+
+        /** A stored id that is not a Uuid is debris from a hand-edited store; drop it rather than throw. */
+        fun String.toUuidOrNull(): Uuid? = runCatching { Uuid.parse(this) }.getOrNull()
 
         /** Maps a stored name back to a [ThemePreference], defaulting to [ThemePreference.System]. */
         fun String?.toThemePreference(): ThemePreference =

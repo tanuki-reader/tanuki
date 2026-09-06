@@ -16,6 +16,8 @@ import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.settings.model.AutoDownloadMode
+import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -541,4 +543,21 @@ private class FakeSettingsRepository(
     override fun observeDownloadsPaused(): Flow<Boolean> = error("unused")
 
     override suspend fun setDownloadsPaused(paused: Boolean) = error("unused")
+
+    override fun observeAutoDownloadMode(): Flow<AutoDownloadMode> = error("unused")
+
+    override fun observeAutoDownloadCategories(): Flow<Set<Uuid>> = error("unused")
+
+    override suspend fun setAutoDownload(
+        mode: AutoDownloadMode,
+        categories: Set<Uuid>
+    ) = error("unused")
+
+    override fun observeDownloadOnWifiOnly(): Flow<Boolean> = error("unused")
+
+    override suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean) = error("unused")
+
+    override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> = error("unused")
+
+    override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) = error("unused")
 }

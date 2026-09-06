@@ -1,9 +1,12 @@
 package app.tanuki.core.domain.settings.repository
 
+import app.tanuki.core.domain.settings.model.AutoDownloadMode
+import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 /**
  * Persistence for app-level user settings that aren't tied to any single entity (unlike the Room-backed
@@ -94,6 +97,60 @@ interface SettingsRepository {
      * @param paused `true` to stop the queue after the page in flight.
      */
     suspend fun setDownloadsPaused(paused: Boolean)
+
+    /**
+     * Observes which newly-found chapters are downloaded without being asked for.
+     *
+     * @return A [Flow] emitting the stored mode, defaulting to [AutoDownloadMode.Off]. The default is
+     *   the whole point: this setting spends storage and mobile data on the user's behalf, so an absent
+     *   or unreadable value has to mean "don't".
+     */
+    fun observeAutoDownloadMode(): Flow<AutoDownloadMode>
+
+    /**
+     * Observes the categories [AutoDownloadMode.SelectedCategories] applies to.
+     *
+     * Kept independently of the mode so switching auto-download off and on again does not lose the
+     * selection. Ids of categories that have since been deleted are harmless — nothing matches them.
+     */
+    fun observeAutoDownloadCategories(): Flow<Set<Uuid>>
+
+    /**
+     * Records the auto-download rule.
+     *
+     * Both halves are written together because they are one decision: a mode without the categories it
+     * refers to is a rule that cannot be applied.
+     *
+     * @param mode Which chapters to download automatically.
+     * @param categories The categories [AutoDownloadMode.SelectedCategories] applies to.
+     */
+    suspend fun setAutoDownload(
+        mode: AutoDownloadMode,
+        categories: Set<Uuid>
+    )
+
+    /**
+     * Observes whether the download queue may only run on an unmetered connection.
+     *
+     * @return A [Flow] defaulting to `false`. Not `true`: a queue that silently never runs because the
+     *   user is on mobile data, with nothing on screen explaining why, is a worse first experience than
+     *   one that uses the data they asked it to.
+     */
+    fun observeDownloadOnWifiOnly(): Flow<Boolean>
+
+    /** @param wifiOnly `true` to hold the queue until an unmetered connection is available. */
+    suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean)
+
+    /**
+     * Observes what happens to a downloaded chapter once it has been read.
+     *
+     * @return A [Flow] defaulting to [DeleteAfterReading.Off] — deleting a user's files is never a safe
+     *   default, and an unreadable store must not start doing it.
+     */
+    fun observeDeleteAfterReading(): Flow<DeleteAfterReading>
+
+    /** @param setting How much read-chapter slack to keep on the device. */
+    suspend fun setDeleteAfterReading(setting: DeleteAfterReading)
 
     /**
      * Source-native ids the user has explicitly uninstalled.
