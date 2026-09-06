@@ -743,6 +743,55 @@ fun ErrorIcon(
     }
 }
 
+/**
+ * `pause` — two upright bars, for stopping the download queue.
+ *
+ * Filled rather than outlined, unlike most of this set: it and [PlayIcon] are one toggle that swaps in
+ * place, and a solid shape survives that swap legibly at bar size where two hollow rectangles would read
+ * as a diagram. The bars are rounded to the same radius the rest of the system uses on small solids.
+ */
+@Composable
+fun PauseIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val corner = CornerRadius(1.5f, 1.5f)
+            drawRoundRect(tint, Offset(6.5f, 5f), Size(3.5f, 14f), corner)
+            drawRoundRect(tint, Offset(14f, 5f), Size(3.5f, 14f), corner)
+        }
+    }
+}
+
+/**
+ * `play_arrow` — a right-pointing triangle, for resuming the queue.
+ *
+ * The counterpart to [PauseIcon] and drawn to the same visual weight: the triangle is inset from the
+ * viewport's edges so the two glyphs occupy the same optical area and the toggle doesn't appear to jump
+ * in size when it flips.
+ */
+@Composable
+fun PlayIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 22.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            val triangle =
+                Path().apply {
+                    moveTo(7.5f, 4.5f)
+                    lineTo(19f, 12f)
+                    lineTo(7.5f, 19.5f)
+                    close()
+                }
+            drawPath(triangle, tint)
+        }
+    }
+}
+
 /** The shared tick geometry behind [CheckIcon] and [CheckOffIcon]. */
 private fun DrawScope.drawCheck(tint: Color) {
     val tick =
