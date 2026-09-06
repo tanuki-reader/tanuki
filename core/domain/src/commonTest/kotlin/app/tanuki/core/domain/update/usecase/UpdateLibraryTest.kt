@@ -537,4 +537,8 @@ private class FakeSettingsRepository(
         sourceId: String,
         removed: Boolean
     ) = error("unused")
+
+    override fun observeDownloadsPaused(): Flow<Boolean> = error("unused")
+
+    override suspend fun setDownloadsPaused(paused: Boolean) = error("unused")
 }

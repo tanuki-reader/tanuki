@@ -103,6 +103,16 @@ class SettingsRepositoryImp(
         }
     }
 
+    // Absent reads as `false` — not paused. The other default would give a store that failed to load a
+    // queue that silently never runs, with nothing on screen to explain it.
+    override fun observeDownloadsPaused(): Flow<Boolean> = preferences.map { it[DOWNLOADS_PAUSED_KEY] ?: false }
+
+    override suspend fun setDownloadsPaused(paused: Boolean) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[DOWNLOADS_PAUSED_KEY] = paused }
+        }
+    }
+
     override suspend fun getRemovedSourceIds(): Set<String> = preferences.first()[REMOVED_SOURCES_KEY].orEmpty()
 
     override suspend fun setSourceRemoved(
@@ -125,6 +135,7 @@ class SettingsRepositoryImp(
         val UPDATE_INTERVAL_KEY = stringPreferencesKey("library_update_interval")
         val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")
         val REMOVED_SOURCES_KEY = stringSetPreferencesKey("removed_source_ids")
+        val DOWNLOADS_PAUSED_KEY = booleanPreferencesKey("downloads_paused")
 
         /** Maps a stored name back to a [ThemePreference], defaulting to [ThemePreference.System]. */
         fun String?.toThemePreference(): ThemePreference =

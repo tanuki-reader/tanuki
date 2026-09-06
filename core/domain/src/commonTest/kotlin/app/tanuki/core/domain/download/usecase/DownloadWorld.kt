@@ -29,6 +29,9 @@ import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
+import app.tanuki.core.domain.settings.model.ThemePreference
+import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.ChapterListing
 import app.tanuki.core.domain.source.model.MangaListing
@@ -73,6 +76,7 @@ internal class DownloadWorld(
     val store = FakeChapterDownloadStore()
     val fetcher = FakePageFetcher()
     val scheduler = FakeDownloadScheduler()
+    val settings = FakeSettingsRepository()
     val loader = FakeSourceLoader(pagesPerChapter)
     private val chapterRepository = FakeChapterRepository(chapters)
     private val mangaRepository = FakeMangaRepository(manga)
@@ -89,6 +93,7 @@ internal class DownloadWorld(
                     sourceRepository = FakeSourceRepository(SOURCE),
                     sourceLoader = loader,
                 ),
+            settingsRepository = settings,
             dispatchers = dispatchers,
             logger = RecordingLogger(),
         )
@@ -106,6 +111,8 @@ internal class DownloadWorld(
     val deleteManga: DeleteMangaDownloads = DeleteMangaDownloads.Default(downloads, store, manager)
 
     val deleteAll: DeleteAllDownloads = DeleteAllDownloads.Default(downloads, store, manager)
+
+    val setPaused: SetDownloadsPaused = SetDownloadsPaused.Default(settings, scheduler)
 
     /** Puts [chapters] straight into the queue, bypassing the enqueue use case's own rules. */
     suspend fun queue(vararg chapters: Chapter) {
@@ -475,6 +482,49 @@ internal class FakePageFetcher(
         /** More attempts than the engine will ever make for one page. */
         const val ALWAYS = 100
     }
+}
+
+/**
+ * A [SettingsRepository] with only the download pause implemented.
+ *
+ * The interface is wide and every other member belongs to a subsystem none of these tests touch — the
+ * theme, the library update schedule, the uninstalled-source set. Faking those would be inventing
+ * behaviour nothing here reads, so they fail loudly instead: a test that starts depending on one should
+ * say so rather than quietly get a default.
+ */
+internal class FakeSettingsRepository : SettingsRepository {
+    private val paused = MutableStateFlow(false)
+
+    override fun observeDownloadsPaused(): Flow<Boolean> = paused
+
+    override suspend fun setDownloadsPaused(paused: Boolean) {
+        this.paused.value = paused
+    }
+
+    override fun observeThemePreference(): Flow<ThemePreference> = unused()
+
+    override suspend fun setThemePreference(preference: ThemePreference) = unused()
+
+    override fun observeCrashReportingEnabled(): Flow<Boolean> = unused()
+
+    override suspend fun setCrashReportingEnabled(enabled: Boolean) = unused()
+
+    override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> = unused()
+
+    override suspend fun setLibraryUpdateInterval(interval: LibraryUpdateInterval) = unused()
+
+    override suspend fun getLastLibraryUpdate(): Instant? = unused()
+
+    override suspend fun setLastLibraryUpdate(at: Instant) = unused()
+
+    override suspend fun getRemovedSourceIds(): Set<String> = unused()
+
+    override suspend fun setSourceRemoved(
+        sourceId: String,
+        removed: Boolean,
+    ) = unused()
+
+    private fun unused(): Nothing = error("FakeSettingsRepository only implements the download pause")
 }
 
 /** Records that the queue was asked to run, without running it. */

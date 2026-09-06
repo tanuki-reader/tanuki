@@ -274,6 +274,10 @@ private class FakeSettingsRepository(
     override suspend fun getLastLibraryUpdate(): Instant? = error("unused")
 
     override suspend fun setLastLibraryUpdate(at: Instant) = error("unused")
+
+    override fun observeDownloadsPaused(): Flow<Boolean> = error("unused")
+
+    override suspend fun setDownloadsPaused(paused: Boolean) = error("unused")
 }
 
 /** A [SourceRepository] over a fixed set of rows — what survives an uninstall. */

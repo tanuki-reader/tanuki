@@ -17,6 +17,7 @@ import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.download.service.PageFetcher
 import app.tanuki.core.domain.download.usecase.DownloadRunResult.Completed
 import app.tanuki.core.domain.download.usecase.DownloadRunResult.Skipped
+import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.model.Page
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -28,6 +29,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -75,6 +77,15 @@ import kotlin.uuid.Uuid
  * [CancellationException] is always rethrown — that is the app being torn down, not a chapter going
  * wrong.
  *
+ * ### Pausing stops the run, not the chapter
+ *
+ * The pause is a single app preference, re-read before every chapter and before every page. When it
+ * comes on the engine stops taking pages, puts the chapter it was working on back to
+ * [DownloadState.Queued] and ends the run — it does not fail anything and does not delete anything, so
+ * resuming picks the same chapter back up from its `.part` directory. Checking it *inside* a chapter as
+ * well as between chapters is what makes the button feel like a button: a forty-page chapter on mobile
+ * data is a long time to keep downloading after being told to stop.
+ *
  * Progress is written to the database per page, so the UI, a process death and a resume all agree
  * without any in-memory state being authoritative.
  */
@@ -104,6 +115,7 @@ sealed interface DownloadManager {
         private val store: ChapterDownloadStore,
         private val pageFetcher: PageFetcher,
         private val getChapterPages: GetChapterPages,
+        private val settingsRepository: SettingsRepository,
         private val dispatchers: DispatcherProvider,
         private val logger: Logger,
     ) : DownloadManager {
@@ -144,6 +156,10 @@ sealed interface DownloadManager {
             val handled = mutableSetOf<Uuid>()
 
             while (true) {
+                if (paused()) {
+                    logger.info(TAG, "The queue is paused; ending the run")
+                    break
+                }
                 val next = downloadRepository.nextQueued() ?: break
                 // A chapter that is still `Queued` after its turn would be picked again forever. That
                 // shouldn't happen — every path below leaves a terminal state or deletes the row — so it
@@ -156,6 +172,9 @@ sealed interface DownloadManager {
                     Outcome.Downloaded -> downloaded++
                     Outcome.Failed -> failed++
                     Outcome.Abandoned -> Unit
+                    // The chapter is back in the queue exactly where it was; nothing is left to do until
+                    // the user resumes, and `handled` would refuse to pick it again anyway.
+                    Outcome.Paused -> break
                 }
             }
 
@@ -227,6 +246,10 @@ sealed interface DownloadManager {
             }
 
             if (chapterId in aborted.value) return abandon(chapterId, part)
+            // Checked before the commit, not instead of it: a chapter that finished every page while the
+            // user was reaching for pause is committed rather than thrown back in the queue, for the same
+            // reason cancelling a chapter that just landed keeps its files.
+            if (progress.pages() < pages.size && paused()) return pause(record, pages.size, progress)
 
             val manifest = store.commit(part, expectedPageCount = pages.size)
             downloadRepository.markDownloaded(
@@ -270,7 +293,7 @@ sealed interface DownloadManager {
             page: Page,
             progress: ChapterProgress,
         ) {
-            if (chapterId in aborted.value) return
+            if (chapterId in aborted.value || paused()) return
             val fetched = fetch(page)
             // Checked again on the way out: the fetch is the slow part, so this is where an abort most
             // often lands. Dropping the bytes is cheaper than writing a file the next line deletes.
@@ -334,8 +357,49 @@ sealed interface DownloadManager {
             return Outcome.Abandoned
         }
 
+        /**
+         * Whether the user has paused the queue.
+         *
+         * Read at the point of use rather than mirrored into a field a collector keeps current. A mirror
+         * looks cheaper and is worse: whether it is up to date depends on a collector coroutine being
+         * scheduled between two pages, so how promptly the queue stops would come down to a race. This
+         * is one cached preference read against an HTTP image download — the cost is not measurable, and
+         * the answer is never stale.
+         */
+        private suspend fun paused(): Boolean = settingsRepository.observeDownloadsPaused().first()
+
+        /**
+         * Puts a chapter the user paused back where it was.
+         *
+         * Written back to [DownloadState.Queued] rather than left [DownloadState.Downloading]: that state
+         * means "an engine is fetching this", and a row left in it would be requeued at the next startup
+         * as debris — reported in the log as a crash that never happened, and, worse, shown in the queue
+         * screen as active while nothing is running. Its part directory stays, so resuming re-fetches
+         * only the pages that are missing.
+         */
+        private suspend fun pause(
+            record: ChapterDownload,
+            pageCount: Int,
+            progress: ChapterProgress,
+        ): Outcome {
+            logger.info(TAG, "Pausing on chapter ${record.chapterId}")
+            // The counters come from the run, not from [record], which is the snapshot this turn started
+            // with: `update` writes the whole row, so reusing the snapshot's totals would roll the row
+            // back to where the chapter was before any of this turn's pages landed.
+            downloadRepository.update(
+                record.copy(
+                    state = DownloadState.Queued,
+                    error = null,
+                    pageCount = pageCount,
+                    downloadedPages = progress.pages(),
+                    bytes = progress.bytes(),
+                ),
+            )
+            return Outcome.Paused
+        }
+
         /** What became of one chapter's turn. */
-        private enum class Outcome { Downloaded, Failed, Abandoned }
+        private enum class Outcome { Downloaded, Failed, Abandoned, Paused }
 
         /**
          * A chapter's running page/byte totals, seeded from whatever an interrupted attempt left behind.

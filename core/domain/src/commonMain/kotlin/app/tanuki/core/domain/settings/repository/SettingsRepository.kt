@@ -75,6 +75,27 @@ interface SettingsRepository {
     suspend fun setLastLibraryUpdate(at: Instant)
 
     /**
+     * Observes whether the user has paused the download queue.
+     *
+     * A single app preference rather than a per-chapter state, deliberately: pausing must keep every
+     * chapter's place in line, and a `Paused` row state would mean "resume all" rewrote every row —
+     * losing the ordering the pause was supposed to preserve (see
+     * [app.tanuki.core.domain.download.model.DownloadState]).
+     *
+     * @return A [Flow] emitting the stored choice, defaulting to `false`. An absent or unreadable value
+     *   has to mean "not paused": the failure mode of guessing the other way is a queue that silently
+     *   never runs again, with nothing on screen explaining why.
+     */
+    fun observeDownloadsPaused(): Flow<Boolean>
+
+    /**
+     * Pauses or resumes the download queue.
+     *
+     * @param paused `true` to stop the queue after the page in flight.
+     */
+    suspend fun setDownloadsPaused(paused: Boolean)
+
+    /**
      * Source-native ids the user has explicitly uninstalled.
      *
      * A record of *intent*, not of state — what is actually installed is the bundle store's business.
