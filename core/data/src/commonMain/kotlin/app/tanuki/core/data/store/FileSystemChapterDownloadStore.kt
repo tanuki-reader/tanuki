@@ -6,6 +6,10 @@ import app.tanuki.core.domain.download.model.DownloadedPage
 import app.tanuki.core.domain.download.service.ChapterDownloadPart
 import app.tanuki.core.domain.download.service.ChapterDownloadStore
 import app.tanuki.core.domain.download.service.StoredChapter
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okio.FileSystem
@@ -31,6 +35,24 @@ class FileSystemChapterDownloadStore(
     private val root: Path,
     private val dispatchers: DispatcherProvider,
 ) : ChapterDownloadStore {
+    /**
+     * Ticked after every mutation, so anything measuring the files knows to measure again.
+     *
+     * `extraBufferCapacity = 1` with `DROP_OLDEST` makes [noteChange] non-suspending and lossless in the
+     * only way that matters: a subscriber that misses one tick because two landed together still gets
+     * the second, and every tick means the same thing ("re-measure"), so dropping a duplicate costs
+     * nothing. A `replay` of 0 keeps a new subscriber from being told about a change it was not around
+     * for — [ObserveDownloadStorageUsage] takes its own first measurement instead.
+     */
+    private val changes =
+        MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    override fun observeChanges(): Flow<Unit> = changes.asSharedFlow()
+
+    /** Announces that the bytes on disk moved. Called *after* the write, never before. */
+    private fun noteChange() {
+        changes.tryEmit(Unit)
+    }
 
     override suspend fun manifest(
         mangaId: Uuid,
@@ -87,6 +109,7 @@ class FileSystemChapterDownloadStore(
         val target = chapterDir(part.mangaId, part.chapterId)
         fileSystem.deleteRecursively(target, mustExist = false)
         fileSystem.atomicMove(directory, target)
+        noteChange()
         manifest
     }
 
@@ -98,14 +121,17 @@ class FileSystemChapterDownloadStore(
         fileSystem.deleteRecursively(partDir(mangaId, chapterId), mustExist = false)
         // Leave nothing behind for the sweep to puzzle over: an empty series directory is not a download.
         deleteIfEmpty(mangaDir(mangaId))
+        noteChange()
     }
 
     override suspend fun deleteManga(mangaId: Uuid): Unit = withContext(dispatchers.io) {
         fileSystem.deleteRecursively(mangaDir(mangaId), mustExist = false)
+        noteChange()
     }
 
     override suspend fun deleteAll(): Unit = withContext(dispatchers.io) {
         fileSystem.deleteRecursively(root, mustExist = false)
+        noteChange()
     }
 
     override suspend fun usedBytes(): Long = withContext(dispatchers.io) { sizeOf(root) }
@@ -163,6 +189,7 @@ class FileSystemChapterDownloadStore(
         override suspend fun discard(): Unit = withContext(dispatchers.io) {
             fileSystem.deleteRecursively(directory, mustExist = false)
             deleteIfEmpty(mangaDir(mangaId))
+            noteChange()
         }
     }
 

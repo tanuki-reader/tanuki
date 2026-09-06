@@ -2,6 +2,7 @@ package app.tanuki.core.domain.download.service
 
 import app.tanuki.core.domain.download.model.DownloadManifest
 import app.tanuki.core.domain.download.model.DownloadedPage
+import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.Uuid
 
 /**
@@ -98,6 +99,24 @@ interface ChapterDownloadStore {
     suspend fun deleteAll()
 
     /** Total bytes held by all downloads, for the storage figure in settings. */
+    /**
+     * Emits whenever the bytes on disk have changed — a chapter committed, or anything deleted.
+     *
+     * The store is the **authority** on what downloads cost ([usedBytes] measures the files rather than
+     * trusting the records), so it has to be the thing that says when that answer has moved. Watching the
+     * records instead is subtly wrong and was: deleting downloads removes the rows first and the files
+     * second, so a reader triggered by the rows re-measures while the files are still there and then
+     * never hears about the delete that followed.
+     *
+     * It also catches the changes no record can describe — an orphaned directory swept up, or a `.part`
+     * discarded — which is what the phase-8 reconciliation pass will do.
+     *
+     * Deliberately **not** emitted per written page. A download in progress grows the on-disk total
+     * without saying so, and the commit at the end of the chapter corrects it; emitting per page would
+     * send every observer walking the whole downloads tree between two images.
+     */
+    fun observeChanges(): Flow<Unit>
+
     suspend fun usedBytes(): Long
 
     /** Bytes held by one series' downloads, for the per-series breakdown. */

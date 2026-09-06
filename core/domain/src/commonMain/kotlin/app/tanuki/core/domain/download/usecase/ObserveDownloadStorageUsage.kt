@@ -10,9 +10,11 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlin.uuid.Uuid
 
 /**
@@ -26,12 +28,20 @@ import kotlin.uuid.Uuid
  * exists to justify ("should I delete something?") is only useful if it matches what the system would
  * report. Summing the records would show a tidy figure that is not the one taking up the space.
  *
- * ### Recomputed when the *set* of downloads changes, not per byte
+ * ### It is triggered by the files, not only by the records
  *
- * Driven by [DownloadRepository.observeDownloadedCounts], which changes when a chapter finishes or is
- * deleted — not by the queue's own flow, which re-emits once per page and would send this walking the
- * whole downloads tree between consecutive images. Progress mid-chapter is not on disk in a committed
- * form anyway, so there is nothing to report until a chapter lands.
+ * [ChapterDownloadStore.observeChanges] is the trigger that matters, and getting this wrong is what
+ * makes a storage figure lie. Deleting downloads removes the **rows first and the files second**, so a
+ * reader woken only by the rows re-measures while the bytes are still on disk — and then never hears
+ * about the delete that followed, leaving "1.2 GB used" on screen over an empty directory. The store is
+ * the authority on the number, so the store has to be the thing that says the number moved.
+ *
+ * The record counts are still combined in, because they carry the per-series chapter count the
+ * breakdown shows. Between the two triggers a delete produces two emissions — one stale, one correct —
+ * rather than one stale one that sticks.
+ *
+ * Neither trigger fires per written page: a chapter in progress grows the on-disk total silently and the
+ * commit at the end corrects it. The alternative is walking the whole downloads tree between two images.
  */
 sealed interface ObserveDownloadStorageUsage {
     operator fun invoke(): Flow<DownloadStorageUsage>
@@ -45,8 +55,12 @@ sealed interface ObserveDownloadStorageUsage {
         private val dispatchers: DispatcherProvider,
     ) : ObserveDownloadStorageUsage {
         override fun invoke(): Flow<DownloadStorageUsage> =
-            downloadRepository
-                .observeDownloadedCounts()
+            combine(
+                downloadRepository.observeDownloadedCounts(),
+                // `onStart` because the store's ticks are not replayed — a subscriber must not wait for
+                // the next delete to get its first measurement.
+                store.observeChanges().onStart { emit(Unit) },
+            ) { counts, _ -> counts }
                 // Nothing is emitted eagerly: the first read is slow (Room, then a directory walk) and
                 // an empty total flashed ahead of the real one would read as "nothing is downloaded",
                 // which is the one wrong answer this screen can give. The caller shows a spinner.

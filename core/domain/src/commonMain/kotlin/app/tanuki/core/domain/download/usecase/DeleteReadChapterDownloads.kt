@@ -87,7 +87,7 @@ sealed interface DeleteReadChapterDownloads {
          * a chapter with no record is one this setting has no business deleting files for.
          */
         private fun Chapter.isExpendable(downloadedIds: Set<Uuid>): Boolean =
-            progress?.alreadyRead == true && progress?.hasBookmark != true && id in downloadedIds
+            progress?.alreadyRead == true && progress.hasBookmark != true && id in downloadedIds
 
         private companion object {
             const val TAG = "DeleteReadChapterDownloads"

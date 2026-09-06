@@ -48,8 +48,10 @@ import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -125,6 +127,9 @@ internal class DownloadWorld(
 
     val queueView: ObserveDownloadQueue =
         ObserveDownloadQueue.Default(downloads, mangaRepository, chapterRepository, dispatchers)
+
+    val storageUsage: ObserveDownloadStorageUsage =
+        ObserveDownloadStorageUsage.Default(downloads, mangaRepository, store, dispatchers)
 
     val notifier = FakeDownloadNotifier()
 
@@ -374,6 +379,16 @@ internal class FakeChapterDownloadStore : ChapterDownloadStore {
     private val committed = mutableMapOf<Pair<Uuid, Uuid>, DownloadManifest>()
     private val parts = mutableMapOf<Pair<Uuid, Uuid>, MutableMap<Int, DownloadedPage>>()
 
+    /** Mirrors the real store's signal, so anything measuring the files is woken the same way. */
+    private val changes =
+        MutableSharedFlow<Unit>(replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    override fun observeChanges(): Flow<Unit> = changes
+
+    private fun noteChange() {
+        changes.tryEmit(Unit)
+    }
+
     override suspend fun manifest(
         mangaId: Uuid,
         chapterId: Uuid,
@@ -409,7 +424,10 @@ internal class FakeChapterDownloadStore : ChapterDownloadStore {
             pages = pages,
             totalBytes = pages.sumOf(DownloadedPage::bytes),
             downloadedAt = Instant.fromEpochMilliseconds(9_000),
-        ).also { committed[key] = it }
+        ).also {
+            committed[key] = it
+            noteChange()
+        }
     }
 
     override suspend fun delete(
@@ -418,16 +436,19 @@ internal class FakeChapterDownloadStore : ChapterDownloadStore {
     ) {
         committed -= mangaId to chapterId
         parts -= mangaId to chapterId
+        noteChange()
     }
 
     override suspend fun deleteManga(mangaId: Uuid) {
         committed.keys.filter { it.first == mangaId }.forEach(committed::remove)
         parts.keys.filter { it.first == mangaId }.forEach(parts::remove)
+        noteChange()
     }
 
     override suspend fun deleteAll() {
         committed.clear()
         parts.clear()
+        noteChange()
     }
 
     override suspend fun usedBytes(): Long = committed.values.sumOf(DownloadManifest::totalBytes)
@@ -475,6 +496,7 @@ internal class FakeChapterDownloadStore : ChapterDownloadStore {
 
         override suspend fun discard() {
             parts -= mangaId to chapterId
+            noteChange()
         }
     }
 }

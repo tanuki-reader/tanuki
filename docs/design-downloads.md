@@ -939,6 +939,13 @@ What landed:
   rather than from adding up `ChapterDownload.bytes`. The two drift (a write that died, a `.part` an
   abandoned run left, storage cleared from the OS), and the number this screen exists to justify —
   "should I delete something?" — is only useful if it matches what the system would report.
+- **…and therefore the store is the trigger, not the records.** This shipped wrong and is worth keeping
+  written down: the first cut measured the files but woke on `observeDownloadedCounts`, and every delete
+  path removes the rows *before* the files. So the measurement ran while the bytes were still on disk and
+  was then never woken again, leaving "1.2 GB used" on screen over an empty directory. Whatever is the
+  authority for a number has to be the thing that says the number moved —
+  `ChapterDownloadStore.observeChanges()` now does. It also catches the changes no record can describe,
+  which is exactly what phase 8's orphan sweep will produce.
 - **Decimal units, not binary.** `1000`, so "2.1 GB" here is "2.1 GB" in the OS storage screen the user
   is about to go and check. Being 7% off the binary figure matters far less than disagreeing with the
   thing being compared against.
