@@ -109,6 +109,16 @@ data object SettingsCategories : Destination
 data object Downloads : Destination
 
 /**
+ * Download settings — the rules the download subsystem follows on its own, and what it is costing.
+ *
+ * Distinct from [Downloads], and deliberately reachable from the same place: a queue you *watch* and a
+ * set of rules you *configure* are different errands, and collapsing them would make the common one
+ * (checking on a download) scroll past the rare one (changing when downloads happen).
+ */
+@Serializable
+data object SettingsDownloads : Destination
+
+/**
  * Source management — install and uninstall the extensions the app browses through. A leaf pushed onto
  * the Settings tab's stack from the settings index.
  *

@@ -72,4 +72,52 @@
     <string name="settings_crash_reporting_switch">Send crash reports</string>
     <string name="settings_crash_reporting_collected">When this is on, a crash sends the error and its stack trace, your device model and OS version, and the app version. It helps fix the crashes you actually hit instead of the ones we can reproduce.</string>
     <string name="settings_crash_reporting_never">It never sends what you read: no titles, no library, no reading history, no screenshots. This is off until you turn it on, and turning it off stops it immediately.</string>
+
+    <!-- Download settings screen -->
+    <string name="settings_downloads_title">Downloads</string>
+    <string name="settings_section_auto_download">Automatic downloads</string>
+    <string name="settings_auto_download_off">Never</string>
+    <string name="settings_auto_download_off_hint">Chapters are downloaded only when you ask for them.</string>
+    <string name="settings_auto_download_all">Every series in my library</string>
+    <string name="settings_auto_download_all_hint">New chapters are saved as soon as they are found.</string>
+    <string name="settings_auto_download_categories">Only these categories</string>
+    <string name="settings_auto_download_categories_hint">New chapters are saved for the categories you pick below.</string>
+    <string name="settings_auto_download_pick">Pick at least one category, or nothing will be downloaded.</string>
+
+    <string name="settings_section_network">Network</string>
+    <string name="settings_wifi_only">Only on Wi-Fi</string>
+    <string name="settings_wifi_only_hint">Downloads wait until you are on an unmetered connection.</string>
+    <string name="settings_wifi_only_ios">Not applied on this device yet — downloads run whenever the app is open.</string>
+
+    <string name="settings_section_delete_after_reading">After reading</string>
+    <string name="settings_delete_never">Keep everything</string>
+    <string name="settings_delete_never_hint">Downloads stay until you remove them.</string>
+    <string name="settings_delete_immediately">Delete when read</string>
+    <string name="settings_delete_immediately_hint">A chapter is removed as soon as you finish it.</string>
+    <string name="settings_delete_keep_one">Keep the last chapter</string>
+    <string name="settings_delete_keep_one_hint">Older read chapters are removed; you can still flick back one.</string>
+    <string name="settings_delete_keep_five">Keep the last five</string>
+    <string name="settings_delete_keep_five_hint">Older read chapters are removed. Bookmarked chapters are always kept.</string>
+    <string name="settings_delete_not_retroactive">This applies to chapters you read from now on. Nothing already on your device is removed.</string>
+
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_storage_total">%1$s used by downloads</string>
+    <string name="settings_storage_empty">Nothing is downloaded yet.</string>
+    <plurals name="settings_storage_series_chapters">
+        <item quantity="one">%1$d chapter · %2$s</item>
+        <item quantity="other">%1$d chapters · %2$s</item>
+    </plurals>
+    <string name="settings_storage_delete_all">Delete all downloads</string>
+    <string name="settings_storage_delete_all_title">Delete all downloads?</string>
+    <string name="settings_storage_delete_all_message">Every downloaded chapter is removed from this device. Your library, reading progress and categories are untouched.</string>
+    <string name="settings_storage_delete_all_confirm">Delete</string>
+    <string name="settings_storage_delete_all_cancel">Keep them</string>
+    <string name="settings_storage_open_queue">Downloads queue</string>
+    <string name="settings_storage_open_queue_hint">See what is waiting, downloading or failed.</string>
+
+    <!-- Byte sizes -->
+    <string name="settings_bytes">%1$d B</string>
+    <string name="settings_kilobytes">%1$s KB</string>
+    <string name="settings_megabytes">%1$s MB</string>
+    <string name="settings_gigabytes">%1$s GB</string>
 </resources>

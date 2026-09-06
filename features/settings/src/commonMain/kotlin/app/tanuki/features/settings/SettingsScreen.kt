@@ -27,9 +27,9 @@ import app.tanuki.assets.designSystem.component.TanukiRowDivider
 import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
-import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.SettingsAppearance
 import app.tanuki.core.navigation.SettingsCategories
+import app.tanuki.core.navigation.SettingsDownloads
 import app.tanuki.core.navigation.SettingsPrivacy
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.features.settings.resources.Res
@@ -152,9 +152,10 @@ fun SettingsRoute(
                     onClick = { onNavigate(SettingsSources) }
                 )
                 TanukiRowDivider(startInset = RowDividerInset)
-                // The queue's only entry point that doesn't require already being on a series' page —
-                // and the reason it names its count: a download that stopped on an error is otherwise
-                // invisible from anywhere in the app the user is likely to be.
+                // Opens the *settings*, which carry a row through to the queue. The subtitle still
+                // names the queue's count: a download that stopped on an error is otherwise invisible
+                // from anywhere in the app the user is likely to be, and one number on the index is
+                // what makes it findable at all.
                 TanukiListRow(
                     title = stringResource(Res.string.settings_downloads),
                     subtitle =
@@ -173,7 +174,7 @@ fun SettingsRoute(
                             size = SettingsIconSize
                         )
                     },
-                    onClick = { onNavigate(Downloads) }
+                    onClick = { onNavigate(SettingsDownloads) }
                 )
             }
         }
