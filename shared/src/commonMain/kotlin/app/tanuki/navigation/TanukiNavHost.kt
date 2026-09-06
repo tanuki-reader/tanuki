@@ -29,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import app.tanuki.assets.designSystem.TanukiMotion
+import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.navigation.SettingsAppearance
@@ -39,6 +40,7 @@ import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.core.navigation.type.UuidNavType
 import app.tanuki.features.activity.ActivityRoute
+import app.tanuki.features.downloads.DownloadsRoute
 import app.tanuki.features.home.HomeRoute
 import app.tanuki.features.library.LibraryRoute
 import app.tanuki.features.manga.MangaRoute
@@ -231,6 +233,17 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popExitTransition = leafPopExit
             ) {
                 SourcesRoute(onBack = { navController.popBackStack() })
+            }
+            composable<Downloads>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) {
+                DownloadsRoute(
+                    onNavigate = { navController.navigate(it) },
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable<SourceBrowse>(
                 enterTransition = leafEnter,

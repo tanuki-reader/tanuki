@@ -79,6 +79,7 @@ kotlin {
             api(projects.features.manga)
             api(projects.features.reader)
             api(projects.features.activity)
+            api(projects.features.downloads)
             api(projects.features.home)
             api(projects.features.source)
             api(projects.features.settings)

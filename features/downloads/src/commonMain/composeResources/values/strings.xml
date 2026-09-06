@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="downloads_title">Downloads</string>
+
+    <!-- Top bar -->
+    <plurals name="downloads_queue_count">
+        <item quantity="one">%1$d chapter in the queue</item>
+        <item quantity="other">%1$d chapters in the queue</item>
+    </plurals>
+    <string name="downloads_pause">Pause downloads</string>
+    <string name="downloads_resume">Resume downloads</string>
+    <string name="downloads_paused_banner">Downloads are paused.</string>
+    <string name="downloads_cancel_all">Cancel all downloads</string>
+    <string name="downloads_cancel_all_title">Cancel all downloads?</string>
+    <string name="downloads_cancel_all_message">Everything in the queue will be removed. Chapters already on your device are kept.</string>
+    <string name="downloads_cancel_all_confirm">Cancel all</string>
+    <string name="downloads_cancel_all_dismiss">Keep the queue</string>
+
+    <!-- Empty state -->
+    <string name="downloads_empty">Nothing is downloading. Chapters you download will queue up here.</string>
+
+    <!-- Series header -->
+    <string name="downloads_cover_content_description">Cover of %1$s</string>
+    <plurals name="downloads_series_count">
+        <item quantity="one">%1$d chapter</item>
+        <item quantity="other">%1$d chapters</item>
+    </plurals>
+    <plurals name="downloads_series_failed">
+        <item quantity="one">%1$d failed</item>
+        <item quantity="other">%1$d failed</item>
+    </plurals>
+    <string name="downloads_cancel_series">Cancel this series</string>
+
+    <!-- Chapter rows -->
+    <string name="downloads_chapter_number">Chapter %1$s</string>
+    <string name="downloads_chapter_untitled">Untitled chapter</string>
+    <string name="downloads_state_queued">Waiting</string>
+    <string name="downloads_state_downloading">Downloading</string>
+    <string name="downloads_state_pages">%1$d of %2$d pages</string>
+    <string name="downloads_cancel_chapter">Cancel this download</string>
+    <string name="downloads_retry_chapter">Try again</string>
+    <string name="downloads_verify_chapter">Verify</string>
+
+    <!-- Why a chapter stopped -->
+    <string name="downloads_error_network">No connection</string>
+    <string name="downloads_error_source">The source is unavailable</string>
+    <string name="downloads_error_verification">The site needs verifying</string>
+    <string name="downloads_error_space">Out of space</string>
+    <string name="downloads_error_unknown">The download failed</string>
+</resources>

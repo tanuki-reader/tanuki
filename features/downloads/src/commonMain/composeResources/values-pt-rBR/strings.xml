@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="downloads_title">Downloads</string>
+
+    <!-- Top bar -->
+    <plurals name="downloads_queue_count">
+        <item quantity="one">%1$d capítulo na fila</item>
+        <item quantity="other">%1$d capítulos na fila</item>
+    </plurals>
+    <string name="downloads_pause">Pausar downloads</string>
+    <string name="downloads_resume">Retomar downloads</string>
+    <string name="downloads_paused_banner">Os downloads estão pausados.</string>
+    <string name="downloads_cancel_all">Cancelar todos os downloads</string>
+    <string name="downloads_cancel_all_title">Cancelar todos os downloads?</string>
+    <string name="downloads_cancel_all_message">Tudo que está na fila será removido. Os capítulos já baixados no aparelho serão mantidos.</string>
+    <string name="downloads_cancel_all_confirm">Cancelar todos</string>
+    <string name="downloads_cancel_all_dismiss">Manter a fila</string>
+
+    <!-- Empty state -->
+    <string name="downloads_empty">Nada sendo baixado. Os capítulos que você baixar aparecem aqui na fila.</string>
+
+    <!-- Series header -->
+    <string name="downloads_cover_content_description">Capa de %1$s</string>
+    <plurals name="downloads_series_count">
+        <item quantity="one">%1$d capítulo</item>
+        <item quantity="other">%1$d capítulos</item>
+    </plurals>
+    <plurals name="downloads_series_failed">
+        <item quantity="one">%1$d com falha</item>
+        <item quantity="other">%1$d com falha</item>
+    </plurals>
+    <string name="downloads_cancel_series">Cancelar esta série</string>
+
+    <!-- Chapter rows -->
+    <string name="downloads_chapter_number">Capítulo %1$s</string>
+    <string name="downloads_chapter_untitled">Capítulo sem título</string>
+    <string name="downloads_state_queued">Aguardando</string>
+    <string name="downloads_state_downloading">Baixando</string>
+    <string name="downloads_state_pages">%1$d de %2$d páginas</string>
+    <string name="downloads_cancel_chapter">Cancelar este download</string>
+    <string name="downloads_retry_chapter">Tentar de novo</string>
+    <string name="downloads_verify_chapter">Verificar</string>
+
+    <!-- Why a chapter stopped -->
+    <string name="downloads_error_network">Sem conexão</string>
+    <string name="downloads_error_source">A fonte está indisponível</string>
+    <string name="downloads_error_verification">O site precisa de verificação</string>
+    <string name="downloads_error_space">Sem espaço</string>
+    <string name="downloads_error_unknown">O download falhou</string>
+</resources>

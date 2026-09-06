@@ -98,6 +98,17 @@ data object SettingsPrivacy : Destination
 data object SettingsCategories : Destination
 
 /**
+ * The download queue — what is waiting, what is being fetched, and what stopped with an error.
+ *
+ * A leaf rather than a tab: the bottom bar stays Library/Home/Activity/Settings, and a queue is
+ * something the user visits when they want to check on it, not a place they read from. It is reachable
+ * from the Settings index and from a series' own download menu while it has something queued, so it is
+ * pushed onto whichever tab the user was already in rather than belonging to one.
+ */
+@Serializable
+data object Downloads : Destination
+
+/**
  * Source management — install and uninstall the extensions the app browses through. A leaf pushed onto
  * the Settings tab's stack from the settings index.
  *
