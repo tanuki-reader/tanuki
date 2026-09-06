@@ -56,6 +56,10 @@ object TanukiListRowDefaults {
  *   rather than a value — a download that failed, a source that couldn't install — where the muted
  *   default reads as "here is a detail" when it needs to read as "here is a problem". Colour is never the
  *   whole signal: such a row is expected to carry the same meaning in its [leading] glyph and its words.
+ * @param destructive tints the [title] `danger`. Same name and same meaning as [TanukiMenuItem]'s, so a
+ *   "delete everything" reads identically whether it is a menu item or a row. As there, colour is never
+ *   the whole signal: such a row is expected to sit apart from the others, carry a matching [leading]
+ *   glyph, and confirm.
  */
 @Composable
 fun TanukiListRow(
@@ -66,7 +70,8 @@ fun TanukiListRow(
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
     showChevron: Boolean = onClick != null,
-    subtitleColor: Color? = null
+    subtitleColor: Color? = null,
+    destructive: Boolean = false
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -94,7 +99,7 @@ fun TanukiListRow(
             Text(
                 text = title,
                 style = TanukiTheme.typography.body,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = if (destructive) TanukiTheme.colors.danger else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

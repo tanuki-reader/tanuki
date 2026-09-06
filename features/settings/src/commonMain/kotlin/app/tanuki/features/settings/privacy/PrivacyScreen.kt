@@ -4,23 +4,20 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.TanukiDetailTopBar
-import app.tanuki.assets.designSystem.component.TanukiListRow
+import app.tanuki.assets.designSystem.component.TanukiSectionGroup
+import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.features.settings.privacy.viewmodel.PrivacyViewModel
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_crash_reporting_collected
@@ -86,25 +83,11 @@ private fun PrivacyScreen(
             verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.md)
         ) {
             SectionHeader(title = stringResource(Res.string.settings_section_crash_reporting))
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(TanukiRadii.chipShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                TanukiListRow(
+            TanukiSectionGroup {
+                TanukiSwitchRow(
                     title = stringResource(Res.string.settings_crash_reporting_switch),
-                    // The whole row toggles, so the switch is a display of state rather than the only
-                    // target — the same affordance the rest of the settings rows offer.
-                    onClick = { onCrashReportingChange(!crashReportingEnabled) },
-                    showChevron = false,
-                    trailing = {
-                        Switch(
-                            checked = crashReportingEnabled,
-                            onCheckedChange = onCrashReportingChange
-                        )
-                    }
+                    checked = crashReportingEnabled,
+                    onCheckedChange = onCrashReportingChange
                 )
             }
             Text(
