@@ -16,6 +16,8 @@
     <string name="downloads_cancel_all_confirm">Cancelar todos</string>
     <string name="downloads_cancel_all_dismiss">Manter a fila</string>
 
+    <string name="downloads_foreground_only">Mantenha o Tanuki aberto — os downloads pausam quando você sai do app.</string>
+
     <!-- Empty state -->
     <string name="downloads_empty">Nada sendo baixado. Os capítulos que você baixar aparecem aqui na fila.</string>
 

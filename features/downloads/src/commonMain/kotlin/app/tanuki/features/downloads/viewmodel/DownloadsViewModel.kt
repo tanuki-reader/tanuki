@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.usecase.CancelAllDownloads
 import app.tanuki.core.domain.download.usecase.CancelChapterDownloads
 import app.tanuki.core.domain.download.usecase.EnqueueChapterDownloads
@@ -46,6 +47,7 @@ class DownloadsViewModel(
     private val cancelChapterDownloads: CancelChapterDownloads,
     private val cancelAllDownloads: CancelAllDownloads,
     private val enqueueChapterDownloads: EnqueueChapterDownloads,
+    downloadScheduler: DownloadScheduler,
     dispatcher: DispatcherProvider,
     logger: Logger,
 ) : TanukiViewModel(dispatcher, logger) {
@@ -57,7 +59,15 @@ class DownloadsViewModel(
             observeDownloadsPaused(),
             busy,
         ) { series, paused, busy ->
-            DownloadsState(loading = false, series = series, paused = paused, busy = busy)
+            DownloadsState(
+                loading = false,
+                series = series,
+                paused = paused,
+                busy = busy,
+                // A constant per platform, read once rather than observed: where work runs is decided
+                // by which binding the graph has, and that cannot change while the app is running.
+                runsInBackground = downloadScheduler.runsInBackground,
+            )
         }.asState(DownloadsState())
 
     /** Pause or resume the whole queue. Resuming starts the engine again (see [SetDownloadsPaused]). */

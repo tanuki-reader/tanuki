@@ -15,12 +15,16 @@ import app.tanuki.core.domain.download.model.DownloadQueueSeries
  *   precisely this reason).
  * @property busy `true` while a queue-wide action is in flight, so a second tap can't fire a duplicate
  *   cancel-all across an already-emptying queue.
+ * @property runsInBackground whether the platform keeps working the queue once the user leaves the app.
+ *   `false` on iOS, where a download loop cannot run in the background for minutes — the screen says so
+ *   rather than letting the user find out by returning to a queue that has not moved.
  */
 data class DownloadsState(
     val loading: Boolean = true,
     val series: List<DownloadQueueSeries> = emptyList(),
     val paused: Boolean = false,
     val busy: Boolean = false,
+    val runsInBackground: Boolean = true,
 ) {
     /** How many chapters the queue holds, across every series — the top bar's subtitle. */
     val chapterCount: Int get() = series.sumOf { it.chapters.size }

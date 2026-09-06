@@ -16,6 +16,8 @@
     <string name="downloads_cancel_all_confirm">Cancel all</string>
     <string name="downloads_cancel_all_dismiss">Keep the queue</string>
 
+    <string name="downloads_foreground_only">Keep Tanuki open — downloads pause when you leave the app.</string>
+
     <!-- Empty state -->
     <string name="downloads_empty">Nothing is downloading. Chapters you download will queue up here.</string>
 

@@ -54,6 +54,7 @@ import app.tanuki.features.downloads.resources.downloads_cancel_all_dismiss
 import app.tanuki.features.downloads.resources.downloads_cancel_all_message
 import app.tanuki.features.downloads.resources.downloads_cancel_all_title
 import app.tanuki.features.downloads.resources.downloads_empty
+import app.tanuki.features.downloads.resources.downloads_foreground_only
 import app.tanuki.features.downloads.resources.downloads_pause
 import app.tanuki.features.downloads.resources.downloads_paused_banner
 import app.tanuki.features.downloads.resources.downloads_queue_count
@@ -77,6 +78,9 @@ private val EmptyGlyphSize = 48.dp
 
 /** Stable key for the status line, so it isn't confused with a series row. */
 private const val STATUS_LINE_KEY = "status-line"
+
+/** Stable key for the platform footnote, so it isn't confused with the status line above it. */
+private const val FOREGROUND_ONLY_KEY = "foreground-only"
 
 /** The pause glyph beside the status line — caption-sized, so it sits on the text's own line. */
 private val StatusGlyphSize = 14.dp
@@ -261,6 +265,13 @@ private fun QueueList(
         // exactly as it did, so without this the screen and a stalled queue are the same picture.
         item(key = STATUS_LINE_KEY) { StatusLine(state) }
 
+        // Only where it is true, and only while there is a queue to lose. On Android the work is a
+        // foreground-service job that outlives the app, so saying this there would be a warning about
+        // a problem the user does not have.
+        if (!state.runsInBackground) {
+            item(key = FOREGROUND_ONLY_KEY) { ForegroundOnlyNotice() }
+        }
+
         state.series.forEachIndexed { index, series ->
             // A full-bleed rule between groups, against the inset one *within* a group below: the two
             // read as different weights of separation, which is what says "new series" rather than
@@ -336,6 +347,39 @@ private fun StatusLine(state: DownloadsState) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * The iOS-only footnote: the queue stops when the app does.
+ *
+ * A statement of what the app does, not a warning — there is nothing for the user to fix, and an alert
+ * treatment would imply there is. It sits directly under the status line so it is read as part of the
+ * same "here is the state of the queue" sentence, and it is worded as an instruction ("keep Tanuki
+ * open") because that is the only thing the user can act on.
+ *
+ * The reason it exists at all is that the failure it prevents is silent: without it, backgrounding the
+ * app mid-queue and returning to find nothing moved is indistinguishable from the feature being broken.
+ */
+@Composable
+private fun ForegroundOnlyNotice() {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = TanukiTheme.spacing.gutter)
+                .padding(bottom = TanukiTheme.spacing.sm),
+        horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.xs),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        DownloadIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant, size = StatusGlyphSize)
+        Text(
+            text = stringResource(Res.string.downloads_foreground_only),
+            style = TanukiTheme.typography.caption,
+            // `onSurfaceVariant`, like the status line above it: this is context, not a problem, and
+            // `danger` or `accent` here would make a normal platform limit look like something wrong.
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
