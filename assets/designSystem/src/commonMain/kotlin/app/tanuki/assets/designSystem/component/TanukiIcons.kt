@@ -684,6 +684,65 @@ fun SelectAllIcon(
     }
 }
 
+/**
+ * `check_circle` (filled) — a solid disc with the tick knocked out of it, for a chapter that is fully
+ * downloaded and readable offline.
+ *
+ * Filled rather than outlined, and the only filled glyph in the set, because it is the one download state
+ * that is *finished*: the queue states are all outlines, so a solid mark reads as an endpoint at a glance
+ * without the user comparing shapes. The tick is drawn in [knockout] rather than as a hole, so the glyph
+ * works on any surface the row happens to sit on — including the accent wash of a selected row.
+ *
+ * @param tint the disc colour; the design system's `success` at every call site.
+ * @param knockout the colour the tick is punched in — the surface behind the glyph.
+ */
+@Composable
+fun DownloadedIcon(
+    tint: Color,
+    knockout: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawCircle(color = tint, radius = 10f, center = Offset(12f, 12f))
+            val tick =
+                Path().apply {
+                    moveTo(7.2f, 12.2f)
+                    lineTo(10.6f, 15.6f)
+                    lineTo(16.8f, 8.8f)
+                }
+            drawPath(
+                tick,
+                knockout,
+                style = Stroke(width = ICON_STROKE, cap = StrokeCap.Round, join = StrokeJoin.Round),
+            )
+        }
+    }
+}
+
+/**
+ * `error_outline` — an exclamation inside a ring, for a download that gave up.
+ *
+ * An outline, like the rest of the queue states, so the finished state stays the only filled one. The
+ * exclamation is a bar and a separate dot rather than one tapered stroke: at 20dp a tapered mark loses its
+ * gap and reads as a plain line, which is the difference between "something went wrong" and "in progress".
+ */
+@Composable
+fun ErrorIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp
+) {
+    Canvas(modifier.size(size)) {
+        iconSpace {
+            drawCircle(color = tint, radius = 9f, center = Offset(12f, 12f), style = Stroke(width = ICON_STROKE))
+            drawLine(tint, Offset(12f, 7.5f), Offset(12f, 13f), ICON_STROKE, StrokeCap.Round)
+            drawCircle(color = tint, radius = 1.15f, center = Offset(12f, 16.4f))
+        }
+    }
+}
+
 /** The shared tick geometry behind [CheckIcon] and [CheckOffIcon]. */
 private fun DrawScope.drawCheck(tint: Color) {
     val tick =
