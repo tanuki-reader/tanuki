@@ -62,6 +62,11 @@
     <!-- Remove source dialog -->
     <string name="settings_remove_source_title">Remove %1$s?</string>
     <string name="settings_remove_source_message">The source is removed from this device. Your library, reading progress and history are kept — install it again to start fetching new chapters.</string>
+    <plurals name="settings_remove_source_downloads">
+        <item quantity="one">Also delete %1$d downloaded chapter</item>
+        <item quantity="other">Also delete %1$d downloaded chapters</item>
+    </plurals>
+    <string name="settings_remove_source_downloads_hint">Frees %1$s. Left on, they keep reading offline without the source.</string>
 
     <!-- Privacy -->
     <string name="settings_section_privacy">Privacy</string>

@@ -6,6 +6,46 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-07 — Downloads are reconciled against the disk, and each side is authoritative for one thing
+
+**Decision:** `VerifyDownloads` runs once at launch, before the queue is picked up, and settles a drift
+nothing else in the app can see. Its rule reads as one sentence: **the disk is the authority on what is
+finished, the records are the authority on what is still owed.** So a `Downloaded` row with no committed
+directory loses its row, a committed directory no record claims loses its bytes, and a `.part` with no
+record at all is discarded — while a `Queued`/`Downloading`/`Failed` row with no files, and a `.part`
+beside one, are left exactly alone.
+
+**Why the last rule is the important one:** it is what lets the sweep run beside a live engine without a
+lock. A part is discarded only when there is *no* record for it, and the engine always writes the record
+before it opens the part — so the sweep cannot see a part that is about to be filled. `App` therefore
+sweeps and resumes in one effect, in that order, rather than coordinating two.
+
+**The sweep is a backstop, not the mechanism.** `design-downloads.md` §9 left pruned chapters and removed
+series to the orphan pass; both now delete their files at the moment they stop existing, and the sweep
+catches what those paths miss (a crash mid-prune, a database restored without its files). In
+`SyncSourceChapters.removeVanished` the order is load-bearing: the download record is resolved *before*
+the chapter row's foreign key cascades it away, because afterwards nothing can say which files belonged
+to the chapter.
+
+**Removing a series from the library deletes its downloads silently; uninstalling a source only offers
+to.** The two look alike and are opposites. Removing from the library is the user withdrawing the reason
+those bytes were spent, and a rule with an opt-out leaks every time it is declined — onto a series that
+is then invisible from every screen that could clean it up. Uninstalling a source keeps the library by
+design, and its downloaded chapters keep reading offline without it; deleting them is a second, separate
+loss, so it is a switch in the confirm dialog, defaulted **off**, showing both the chapter count and the
+size because neither decides it alone.
+
+**A source's downloads are found through its series.** `ChapterDownload` names a chapter and a series and
+never a source, and it stays that way — the source is a property of the series, and a copy on every
+chapter record is a fact that a series moving between sources could silently falsify.
+`MangaRepository.observeMangaBySource` is the join, shared by the count and the delete so the dialog
+cannot promise something other than what the button does.
+
+**`DeleteManga` was deliberately left unhooked** — no Metro binding, no callers. A cascade wired into
+dead code is a claim, not a guarantee; wire it when something starts calling it.
+
+---
+
 ## 2026-09-07 — One rule decides whether the download queue may run
 
 **Decision:** `ObserveDownloadHold` is the single answer to "may the queue run, and if not why" —

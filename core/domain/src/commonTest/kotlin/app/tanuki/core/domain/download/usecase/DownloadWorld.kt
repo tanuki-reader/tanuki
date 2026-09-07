@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -92,8 +93,9 @@ internal class DownloadWorld(
     /** The one rule both the engine and the queue screen read. */
     val hold: ObserveDownloadHold = ObserveDownloadHold.Default(settings, connection)
     val loader = FakeSourceLoader(pagesPerChapter)
-    private val chapterRepository = FakeChapterRepository(chapters)
-    private val mangaRepository = FakeMangaRepository(manga)
+    val chapterRepository = FakeChapterRepository(chapters)
+    val mangaRepository = FakeMangaRepository(manga)
+    val sources = FakeSourceRepository(SOURCE)
 
     val manager: DownloadManager =
         DownloadManager.Default(
@@ -104,7 +106,7 @@ internal class DownloadWorld(
                 GetChapterPages.Default(
                     chapterRepository = chapterRepository,
                     mangaRepository = mangaRepository,
-                    sourceRepository = FakeSourceRepository(SOURCE),
+                    sourceRepository = sources,
                     sourceLoader = loader,
                 ),
             observeDownloadHold = hold,
@@ -151,6 +153,14 @@ internal class DownloadWorld(
     val deleteReadDownloads: DeleteReadChapterDownloads =
         DeleteReadChapterDownloads.Default(settings, chapterRepository, downloads, deleteChapters, RecordingLogger())
 
+    val verify: VerifyDownloads = VerifyDownloads.Default(downloads, store, RecordingLogger())
+
+    val sourceUsage: GetSourceDownloadUsage =
+        GetSourceDownloadUsage.Default(sources, mangaRepository, downloads, store)
+
+    val deleteSourceDownloads: DeleteSourceDownloads =
+        DeleteSourceDownloads.Default(sources, mangaRepository, deleteManga, RecordingLogger())
+
     /** Puts [chapters] straight into the queue, bypassing the enqueue use case's own rules. */
     suspend fun queue(vararg chapters: Chapter) {
         chapters.forEachIndexed { position, chapter ->
@@ -188,6 +198,34 @@ internal class DownloadWorld(
         queue(chapter)
         manager.run()
         markRead(chapter, bookmarked)
+    }
+
+    /**
+     * A downloaded chapter of a series belonging to a **different** source, for the tests that have to
+     * prove a source-scoped action stops at its own source.
+     *
+     * Written straight into the store and the records rather than run through the engine: the fixture's
+     * one [SourceLoader] only serves the one source, and what these tests need from this series is that
+     * it exists on disk and is claimed by a record — not that it was fetched.
+     */
+    suspend fun otherSourceChapter(): StoredChapter {
+        val mangaId = uuidV7()
+        val chapterId = uuidV7()
+        mangaRepository.add(manga.copy(id = mangaId, source = uuidV7(), title = Text("Vagabond")))
+        val part = store.openPart(mangaId, chapterId)
+        repeat(pagesPerChapter) { index -> part.writePage(index, "jpg", ByteArray(8)) }
+        store.commit(part, pagesPerChapter)
+        downloads.enqueue(
+            listOf(
+                ChapterDownload(
+                    chapterId = chapterId,
+                    mangaId = mangaId,
+                    state = DownloadState.Downloaded,
+                    queuedAt = Instant.fromEpochMilliseconds(500),
+                ),
+            ),
+        )
+        return StoredChapter(mangaId = mangaId, chapterId = chapterId, isComplete = true)
     }
 
     /** Hides [scanlator]'s chapters, the way the manga screen's filter would. */
@@ -819,17 +857,26 @@ internal class FakeChapterRepository(
 internal class FakeMangaRepository(
     manga: Manga,
 ) : MangaRepository {
-    private val held = MutableStateFlow(manga)
+    // A list rather than the one series the download tests started with: the source-scoped use cases ask
+    // "which series belong to this source", and a fixture that can only hold one can't tell a right
+    // answer from an answer that ignored the question.
+    private val held = MutableStateFlow(listOf(manga))
 
     fun replace(manga: Manga) {
-        held.value = manga
+        held.update { all -> all.map { if (it.id == manga.id) manga else it } }
     }
 
-    override fun observeManga(mangaId: Uuid): Flow<Manga?> = held.map { manga -> manga.takeIf { it.id == mangaId } }
+    /** Adds another series, for the tests that need two. */
+    fun add(manga: Manga) {
+        held.update { it + manga }
+    }
 
-    override fun observeLibrary(): Flow<List<Manga>> = held.map(::listOf)
+    override fun observeManga(mangaId: Uuid): Flow<Manga?> = held.map { all -> all.firstOrNull { it.id == mangaId } }
 
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = error("unused")
+    override fun observeLibrary(): Flow<List<Manga>> = held
+
+    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> =
+        held.map { all -> all.filter { it.source == sourceId } }
 
     override suspend fun getMangaIdBySourceAndKey(
         sourceId: Uuid,
@@ -857,7 +904,10 @@ internal class FakeMangaRepository(
 
     override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
 
-    override suspend fun removeFromLibrary(mangaId: Uuid) = error("unused")
+    /** Records the removal, so the cascade tests can prove the manga row survives it. */
+    override suspend fun removeFromLibrary(mangaId: Uuid) {
+        held.update { all -> all.map { if (it.id == mangaId) it.copy(dateAdded = null) else it } }
+    }
 }
 
 /** The one installed source every chapter resolves through. */
@@ -892,3 +942,18 @@ internal fun inertDeleteReadChapterDownloads(): DeleteReadChapterDownloads =
 /** The same, for [AutoDownloadNewChapters]: `AutoDownloadMode.Off` is its default and its early return. */
 internal fun inertAutoDownloadNewChapters(): AutoDownloadNewChapters =
     DownloadWorld(TestDispatchers(Dispatchers.Unconfined)).autoDownload
+
+/**
+ * The same, for [DeleteChapterDownloads] — for the tests of [SyncSourceChapters], which calls it when a
+ * source stops listing a chapter.
+ *
+ * Inert by *situation* rather than by setting: it is wired to an empty world, so every id it is handed
+ * has no record and nothing to delete. That is also the true state of the fixtures using it, none of
+ * which download anything.
+ */
+internal fun inertDeleteChapterDownloads(): DeleteChapterDownloads =
+    DownloadWorld(TestDispatchers(Dispatchers.Unconfined)).deleteChapters
+
+/** The same, for [DeleteMangaDownloads] — for the tests of `RemoveMangaFromLibrary`. */
+internal fun inertDeleteMangaDownloads(): DeleteMangaDownloads =
+    DownloadWorld(TestDispatchers(Dispatchers.Unconfined)).deleteManga

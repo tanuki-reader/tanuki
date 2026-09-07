@@ -3,6 +3,7 @@ package app.tanuki.core.domain.chapter.usecase
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
 import app.tanuki.core.domain.download.usecase.AutoDownloadNewChapters
+import app.tanuki.core.domain.download.usecase.DeleteChapterDownloads
 import app.tanuki.core.domain.common.model.toTextOrNull
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
@@ -78,7 +79,8 @@ sealed interface SyncSourceChapters {
         private val chapterRepository: ChapterRepository,
         private val chapterUpdateRepository: ChapterUpdateRepository,
         private val sourceLoader: SourceLoader,
-        private val autoDownloadNewChapters: AutoDownloadNewChapters
+        private val autoDownloadNewChapters: AutoDownloadNewChapters,
+        private val deleteChapterDownloads: DeleteChapterDownloads
     ) : SyncSourceChapters {
         override suspend fun invoke(mangaId: Uuid): List<Chapter> {
             val manga = mangaRepository.observeManga(mangaId).first() ?: return emptyList()
@@ -181,7 +183,13 @@ sealed interface SyncSourceChapters {
                 local
                     .filter { it.sourceChapterKey?.value !in remoteKeys && it.progress == null }
                     .map(Chapter::id)
-            if (vanished.isNotEmpty()) chapterRepository.deleteChapters(vanished)
+            if (vanished.isEmpty()) return
+            // Before the rows, and that order is load-bearing twice over: deleting the chapter cascades
+            // its download record away, and this resolves each chapter *through* that record — so
+            // afterwards there would be nothing left to say which files to remove, and the bytes of a
+            // chapter nothing can any longer name would sit there until the startup sweep found them.
+            deleteChapterDownloads(vanished)
+            chapterRepository.deleteChapters(vanished)
         }
     }
 }

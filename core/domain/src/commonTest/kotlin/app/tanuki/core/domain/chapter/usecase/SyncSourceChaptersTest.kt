@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import app.tanuki.core.domain.download.usecase.inertAutoDownloadNewChapters
+import app.tanuki.core.domain.download.usecase.inertDeleteChapterDownloads
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -252,7 +253,8 @@ class SyncSourceChaptersTest {
         chapterRepository = chapters,
         chapterUpdateRepository = updates,
         sourceLoader = FakeSourceLoader(listings),
-        autoDownloadNewChapters = inertAutoDownloadNewChapters()
+        autoDownloadNewChapters = inertAutoDownloadNewChapters(),
+        deleteChapterDownloads = inertDeleteChapterDownloads()
     )
 
     private fun listing(

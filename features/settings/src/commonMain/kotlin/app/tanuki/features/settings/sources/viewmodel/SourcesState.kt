@@ -1,5 +1,7 @@
 package app.tanuki.features.settings.sources.viewmodel
 
+import app.tanuki.core.domain.download.model.SourceDownloadUsage
+
 /**
  * Immutable UI state for the source-management screen: the sources on the device, and the ones that
  * could be put back.
@@ -17,13 +19,18 @@ package app.tanuki.features.settings.sources.viewmodel
  *   shows progress, so a second tap can't queue a duplicate.
  * @property failedIds sources whose last action failed. The row reads it against its own section to say
  *   which action failed, and it clears the moment that source is acted on again.
+ * @property pendingUsage what the source awaiting confirmation has downloaded, or `null` while that
+ *   answer is still being read (and whenever no dialog is open). The remove dialog offers to delete
+ *   those files only once this arrives non-empty, so the offer never appears without the count and size
+ *   that make it answerable.
  */
 data class SourcesState(
     val loading: Boolean = true,
     val installed: List<SourceItem> = emptyList(),
     val available: List<SourceItem> = emptyList(),
     val busyIds: Set<String> = emptySet(),
-    val failedIds: Set<String> = emptySet()
+    val failedIds: Set<String> = emptySet(),
+    val pendingUsage: SourceDownloadUsage? = null
 )
 
 /**

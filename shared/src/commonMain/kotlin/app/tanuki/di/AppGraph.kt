@@ -4,6 +4,7 @@ import app.tanuki.core.domain.common.service.CrashReporter
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.usecase.RunDownloadQueue
+import app.tanuki.core.domain.download.usecase.VerifyDownloads
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.update.usecase.KeepLibraryUpdateScheduled
@@ -77,6 +78,14 @@ interface AppGraph : ViewModelGraph {
      * same reason as [updateLibrary]: it belongs to the app's lifetime, not to any screen.
      */
     val keepLibraryUpdateScheduled: KeepLibraryUpdateScheduled
+
+    /**
+     * Reconciles the download records against the files, at launch, before the queue is picked up.
+     * Exposed for the same reason as [downloadScheduler] — it runs once per process with no screen
+     * behind it, and it has to run *first*, so that what the engine then works is a queue that matches
+     * what is actually on the device.
+     */
+    val verifyDownloads: VerifyDownloads
 
     /**
      * Gets the download queue moving. Exposed on the graph because the launch-time resume in [App] has

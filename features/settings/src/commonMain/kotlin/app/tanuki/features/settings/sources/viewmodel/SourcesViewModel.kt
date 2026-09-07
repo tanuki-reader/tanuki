@@ -4,6 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.download.model.SourceDownloadUsage
+import app.tanuki.core.domain.download.usecase.DeleteSourceDownloads
+import app.tanuki.core.domain.download.usecase.GetSourceDownloadUsage
 import app.tanuki.core.domain.source.model.CatalogSource
 import app.tanuki.core.domain.source.usecase.InstallSource
 import app.tanuki.core.domain.source.usecase.ObserveSourceCatalog
@@ -32,6 +35,15 @@ import kotlinx.coroutines.launch
  * The list itself is never edited optimistically. Both actions leave the bundle store, whose stream
  * [ObserveSourceCatalog] is built on re-emits, moving the row between sections on its own — so what the
  * screen shows is always what is actually on disk, and a failed action needs no rollback.
+ *
+ * ### The downloads a removal is about
+ *
+ * Uninstalling a source keeps the library, and its downloaded chapters keep reading offline without it —
+ * so deleting them is an *offer*, never a consequence. [onRemovalRequested] reads what that source has
+ * downloaded so the dialog can ask a question with a real count and size behind it; the answer comes back
+ * through [onUninstall]'s `deleteDownloads`. The read is a `suspend` call and the dialog opens
+ * immediately, so [SourcesState.pendingUsage] is `null` for the frame or two before it lands — which is
+ * exactly the state in which the offer is not shown yet.
  */
 @Inject
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
@@ -40,25 +52,30 @@ class SourcesViewModel(
     observeSourceCatalog: ObserveSourceCatalog,
     private val installSource: InstallSource,
     private val uninstallSource: UninstallSource,
+    private val getSourceDownloadUsage: GetSourceDownloadUsage,
+    private val deleteSourceDownloads: DeleteSourceDownloads,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : TanukiViewModel(dispatcher, logger) {
     private val busyIds = MutableStateFlow<Set<String>>(emptySet())
     private val failedIds = MutableStateFlow<Set<String>>(emptySet())
+    private val pendingUsage = MutableStateFlow<SourceDownloadUsage?>(null)
 
     val uiState: StateFlow<SourcesState> =
         combine(
             observeSourceCatalog(),
             busyIds,
-            failedIds
-        ) { catalog, busy, failed ->
+            failedIds,
+            pendingUsage
+        ) { catalog, busy, failed, usage ->
             val (installed, available) = catalog.partition(CatalogSource::installed)
             SourcesState(
                 loading = false,
                 installed = installed.map(CatalogSource::toItem),
                 available = available.map(CatalogSource::toItem),
                 busyIds = busy,
-                failedIds = failed
+                failedIds = failed,
+                pendingUsage = usage
             )
         }.asState(SourcesState())
 
@@ -66,14 +83,39 @@ class SourcesViewModel(
     fun onInstall(sourceId: String) = act(sourceId) { installSource(sourceId) }
 
     /**
+     * The remove dialog is opening for [sourceId]: find out what it has downloaded, so the dialog can
+     * offer to delete it.
+     *
+     * Cleared by [onRemovalDismissed] rather than left to go stale — a count belonging to the previous
+     * source would otherwise be showing the instant the next dialog opened, which is the one moment this
+     * number must not be wrong.
+     */
+    fun onRemovalRequested(sourceId: String) {
+        pendingUsage.value = null
+        viewModelScope.launch { pendingUsage.value = getSourceDownloadUsage(sourceId) }
+    }
+
+    /** The remove dialog closed, confirmed or not. */
+    fun onRemovalDismissed() {
+        pendingUsage.value = null
+    }
+
+    /**
      * Uninstall a source — the confirmed half of the delete flow; the screen owns the confirmation, since
      * a dialog is a presentation decision, not a domain one.
+     *
+     * @param deleteDownloads whether the user accepted the dialog's offer to remove what this source had
+     *   downloaded. Deleted *before* the bundle: the files are found through the source's series, and a
+     *   failure to remove the bundle should not leave the user's chapters gone anyway.
      */
-    fun onUninstall(sourceId: String) =
-        act(sourceId) {
-            uninstallSource(sourceId)
-            true
-        }
+    fun onUninstall(
+        sourceId: String,
+        deleteDownloads: Boolean
+    ) = act(sourceId) {
+        if (deleteDownloads) deleteSourceDownloads(sourceId)
+        uninstallSource(sourceId)
+        true
+    }
 
     /**
      * Runs [action] for [sourceId] under the row's busy flag, recording a failure against that row.

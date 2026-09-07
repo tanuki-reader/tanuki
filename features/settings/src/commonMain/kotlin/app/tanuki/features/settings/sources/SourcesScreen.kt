@@ -40,12 +40,15 @@ import app.tanuki.assets.designSystem.component.TanukiDialog
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
+import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.assets.designSystem.component.TrashIcon
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_cancel
 import app.tanuki.features.settings.resources.settings_install
 import app.tanuki.features.settings.resources.settings_remove
 import app.tanuki.features.settings.resources.settings_remove_source_action
+import app.tanuki.features.settings.resources.settings_remove_source_downloads
+import app.tanuki.features.settings.resources.settings_remove_source_downloads_hint
 import app.tanuki.features.settings.resources.settings_remove_source_message
 import app.tanuki.features.settings.resources.settings_remove_source_title
 import app.tanuki.features.settings.resources.settings_source_install_failed
@@ -59,6 +62,9 @@ import app.tanuki.features.settings.sources.viewmodel.SourceItem
 import app.tanuki.features.settings.sources.viewmodel.SourcesState
 import app.tanuki.features.settings.sources.viewmodel.SourcesViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
+import app.tanuki.core.domain.download.model.SourceDownloadUsage
+import app.tanuki.features.settings.downloads.asFileSize
+import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -83,6 +89,8 @@ fun SourcesRoute(
     SourcesScreen(
         state = state,
         onInstall = viewModel::onInstall,
+        onRemovalRequested = viewModel::onRemovalRequested,
+        onRemovalDismissed = viewModel::onRemovalDismissed,
         onUninstall = viewModel::onUninstall,
         onBack = onBack,
         modifier = modifier
@@ -93,7 +101,9 @@ fun SourcesRoute(
 private fun SourcesScreen(
     state: SourcesState,
     onInstall: (String) -> Unit,
-    onUninstall: (String) -> Unit,
+    onRemovalRequested: (String) -> Unit,
+    onRemovalDismissed: () -> Unit,
+    onUninstall: (String, Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -125,7 +135,10 @@ private fun SourcesScreen(
                 SourceSections(
                     state = state,
                     onInstall = onInstall,
-                    onRemoveRequest = { sourcePendingRemoval = it }
+                    onRemoveRequest = {
+                        sourcePendingRemoval = it
+                        onRemovalRequested(it.sourceId)
+                    }
                 )
         }
     }
@@ -133,10 +146,15 @@ private fun SourcesScreen(
     sourcePendingRemoval?.let { source ->
         RemoveSourceDialog(
             source = source,
-            onDismiss = { sourcePendingRemoval = null },
-            onConfirm = {
-                onUninstall(source.sourceId)
+            usage = state.pendingUsage,
+            onDismiss = {
                 sourcePendingRemoval = null
+                onRemovalDismissed()
+            },
+            onConfirm = { deleteDownloads ->
+                onUninstall(source.sourceId, deleteDownloads)
+                sourcePendingRemoval = null
+                onRemovalDismissed()
             }
         )
     }
@@ -318,26 +336,49 @@ private fun SourceRow(
  * Confirmation before removing a source. The message's job is to correct the assumption a delete button
  * invites — this one does **not** touch the library — because a user who thinks it might will never risk
  * the tap, and one who finds out afterwards was misled.
+ *
+ * When the source has downloaded chapters, it also carries the *offer* to delete them, defaulted **off**.
+ * Off is the honest default and the message above is why: those chapters keep reading offline with the
+ * source gone, so removing them is a second, separate loss the user has to choose. The switch names both
+ * things that decide it — how many chapters, and how much space — since neither answers the question
+ * alone. It is absent, not disabled, for a source with nothing downloaded, and while the count is still
+ * being read: a switch that appears a moment later is a smaller surprise than one that claims zero.
  */
 @Composable
 private fun RemoveSourceDialog(
     source: SourceItem,
+    usage: SourceDownloadUsage?,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit
+    onConfirm: (Boolean) -> Unit
 ) {
+    var deleteDownloads by remember(source.sourceId) { mutableStateOf(false) }
+
     TanukiDialog(
         title = stringResource(Res.string.settings_remove_source_title, source.name),
         onDismiss = onDismiss,
         dismissText = stringResource(Res.string.settings_cancel),
         confirmText = stringResource(Res.string.settings_remove),
         confirmVariant = TanukiButtonVariant.Danger,
-        onConfirm = onConfirm
+        onConfirm = { onConfirm(deleteDownloads) }
     ) {
         Text(
             text = stringResource(Res.string.settings_remove_source_message),
             style = TanukiTheme.typography.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        if (usage != null && !usage.isEmpty) {
+            TanukiSwitchRow(
+                title =
+                    pluralStringResource(
+                        Res.plurals.settings_remove_source_downloads,
+                        usage.chapters,
+                        usage.chapters
+                    ),
+                subtitle = stringResource(Res.string.settings_remove_source_downloads_hint, usage.bytes.asFileSize()),
+                checked = deleteDownloads,
+                onCheckedChange = { deleteDownloads = it }
+            )
+        }
     }
 }
 

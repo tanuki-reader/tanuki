@@ -65,12 +65,22 @@ fun App(appGraph: AppGraph) {
         appGraph.applicationScope.launch { appGraph.updateLibrary(UpdateLibrary.Trigger.Foreground) }
     }
 
-    // Pick the download queue back up. Nothing else would: enqueueing starts a run, but a queue the user
-    // left behind — the app was killed, the chapter was still fetching — has no enqueue coming to wake
-    // it, and would sit there looking active while nothing fetched it. The engine requeues the rows an
-    // interrupted run left mid-flight and carries on; an empty queue makes this a no-op.
+    // Reconcile the downloads, then pick the queue back up — in that order, and therefore in one effect:
+    // two effects would give no ordering guarantee, and the order is the whole point. The sweep clears
+    // records whose files are gone and files no record claims (storage cleared from the OS, a chapter a
+    // sync pruned, a part an abandoned run left), so what the engine then works is a queue that matches
+    // the device. It is safe beside a live run — see VerifyDownloads for why — and a no-op on a healthy
+    // one.
+    //
+    // Picking the queue up is the second half, and nothing else would do it: enqueueing starts a run, but
+    // a queue the user left behind — the app was killed, the chapter was still fetching — has no enqueue
+    // coming to wake it, and would sit there looking active while nothing fetched it. The engine requeues
+    // the rows an interrupted run left mid-flight and carries on; an empty queue makes this a no-op.
     LaunchedEffect(appGraph) {
-        appGraph.downloadScheduler.ensureRunning()
+        appGraph.applicationScope.launch {
+            appGraph.verifyDownloads()
+            appGraph.downloadScheduler.ensureRunning()
+        }
     }
 
     // Hand the platform scheduler the user's interval, and re-hand it whenever they change it. Runs for

@@ -420,7 +420,7 @@ Each phase is independently mergeable and leaves both platforms green.
 | **5** ✅ | `:features:downloads` queue screen + `Destination.Downloads` + Settings entry, pause | The queue is visible and controllable |
 | **6** ✅ | Android FGS worker + progress notification; iOS background task + completion notification | Queues survive leaving the screen |
 | **7** ✅ | Settings → Downloads (auto-download, Wi‑Fi only, delete-after-read, storage usage); library badge + `downloaded` filter | Automation + housekeeping |
-| **8** | `VerifyDownloads`, cascade hooks, source-uninstall prompt | No orphaned bytes |
+| **8** ✅ | `VerifyDownloads`, cascade hooks, source-uninstall prompt | No orphaned bytes |
 
 Phases 1–3 are the spine: after phase 3 the app genuinely reads offline, and everything after is
 control surface. Phase 5 depends on phase 2's `NeedsVerification` path existing, and phase 6 on
@@ -1039,3 +1039,92 @@ did nothing and said nothing. This closes it. What landed:
   restart free from WorkManager re-running the constrained job. iOS has no such machinery, so the
   scheduler subscribes and asks for a run the moment the hold clears; without it, joining Wi-Fi would do
   nothing until the user next opened the app.
+
+
+---
+
+## 21. As built — phase 8 (2026-09-07)
+
+The subsystem stopped leaking. The database and the disk are reconciled at every launch, a series that
+leaves the library takes its files with it, a chapter a source stops listing does too, and uninstalling
+a source finally says what it is about to leave behind. What landed:
+
+| Where | What |
+|---|---|
+| `:core:domain` `download/model/` | `SourceDownloadUsage` |
+| `:core:domain` `download/usecase/` | `VerifyDownloads` + `VerifyDownloadsResult`, `GetSourceDownloadUsage`, `DeleteSourceDownloads` |
+| `:core:domain` `manga/usecase/` | `RemoveMangaFromLibrary` now calls `DeleteMangaDownloads` |
+| `:core:domain` `chapter/usecase/` | `SyncSourceChapters.removeVanished` now calls `DeleteChapterDownloads` |
+| `:shared` | `AppGraph.verifyDownloads`; `App`'s launch effect sweeps, *then* resumes the queue |
+| `:features:settings` | `SourcesState.pendingUsage`; the remove dialog's opt-in switch; 3 strings × 2 languages |
+
+17 new tests — `VerifyDownloadsTest` (8), `SourceDownloadsTest` (6), `DownloadCascadeTest` (3) — plus
+`DownloadWorld` gaining a second series and a second source, which is what lets a source-scoped action
+be shown to stop at its own source.
+
+### The reconciliation rules, and which side is the authority
+
+| Found | Done |
+|---|---|
+| A `Downloaded` record with no committed directory | delete the **record** |
+| A committed directory with no record | delete the **directory** |
+| A `.part` with no record at all | delete it |
+| Anything else | leave it |
+
+Read as one sentence: **the disk is the authority on what is finished, the records are the authority on
+what is still owed.** A `Downloaded` row over nothing is a lie the library badge and the offline read
+path both repeat; a directory nothing claims is bytes no feature can name. But a `Queued`, `Downloading`
+or `Failed` row having no files is not drift — it is what those states *mean* — and a `.part` beside one
+is the resume state its retry needs.
+
+**That last rule is also what makes the sweep safe next to a running engine, with no lock.** A part is
+discarded only when there is *no* record for it, and the engine always writes the record before it opens
+the part. So the sweep cannot see a part the engine is about to fill: by the time it exists, its record
+does too. This is why `App` runs it in the same effect as `ensureRunning()` rather than worrying about
+which of the two starts first — but sweeping first is still the order, so that what the engine picks up
+is a queue that matches the device.
+
+### Where the code differs from §3 and §9, and why
+
+- **`RemoveMangaFromLibrary` deletes silently, rather than asking.** §9 says `DeleteMangaDownloads`
+  "must run"; the alternative considered was a confirm dialog on the manga screen. It was rejected
+  because a rule with an opt-out leaks every time it is declined, and the leaked bytes then belong to a
+  series that is no longer in the library — invisible from every screen that could delete them. It also
+  matches what the same use case already does with pending chapter updates, which nothing prompts about
+  either.
+- **The sync's prune deletes the files directly; the sweep is the backstop, not the mechanism.** §9 left
+  pruned chapters entirely to `VerifyDownloads`' orphan pass. Doing it in `removeVanished` reclaims them
+  at the moment they stop existing rather than at the next launch — and the order is load-bearing:
+  `DeleteChapterDownloads` resolves each chapter *through* its download record, which the chapter row's
+  foreign key is about to cascade away. Afterwards there would be nothing left to say which files to
+  delete. The sweep still catches everything this path misses (a sync that crashed mid-prune, a database
+  restored without its files).
+- **The uninstall offer defaults to *off*.** §9 says "offer to delete its downloads; do not do it
+  silently", and off is the only default consistent with what an uninstall already promises: the library
+  survives, and downloaded chapters keep reading offline with the source gone. Deleting them is a second,
+  separate loss. The switch names both numbers that decide it — how many chapters, and how much space —
+  because neither answers the question alone, and it is **absent rather than disabled** for a source with
+  nothing downloaded (a disabled control invites the user to work out how to enable it).
+- **A source's downloads are found through its series, not through a column.** A `ChapterDownload`
+  records a chapter and its series and never a source, and it stays that way: the source is a property of
+  the *series*, so denormalizing it onto every chapter record would be a fact a series moving between
+  sources could silently falsify. `MangaRepository.observeMangaBySource` is the join, and
+  `GetSourceDownloadUsage` and `DeleteSourceDownloads` share one private helper for it so the count the
+  dialog shows and the files the button deletes cannot disagree.
+- **`DeleteManga` was left unhooked.** §9 names it alongside `RemoveMangaFromLibrary`, but it has no
+  Metro binding and no call sites — it is dead code. A hook in it could not be exercised, so it would be
+  a claim rather than a guarantee; it should be wired when something starts calling it.
+- **The sweep logs only when it did something.** Every launch runs it and a healthy device produces all
+  zeros, so a line per start would bury the ones that mean a user lost files.
+
+### Still open after phase 8
+
+- **`DownloadError.OutOfSpace` is still never produced.** Unchanged since phase 2: free-space checking
+  needs a port neither okio nor common Kotlin offers.
+- **No ViewModel tests.** `SourcesViewModel`'s new usage-loading path is covered only by the domain use
+  cases beneath it; no `:features:*` module has a test source set.
+- **The sweep does not verify manifests, only their existence.** A committed directory whose
+  `manifest.json` is corrupt still counts as complete here; the read path fails closed on it (the chapter
+  streams from its source instead), so the cost is disk rather than a broken read. Parsing every manifest
+  at launch would turn a directory listing into thousands of file reads, which is the trade `storedChapters`
+  was designed around.
