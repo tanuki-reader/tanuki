@@ -10,12 +10,12 @@ import app.tanuki.core.domain.history.model.TimePeriod
 import app.tanuki.core.domain.history.model.previousStartInstant
 import app.tanuki.core.domain.history.model.startInstant
 import app.tanuki.core.domain.history.repository.HistoryRepository
+import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlin.collections.component1
 import kotlin.collections.component2
@@ -55,12 +55,14 @@ sealed interface GetMostRead {
                 .map { history ->
                     val current = history.countByMangaWhere { it >= currentStart }
                     val previous = history.countByMangaWhere { it < currentStart }
+                    // One batch read for the whole leaderboard, not a query per ranked series.
+                    val mangaById = mangaRepository.getMangaByIds(current.keys).associateBy(Manga::id)
 
                     current
                         .entries
                         .sortedByDescending(Map.Entry<Uuid, Int>::value)
                         .mapNotNull { (mangaId, readCount) ->
-                            val manga = mangaRepository.observeManga(mangaId).first() ?: return@mapNotNull null
+                            val manga = mangaById[mangaId] ?: return@mapNotNull null
                             MostReadManga(
                                 manga = manga,
                                 readCount = readCount,

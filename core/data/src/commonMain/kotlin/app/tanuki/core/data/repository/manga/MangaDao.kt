@@ -58,6 +58,46 @@ interface MangaDao {
     )
     fun observeManga(mangaId: Uuid): Flow<MangaWithDetails?>
 
+    /**
+     * The same projection as [observeManga] for many ids at once, read once rather than observed — what
+     * a caller resolving a list of ids (history rows, download records, update records) uses instead of
+     * subscribing to [observeManga] per id. Each of those subscriptions runs this query's two correlated
+     * subqueries and is torn down immediately, so a per-id loop costs one full query per row.
+     *
+     * Ids with no row are simply absent from the result, and the order is unspecified — callers key the
+     * result by [MangaWithDetails.manga]'s id rather than relying on position.
+     */
+    @Query(
+        """
+        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+               (
+                   SELECT COUNT(*)
+                   FROM chapters
+                   LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+                   WHERE chapters.manga_id = manga.id
+                     AND COALESCE(reading_progress.already_read, 0) = 0
+                     AND (
+                         chapters.scanlator IS NULL
+                         OR manga.filtered_scanlators IS NULL
+                         OR instr(char(10) || manga.filtered_scanlators || char(10),
+                                  char(10) || chapters.scanlator || char(10)) = 0
+                     )
+               ) AS unread_count,
+               (
+                   SELECT COUNT(*)
+                   FROM chapter_downloads
+                   WHERE chapter_downloads.manga_id = manga.id
+                     AND chapter_downloads.state = 'Downloaded'
+               ) AS downloaded_count
+        FROM manga
+        LEFT JOIN history ON history.manga_id = manga.id
+        LEFT JOIN library ON library.id = manga.id
+        WHERE manga.id IN (:mangaIds)
+        GROUP BY manga.id
+        """,
+    )
+    suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<MangaWithDetails>
+
     /** The user's library: every manga with a `library` row, titled for stable display ordering. */
     @Query(
         """

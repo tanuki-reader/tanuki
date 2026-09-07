@@ -110,6 +110,8 @@ private class FakeMangaRepository(private val existingId: Uuid? = null) : MangaR
     override suspend fun upsertManga(manga: Manga) { upserted += manga }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(null)
+
+    override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> = error("unused")
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(emptyList())
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")

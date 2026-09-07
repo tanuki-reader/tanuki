@@ -50,6 +50,19 @@ interface ChapterRepository {
     suspend fun getChapter(chapterId: Uuid): Chapter?
 
     /**
+     * [getChapter] for many ids at once, read once rather than observed — how a caller holding a list of
+     * chapter ids (history rows, pending updates, queued downloads) resolves them.
+     *
+     * Prefer this over loading each owning series' chapters with [getChapters]/[observeChapters] and
+     * searching them: that materializes every chapter of every series involved to find a handful.
+     *
+     * @param chapterIds Local ids to resolve; duplicates and unknown ids are harmless.
+     * @return The chapters that exist, in unspecified order — key it by [Chapter.id] rather than
+     *   position. Ids with no row are simply absent, so the result may be shorter than [chapterIds].
+     */
+    suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter>
+
+    /**
      * Writes the user's [ReadingProgress] for a chapter, creating the local progress row or replacing
      * it — the reader's counterpart to the `observe`/`get` reads above.
      *

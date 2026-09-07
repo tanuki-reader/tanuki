@@ -206,6 +206,9 @@ private class MarkChapterRepo(private val chapters: List<Chapter>) : ChapterRepo
 
     override suspend fun getChapter(chapterId: Uuid): Chapter? = error("unused")
 
+    override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
+        chapters.filter { it.id in chapterIds }
+
     override suspend fun updateProgress(chapterId: Uuid, progress: ReadingProgress) = error("unused")
 
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")

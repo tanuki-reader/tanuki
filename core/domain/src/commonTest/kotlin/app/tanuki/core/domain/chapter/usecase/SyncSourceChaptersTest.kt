@@ -371,6 +371,9 @@ private class FakeChapterRepository(
 
     override suspend fun getChapter(chapterId: Uuid): Chapter? = existing.firstOrNull { it.id == chapterId }
 
+    override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
+        existing.filter { it.id in chapterIds }
+
     override suspend fun updateProgress(
         chapterId: Uuid,
         progress: ReadingProgress
@@ -389,6 +392,9 @@ private class FakeMangaRepository(
     private val manga: Manga?
 ) : MangaRepository {
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(manga)
+
+    override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
+        listOfNotNull(manga).filter { it.id in mangaIds }
 
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(emptyList())
 

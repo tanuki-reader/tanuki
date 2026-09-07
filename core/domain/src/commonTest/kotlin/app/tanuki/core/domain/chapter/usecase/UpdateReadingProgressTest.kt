@@ -187,6 +187,7 @@ private class ProgressChapterRepo(
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
     override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> = error("unused")
+    override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> = error("unused")
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")
     override suspend fun upsertChapters(chapters: List<Chapter>) = error("unused")
     override suspend fun deleteChapter(chapterId: Uuid) = error("unused")

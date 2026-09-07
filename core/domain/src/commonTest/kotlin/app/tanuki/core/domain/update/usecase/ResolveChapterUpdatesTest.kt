@@ -176,6 +176,9 @@ class ResolveChapterUpdatesTest {
 private class FakeMangaRepository(private val manga: Manga) : MangaRepository {
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(manga.takeIf { it.id == mangaId })
 
+    override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
+        listOf(manga).filter { it.id in mangaIds }
+
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(listOf(manga))
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
@@ -195,6 +198,9 @@ private class FakeChapterRepository(private val chapters: List<Chapter>) : Chapt
     override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> = chapters
     override suspend fun getChapter(chapterId: Uuid): Chapter? = chapters.firstOrNull { it.id == chapterId }
+
+    override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
+        chapters.filter { it.id in chapterIds }
     override suspend fun updateProgress(chapterId: Uuid, progress: ReadingProgress) = error("unused")
     override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) = error("unused")
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")

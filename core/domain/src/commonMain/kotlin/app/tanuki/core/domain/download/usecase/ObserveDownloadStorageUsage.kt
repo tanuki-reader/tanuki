@@ -5,13 +5,13 @@ import app.tanuki.core.domain.download.model.DownloadStorageUsage
 import app.tanuki.core.domain.download.model.SeriesStorage
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.download.service.ChapterDownloadStore
+import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -68,10 +68,11 @@ sealed interface ObserveDownloadStorageUsage {
                 .flowOn(dispatchers.io)
 
         private suspend fun usage(counts: Map<Uuid, Int>): DownloadStorageUsage {
+            val mangaById = mangaRepository.getMangaByIds(counts.keys).associateBy(Manga::id)
             val series =
                 counts
                     .mapNotNull { (mangaId, chapterCount) ->
-                        val manga = mangaRepository.observeManga(mangaId).first() ?: return@mapNotNull null
+                        val manga = mangaById[mangaId] ?: return@mapNotNull null
                         SeriesStorage(
                             manga = manga,
                             chapterCount = chapterCount,

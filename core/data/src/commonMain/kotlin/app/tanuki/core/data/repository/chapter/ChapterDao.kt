@@ -60,6 +60,23 @@ interface ChapterDao {
     )
     suspend fun getChapter(chapterId: Uuid): ChapterWithProgress?
 
+    /**
+     * [getChapter] for many ids at once — what a caller resolving a list of chapter ids (history rows,
+     * update records, download records) uses instead of loading *every* chapter of each owning series
+     * and searching it. Ids with no row are absent from the result, and the order is unspecified;
+     * callers key it by id.
+     */
+    @Query(
+        """
+        SELECT chapters.*,
+               reading_progress.has_bookmark, reading_progress.last_page_read, reading_progress.already_read
+        FROM chapters
+        LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+        WHERE chapters.id IN (:chapterIds)
+        """,
+    )
+    suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<ChapterWithProgress>
+
     @Upsert
     suspend fun upsertChapter(chapter: ChapterEntity)
 

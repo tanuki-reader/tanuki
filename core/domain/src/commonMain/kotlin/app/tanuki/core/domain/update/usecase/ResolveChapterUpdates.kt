@@ -8,7 +8,6 @@ import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.update.model.ChapterUpdate
 import app.tanuki.core.domain.update.model.NewChapter
 import dev.zacsweers.metro.Inject
-import kotlinx.coroutines.flow.first
 
 /**
  * Resolves raw [ChapterUpdate] records into the [NewChapter]s worth showing — **the** definition of
@@ -33,8 +32,9 @@ import kotlinx.coroutines.flow.first
  * retroactive: hiding a group (or reading a chapter) immediately drops its updates, without having to
  * find and rewrite records that were already stored.
  *
- * Manga and chapters are resolved once per distinct series rather than once per record, so a burst of
- * updates on a few series stays cheap.
+ * Resolution costs two queries regardless of how many records come in: the series and the chapters are
+ * each read by id in one batch. Only the chapters actually named by a record are loaded — resolving them
+ * through their series would materialize every chapter of each one to find the handful that are new.
  */
 @Inject
 class ResolveChapterUpdates(
@@ -49,19 +49,19 @@ class ResolveChapterUpdates(
     suspend operator fun invoke(updates: List<ChapterUpdate>): List<NewChapter> {
         if (updates.isEmpty()) return emptyList()
 
-        val mangaIds = updates.mapTo(mutableSetOf(), ChapterUpdate::mangaId)
-        // `observeManga`/`observeChapters` are Flows; `first()` takes their current value.
-        val mangaById = mangaIds.associateWith { mangaRepository.observeManga(it).first() }
-        val chaptersByManga = mangaIds.associateWith { chapterRepository.observeChapters(it).first() }
+        val mangaById =
+            mangaRepository
+                .getMangaByIds(updates.mapTo(mutableSetOf(), ChapterUpdate::mangaId))
+                .associateBy(Manga::id)
+        val chapterById =
+            chapterRepository
+                .getChaptersByIds(updates.mapTo(mutableSetOf(), ChapterUpdate::chapterId))
+                .associateBy(Chapter::id)
 
         return updates
             .mapNotNull { update ->
                 val manga = mangaById[update.mangaId]?.takeIf { it.isFollowed } ?: return@mapNotNull null
-                val chapter =
-                    chaptersByManga[update.mangaId]
-                        ?.firstOrNull { it.id == update.chapterId }
-                        ?.takeIf { it.isPending(manga) }
-                        ?: return@mapNotNull null
+                val chapter = chapterById[update.chapterId]?.takeIf { it.isPending(manga) } ?: return@mapNotNull null
                 NewChapter(chapter = chapter, manga = manga, discoveredAt = update.discoveredAt)
             }.sortedWith(
                 compareByDescending<NewChapter> { it.discoveredAt }

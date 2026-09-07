@@ -25,6 +25,21 @@ interface MangaRepository {
     fun observeManga(mangaId: Uuid): Flow<Manga?>
 
     /**
+     * Reads many manga by id in one query, rather than observed — the batch counterpart of
+     * [observeManga], for callers resolving a list of ids (history rows, download records, update
+     * records) to the series they refer to.
+     *
+     * Prefer this over a per-id [observeManga] loop: each such subscription runs the full detail query
+     * (two correlated subqueries over `chapters` / `reading_progress` / `chapter_downloads`) and is torn
+     * down immediately, so resolving 300 series costs 300 queries where this costs one.
+     *
+     * @param mangaIds Local ids to resolve; duplicates and unknown ids are harmless.
+     * @return The manga that exist, in unspecified order — key it by [Manga.id] rather than position.
+     *   Ids with no row are simply absent, so the result may be shorter than [mangaIds].
+     */
+    suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga>
+
+    /**
      * Observes the user's library.
      *
      * @return A [Flow] of the library, re-emitting on any change.

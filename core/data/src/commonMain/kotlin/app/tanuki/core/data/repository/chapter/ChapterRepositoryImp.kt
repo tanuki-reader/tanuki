@@ -1,5 +1,6 @@
 package app.tanuki.core.data.repository.chapter
 
+import app.tanuki.core.data.repository.readInBatches
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ReadingProgress
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
@@ -43,6 +44,9 @@ class ChapterRepositoryImp(
 
     override suspend fun getChapter(chapterId: Uuid): Chapter? =
         withContext(dispatcherProvider.io) { chapterDao.getChapter(chapterId)?.toDomain() }
+
+    override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
+        withContext(dispatcherProvider.io) { chapterIds.readInBatches(chapterDao::getChaptersByIds).toDomain() }
 
     override suspend fun updateProgress(
         chapterId: Uuid,

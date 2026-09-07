@@ -13,7 +13,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlin.uuid.Uuid
@@ -66,17 +65,21 @@ sealed interface ObserveDownloadQueue {
                 }
             }.flowOn(dispatchers.io)
 
-        /** Reads each distinct series once, and its chapters once — not once per queued row. */
-        private suspend fun resolve(records: List<ChapterDownload>): Resolved {
-            val mangaIds = records.mapTo(mutableSetOf(), ChapterDownload::mangaId)
-            return Resolved(
-                mangaById = mangaIds.mapNotNull { mangaRepository.observeManga(it).first() }.associateBy(Manga::id),
+        /**
+         * Two batch reads for the whole queue — and only the queued chapters, not every chapter of
+         * every series they belong to.
+         */
+        private suspend fun resolve(records: List<ChapterDownload>): Resolved =
+            Resolved(
+                mangaById =
+                    mangaRepository
+                        .getMangaByIds(records.mapTo(mutableSetOf(), ChapterDownload::mangaId))
+                        .associateBy(Manga::id),
                 chapterById =
-                    mangaIds
-                        .flatMap { chapterRepository.observeChapters(it).first() }
+                    chapterRepository
+                        .getChaptersByIds(records.mapTo(mutableSetOf(), ChapterDownload::chapterId))
                         .associateBy(Chapter::id),
             )
-        }
 
         /**
          * Projects the flat, oldest-queued-first record list into per-series groups.

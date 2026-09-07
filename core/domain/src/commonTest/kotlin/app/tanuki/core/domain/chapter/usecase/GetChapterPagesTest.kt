@@ -166,6 +166,9 @@ private class PagesChapterRepo(
 ) : ChapterRepository {
     override suspend fun getChapter(chapterId: Uuid): Chapter? = existing
 
+    override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
+        listOfNotNull(existing).filter { it.id in chapterIds }
+
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
     override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
@@ -192,6 +195,9 @@ private class PagesMangaRepo(
     private val manga: Manga?
 ) : MangaRepository {
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(manga)
+
+    override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
+        listOfNotNull(manga).filter { it.id in mangaIds }
 
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(emptyList())
 

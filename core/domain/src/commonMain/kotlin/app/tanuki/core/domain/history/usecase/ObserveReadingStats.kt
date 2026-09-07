@@ -8,13 +8,13 @@ import app.tanuki.core.domain.history.model.ReadingStats
 import app.tanuki.core.domain.history.model.ReadingStats.CategoryShare
 import app.tanuki.core.domain.history.model.ReadingStats.MangaShare
 import app.tanuki.core.domain.history.repository.HistoryRepository
+import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -30,7 +30,7 @@ import kotlin.uuid.Uuid
  * and the per-series distribution. Deliberately unscoped by period (the overview describes the whole
  * history), complementing the period-scoped [GetReadingActivity] and [GetMostRead].
  *
- * Series are resolved **once per distinct manga** (as [GetMostRead]/[ObserveReadHistory] do), so a long
+ * Series are resolved in a single batch read (as [GetMostRead]/[ObserveReadHistory] do), so a long
  * history stays cheap. Series that no longer resolve (pruned manga) are dropped from the distribution but
  * still counted in [ReadingStats.totalChapters].
  *
@@ -62,11 +62,12 @@ sealed interface ObserveReadingStats {
         ): ReadingStats {
             if (isEmpty()) return ReadingStats.Empty
             val countByManga = groupingBy(ChapterHistory::mangaId).eachCount()
+            val mangaById = mangaRepository.getMangaByIds(countByManga.keys).associateBy(Manga::id)
             val distribution =
                 countByManga.entries
                     .sortedByDescending { it.value }
                     .mapNotNull { (mangaId, count) ->
-                        val manga = mangaRepository.observeManga(mangaId).first() ?: return@mapNotNull null
+                        val manga = mangaById[mangaId] ?: return@mapNotNull null
                         MangaShare(manga = manga, count = count)
                     }
             return ReadingStats(

@@ -1,6 +1,7 @@
 package app.tanuki.core.data.repository.manga
 
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
+import app.tanuki.core.data.repository.readInBatches
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.ReadingMode
@@ -13,6 +14,7 @@ import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -34,6 +36,11 @@ class MangaRepositoryImp(
             .observeManga(mangaId)
             .map(MangaWithDetails?::toDomain)
             .flowOn(dispatcherProvider.io)
+
+    override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
+        withContext(dispatcherProvider.io) {
+            mangaIds.readInBatches(mangaDao::getMangaByIds).toDomainList()
+        }
 
     override fun observeLibrary(): Flow<List<Manga>> =
         mangaDao
