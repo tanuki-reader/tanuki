@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.history.model.HistoryEntry
-import app.tanuki.core.domain.history.usecase.ObserveReadHistory
+import app.tanuki.core.domain.history.usecase.ObserveLibraryReadingHistory
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.domain.update.model.NewChapter
@@ -36,9 +36,10 @@ import kotlin.math.floor
  * ViewModel multibinding so `metroViewModel<HomeViewModel>()` resolves it, like `LibraryViewModel`.
  *
  * Feeds both of Home's views from one state:
- *  - **For You** — [ObserveReadHistory] (which already joins each history row to its manga and chapter)
- *    reduced to one "continue reading" card per library series, most-recently-read first, plus
- *    [ObserveNewChapters] for the chapters that have arrived since and not been opened.
+ *  - **For You** — [ObserveLibraryReadingHistory], which already returns exactly the shortlist: one
+ *    "continue reading" entry per library series, most-recently-read first and capped, each joined to
+ *    its manga and chapter — plus [ObserveNewChapters] for the chapters that have arrived since and
+ *    not been opened.
  *  - **Sources** — the installed bundles' metadata, bucketed by language into collapsible groups.
  *
  * All three are live [Flow]s and are combined into one state. Sources re-emit only when the installed
@@ -50,7 +51,7 @@ import kotlin.math.floor
 @ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())
 @ViewModelKey
 class HomeViewModel(
-    observeReadHistory: ObserveReadHistory,
+    observeLibraryReadingHistory: ObserveLibraryReadingHistory,
     observeNewChapters: ObserveNewChapters,
     getInstalledSources: GetInstalledSources,
     dispatcher: DispatcherProvider,
@@ -85,7 +86,7 @@ class HomeViewModel(
             .launchIn(viewModelScope)
 
         combine(
-            observeReadHistory(),
+            observeLibraryReadingHistory(CONTINUE_READING_LIMIT),
             observeNewChapters(),
             sources,
             expandedLang
@@ -135,36 +136,32 @@ class HomeViewModel(
     }
 
     /**
-     * Reduces the raw history to the For You carousel: library titles only (a series read straight from
-     * a source without being added isn't "continue reading"), one card per series keeping its most
-     * recent read, capped so the row stays a glanceable shortlist rather than a second History screen.
+     * Projects the For You carousel's entries onto their cards. Nothing is filtered or truncated here:
+     * [ObserveLibraryReadingHistory] already returns library titles only, one per series at its most
+     * recent read, capped at [CONTINUE_READING_LIMIT] — so this is one card per entry, in order.
      */
     private fun List<HistoryEntry>.toContinueReading(): List<ContinueReadingItem> =
-        asSequence()
-            .filter { it.manga.dateAdded != null }
-            .distinctBy { it.manga.id }
-            .take(CONTINUE_READING_LIMIT)
-            .map { entry ->
-                ContinueReadingItem(
-                    mangaId = entry.manga.id,
-                    chapterId = entry.chapter?.id,
-                    title = entry.manga.title.value,
-                    coverUrl =
-                        entry.manga.cover.url
-                            ?.value,
-                    coverHeaders = entry.manga.cover.headers,
-                    chapterNumberLabel =
-                        entry.chapter
-                            ?.chapterNumber
-                            ?.value
-                            ?.formatChapterNumber(),
-                    chapterName =
-                        entry.chapter
-                            ?.name
-                            ?.value
-                            .orEmpty()
-                )
-            }.toList()
+        map { entry ->
+            ContinueReadingItem(
+                mangaId = entry.manga.id,
+                chapterId = entry.chapter?.id,
+                title = entry.manga.title.value,
+                coverUrl =
+                    entry.manga.cover.url
+                        ?.value,
+                coverHeaders = entry.manga.cover.headers,
+                chapterNumberLabel =
+                    entry.chapter
+                        ?.chapterNumber
+                        ?.value
+                        ?.formatChapterNumber(),
+                chapterName =
+                    entry.chapter
+                        ?.name
+                        ?.value
+                        .orEmpty()
+            )
+        }
 
     /**
      * Buckets sources by the language they serve, ordering both the groups and the sources inside them
@@ -195,7 +192,10 @@ class HomeViewModel(
             }
 
     private companion object {
-        /** How many series the Continue Reading row shows before it stops being a shortlist. */
+        /**
+         * How many series the Continue Reading row shows before it stops being a shortlist. Passed down
+         * as the query's `LIMIT`, so it bounds what is read rather than trimming what was already loaded.
+         */
         const val CONTINUE_READING_LIMIT = 15
     }
 }

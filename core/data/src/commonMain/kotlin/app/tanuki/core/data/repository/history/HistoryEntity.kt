@@ -1,13 +1,19 @@
 package app.tanuki.core.data.repository.history
 
 import androidx.room.ColumnInfo
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import app.tanuki.core.data.repository.chapter.ChapterEntity
+import app.tanuki.core.data.repository.chapter.ChapterWithProgress
+import app.tanuki.core.data.repository.chapter.toDomain
 import app.tanuki.core.data.repository.manga.MangaEntity
+import app.tanuki.core.data.repository.manga.MangaWithDetails
+import app.tanuki.core.data.repository.manga.toDomain
 import app.tanuki.core.domain.history.model.ChapterHistory
+import app.tanuki.core.domain.history.model.HistoryEntry
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -50,5 +56,32 @@ fun HistoryEntity.toDomain(): ChapterHistory =
         id = id,
         chapterId = chapterId,
         mangaId = mangaId,
+        readAt = readAt,
+    )
+
+/**
+ * A history row already joined to the series it belongs to and the chapter it points at — the shape
+ * [HistoryDao.observeLibraryHistory] returns, and the only projection that maps straight to a domain
+ * [HistoryEntry] without further id resolution.
+ *
+ * Both embeds carry a prefix because [MangaEntity] and [ChapterEntity] collide on `id` and `url`, and
+ * an unprefixed chapter `id` would in turn collide with this row's own [chapterId]. [chapterId] is kept
+ * alongside [chapter] deliberately: it is the raw `history.chapter_id`, so the entry stays identifiable
+ * (and deletable) even in the outer join's null case.
+ */
+data class LibraryHistoryEntry(
+    val id: Uuid,
+    @ColumnInfo(name = "chapter_id") val chapterId: Uuid,
+    @ColumnInfo(name = "read_at") val readAt: Instant,
+    @Embedded(prefix = "manga_") val manga: MangaWithDetails,
+    @Embedded(prefix = "ch_") val chapter: ChapterWithProgress?,
+)
+
+fun LibraryHistoryEntry.toDomain(): HistoryEntry =
+    HistoryEntry(
+        id = id,
+        chapterId = chapterId,
+        manga = manga.toDomain(),
+        chapter = chapter?.toDomain(),
         readAt = readAt,
     )

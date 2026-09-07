@@ -214,6 +214,8 @@ private class RecordingHistoryRepo : HistoryRepository {
     val recorded = mutableListOf<ChapterHistory>()
 
     override fun observeHistory(since: kotlin.time.Instant) = error("unused")
+    override fun observeLibraryHistory(limit: Int) = error("unused")
+
     override suspend fun upsertHistory(history: ChapterHistory) {
         recorded += history
     }

@@ -2,6 +2,7 @@ package app.tanuki.core.data.repository.history
 
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.history.model.ChapterHistory
+import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.repository.HistoryRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
@@ -28,6 +29,12 @@ class HistoryRepositoryImp(
         historyDao
             .observeHistorySince(since)
             .map(List<HistoryEntity>::toDomain)
+            .flowOn(dispatcherProvider.io)
+
+    override fun observeLibraryHistory(limit: Int): Flow<List<HistoryEntry>> =
+        historyDao
+            .observeLibraryHistory(limit)
+            .map { it.map(LibraryHistoryEntry::toDomain) }
             .flowOn(dispatcherProvider.io)
 
     override suspend fun upsertHistory(history: ChapterHistory) =
