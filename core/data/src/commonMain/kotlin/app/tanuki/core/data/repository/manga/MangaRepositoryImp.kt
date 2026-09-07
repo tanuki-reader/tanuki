@@ -109,8 +109,12 @@ class MangaRepositoryImp(
     override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) =
         mangaDao.updateCoverHeaders(mangaId, encodeHeaders(headers))
 
-    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) =
-        mangaDao.markChaptersFetched(mangaId, at)
+    override suspend fun recordChapterSync(
+        mangaId: Uuid,
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
+    ) = mangaDao.recordChapterSync(mangaId, at, nextUpdateAt, fetchInterval)
 
     override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) =
         mangaDao.markDetailsFetched(mangaId, at)

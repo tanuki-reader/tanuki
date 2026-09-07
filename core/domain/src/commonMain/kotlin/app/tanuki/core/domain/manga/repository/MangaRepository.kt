@@ -132,22 +132,32 @@ interface MangaRepository {
     )
 
     /**
-     * Records that a chapter sync completed for a manga.
+     * Records that a chapter sync completed for a manga, along with the schedule it derived.
      *
-     * This is the [Manga.chaptersFetchedAt] stamp the staleness gate reads to decide whether re-opening
-     * a series has to ask its source again. A targeted write like [setSourceDetails], and for the same
-     * reason: the stamp routinely lands while a details sync is in flight.
+     * [Manga.chaptersFetchedAt] is the stamp the staleness gate reads to decide whether re-opening a
+     * series has to ask its source again; [Manga.nextUpdateAt] and [Manga.fetchInterval] are what a
+     * library run reads to decide whether to consider the series at all (see
+     * [app.tanuki.core.domain.manga.service.fetchSchedule]).
+     *
+     * One call rather than three, because they are written at the same instant by the same sync and
+     * every write to `manga` re-runs the library and detail queries behind it. A targeted write like
+     * [setSourceDetails], and for the same reason: it routinely lands while a details sync is in flight.
      *
      * @param mangaId Local id of the manga.
      * @param at When the sync completed.
+     * @param nextUpdateAt When a library run should next consider this series.
+     * @param fetchInterval Days between expected releases; negative when the user pinned it.
      */
-    suspend fun markChaptersFetched(
+    suspend fun recordChapterSync(
         mangaId: Uuid,
-        at: Instant
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
     )
 
     /**
-     * The [markChaptersFetched] counterpart for a details sync — stamps [Manga.detailsFetchedAt].
+     * The [recordChapterSync] counterpart for a details sync — stamps [Manga.detailsFetchedAt]. No
+     * schedule to go with it: how often a synopsis changes says nothing about when chapters land.
      *
      * @param mangaId Local id of the manga.
      * @param at When the sync completed.

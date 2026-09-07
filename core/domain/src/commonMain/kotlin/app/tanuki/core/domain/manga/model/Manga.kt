@@ -52,10 +52,11 @@ import kotlin.uuid.Uuid
  *   because the two carry very different staleness: a chapter list changes weekly, a synopsis almost
  *   never.
  * @property nextUpdateAt When a library update run should next consider this series. `null` means
- *   "no schedule yet — consider it". Reserved: nothing writes it yet.
+ *   "no schedule yet — consider it", so a series that has never been scheduled is never skipped.
+ *   Written by [app.tanuki.core.domain.manga.usecase.FetchInterval] after a successful library refresh.
  * @property fetchInterval Days between this series' expected releases, derived from how often it has
  *   actually published. A **negative** value means the user pinned the interval by hand and it must not
- *   be recomputed. `null` means "not yet derived". Reserved: nothing writes it yet.
+ *   be recomputed. `null` means "not yet derived".
  */
 data class Manga(
     val id: Uuid,

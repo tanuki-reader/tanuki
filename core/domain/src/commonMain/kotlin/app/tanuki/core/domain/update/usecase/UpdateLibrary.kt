@@ -7,6 +7,7 @@ import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.manga.service.fetchWindow
 import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.update.usecase.LibraryUpdateResult.Completed
 import app.tanuki.core.domain.update.usecase.LibraryUpdateResult.Skipped
@@ -25,6 +26,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlin.time.Instant
 
 /**
  * Use case: check every series in the user's library for new chapters.
@@ -46,6 +48,15 @@ import kotlin.time.Clock
  * *sources* progressing at once. Firing every series of one source in parallel is what gets a client
  * rate-limited or handed a Cloudflare challenge — the very thing that makes the next fifty requests
  * fail. Spreading the parallelism across sources gets the throughput without the burst.
+ *
+ * ### Not every series, every run
+ *
+ * A scheduled run only checks the series that could plausibly have something new. Each successful
+ * refresh works out how often that series actually publishes and stamps the day to next reconsider it
+ * (see [app.tanuki.core.domain.manga.service.fetchSchedule], which [SyncSourceChapters] applies while
+ * the chapter list is still in hand); later runs skip anything still ahead of that day. A finished
+ * series decays to a monthly check, a weekly one keeps its weekly check, and neither needed a setting.
+ * [Trigger.Manual] ignores the schedule entirely — asking to update the library means all of it.
  *
  * ### A failure is one series, not the run
  *
@@ -114,7 +125,7 @@ sealed interface UpdateLibrary {
             if (!running.tryLock()) return Skipped
             return try {
                 if (trigger.honorsInterval && !isDue()) return Skipped
-                run().also { if (trigger.notifies) notify() }
+                run(trigger).also { if (trigger.notifies) notify() }
             } finally {
                 running.unlock()
             }
@@ -138,15 +149,24 @@ sealed interface UpdateLibrary {
             }
         }
 
-        private suspend fun run(): LibraryUpdateResult {
+        private suspend fun run(trigger: Trigger): LibraryUpdateResult {
             // A one-shot snapshot of the library: a run refreshes the series that were there when it
             // started, and a title added midway is covered by the sync its own detail screen does.
             val library = mangaRepository.observeLibrary().first()
+
+            // One day-window for the whole run, so a run that straddles midnight doesn't measure its
+            // first half against a different day than its second.
+            val window = fetchWindow(Clock.System.now())
+            val due = if (trigger.honorsInterval) library.filter { it.isDue(window) } else library
+            if (due.size < library.size) {
+                logger.info(TAG, "Library update: ${library.size - due.size} series not due yet")
+            }
+
             val outcomes =
                 withContext(dispatchers.io) {
                     val sources = Semaphore(MAX_CONCURRENT_SOURCES)
                     coroutineScope {
-                        library
+                        due
                             .groupBy(Manga::source)
                             .map { (_, series) -> async { sources.withPermit { series.map { refresh(it) } } } }
                             .awaitAll()
@@ -166,6 +186,7 @@ sealed interface UpdateLibrary {
             logger.info(TAG, "Library update finished: $result")
 
             // An all-failed run is the environment, not the library — don't let it burn the interval.
+            // An empty run (nothing was due) counts as a success: it did everything there was to do.
             if (failed < outcomes.size || outcomes.isEmpty()) {
                 settingsRepository.setLastLibraryUpdate(Clock.System.now())
             }
@@ -173,15 +194,28 @@ sealed interface UpdateLibrary {
         }
 
         /**
-         * Refreshes one series.
+         * Whether a scheduled run should check this series. A series with no schedule yet has never been
+         * looked at through this lens and is always checked — which is what makes stamping the first
+         * schedules a silent, one-run affair rather than an upgrade step.
+         *
+         * "Due" is measured against the *end* of the window: a check falling anywhere today happens
+         * today, rather than being pushed a day out because the run started in the morning.
+         */
+        private fun Manga.isDue(window: ClosedRange<Instant>): Boolean =
+            nextUpdateAt == null || nextUpdateAt <= window.endInclusive
+
+        /**
+         * Refreshes one series. The sync stamps the next schedule itself, and only on success — a source
+         * that was down tells us nothing about how often the series publishes, and pushing its next
+         * check out would turn one bad afternoon into weeks of silence.
          *
          * @return How many chapters it gained, or `null` if it could not be refreshed at all.
          */
         private suspend fun refresh(manga: Manga): Int? =
             try {
-                // `force`: this run does its own scheduling — the interval check in [isDue], and a manual
-                // trigger that deliberately bypasses it — so the sync's own staleness gate must not
-                // second-guess it. A user asking to update the library means all of it.
+                // `force`: this run does its own scheduling — the interval check in [isDue], the
+                // per-series one in [Manga.isDue], and a manual trigger that bypasses both — so the
+                // sync's own staleness gate must not second-guess it.
                 syncSourceChapters(manga.id, force = true).size
             } catch (cancellation: CancellationException) {
                 // The run itself is being torn down (the app closed, the OS reclaimed the task). Not a
@@ -229,7 +263,8 @@ sealed interface LibraryUpdateResult {
      * The run finished. A [failed] count short of [checked] is normal — one flaky source doesn't spoil
      * the rest.
      *
-     * @property checked How many series were refreshed, successfully or not.
+     * @property checked How many series were refreshed, successfully or not — the ones that were *due*,
+     *   which on a scheduled run is a fraction of the library.
      * @property failed How many could not be refreshed.
      * @property newChapters How many chapters arrived across the whole library.
      * @property updatedSeries How many series gained at least one — what a summary counts as "titles

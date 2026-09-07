@@ -327,6 +327,53 @@ class SyncSourceChaptersTest {
         }
 
     @Test
+    fun `a completed sync schedules the next check in the same write`() =
+        runTest {
+            // The schedule is derived here rather than by the library run, because this is where the
+            // merged chapter list already is — and it rides along on the stamp's write so the two do not
+            // invalidate the library and detail queries twice over.
+            val repository = FakeMangaRepository(MANGA)
+            val sync = sync(FakeChapterRepository(), listings = listOf(listing("md-1", 1.0)), mangaRepository = repository)
+
+            sync(MANGA.id)
+
+            val (nextUpdateAt, interval) = repository.schedules.single()
+            assertEquals(1, repository.chaptersFetched.size, "the stamp and the schedule are one write")
+            assertEquals(7, interval, "one chapter is no cadence at all — the default applies")
+            assertTrue(nextUpdateAt > repository.chaptersFetched.single().second)
+        }
+
+    @Test
+    fun `a sync that fails leaves the schedule alone`() =
+        runTest {
+            val repository = FakeMangaRepository(MANGA)
+            val sync =
+                sync(
+                    FakeChapterRepository(),
+                    listings = emptyList(),
+                    loader = FakeSourceLoader(emptyList(), failure = IllegalStateException("offline")),
+                    mangaRepository = repository
+                )
+
+            assertFailsWith<IllegalStateException> { sync(MANGA.id) }
+
+            // A source that was down says nothing about how often the series publishes; pushing its next
+            // check out would turn one bad afternoon into weeks of silence.
+            assertTrue(repository.schedules.isEmpty())
+        }
+
+    @Test
+    fun `a suppressed sync schedules nothing`() =
+        runTest {
+            val repository = FakeMangaRepository(MANGA.copy(chaptersFetchedAt = Clock.System.now()))
+            val sync = sync(FakeChapterRepository(), listings = listOf(listing("md-1", 1.0)), mangaRepository = repository)
+
+            sync(MANGA.id)
+
+            assertTrue(repository.schedules.isEmpty(), "the gate is ahead of every side effect, this one too")
+        }
+
+    @Test
     fun `a sync that fails leaves the stamp alone`() =
         runTest {
             val repository = FakeMangaRepository(MANGA)
@@ -499,6 +546,9 @@ private class FakeMangaRepository(
 ) : MangaRepository {
     val chaptersFetched = mutableListOf<Pair<Uuid, Instant>>()
 
+    /** The schedule each completed sync derived, as (nextUpdateAt, fetchInterval). */
+    val schedules = mutableListOf<Pair<Instant, Int>>()
+
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(manga)
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
@@ -526,11 +576,14 @@ private class FakeMangaRepository(
 
     override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
 
-    override suspend fun markChaptersFetched(
+    override suspend fun recordChapterSync(
         mangaId: Uuid,
-        at: Instant
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
     ) {
         chaptersFetched += mangaId to at
+        schedules += nextUpdateAt to fetchInterval
     }
 
     override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")

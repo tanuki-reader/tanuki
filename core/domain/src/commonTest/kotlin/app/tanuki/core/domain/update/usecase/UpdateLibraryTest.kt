@@ -235,6 +235,111 @@ class UpdateLibraryTest {
             }
         }
 
+    // --- per-series scheduling ---
+
+    @Test
+    fun `a scheduled run leaves a series that is not due yet alone`() =
+        runTest {
+            // The whole point of the schedule: a series that cannot plausibly have published again is
+            // not worth a source round-trip, however due the *library* is.
+            val world =
+                World(
+                    series = listOf("one-piece", "berserk"),
+                    nextUpdateAt = Clock.System.now() + 5.days
+                )
+
+            val result = world.update()(Trigger.Foreground)
+
+            assertTrue(world.loader.asked.isEmpty(), "nothing should have been asked of the sources")
+            assertEquals(Completed(checked = 0, failed = 0, newChapters = 0, updatedSeries = 0), result)
+        }
+
+    @Test
+    fun `a run that skipped everything still stamps the last-updated clock`() =
+        runTest {
+            // It did everything there was to do. Not stamping would make the next launch try again
+            // immediately and skip everything again, forever.
+            val world = World(series = listOf("one-piece"), nextUpdateAt = Clock.System.now() + 5.days)
+
+            world.update()(Trigger.Foreground)
+
+            assertNotNull(world.settings.lastUpdate)
+        }
+
+    @Test
+    fun `a manual run ignores the schedule too`() =
+        runTest {
+            val world =
+                World(
+                    series = listOf("one-piece", "berserk"),
+                    newChaptersEach = 1,
+                    nextUpdateAt = Clock.System.now() + 5.days
+                )
+
+            val result = world.update()(Trigger.Manual)
+
+            assertEquals(setOf("one-piece", "berserk"), world.loader.asked)
+            assertEquals(Completed(checked = 2, failed = 0, newChapters = 2, updatedSeries = 2), result)
+        }
+
+    @Test
+    fun `a series that is due today is refreshed today`() =
+        runTest {
+            // Due at midnight this morning, run at whatever time it is now: the grace window is what
+            // stops a check falling due today from being pushed to tomorrow.
+            val world = World(series = listOf("one-piece"), nextUpdateAt = Clock.System.now() - 1.hours)
+
+            world.update()(Trigger.Foreground)
+
+            assertEquals(setOf("one-piece"), world.loader.asked)
+        }
+
+    @Test
+    fun `a series that has never been scheduled is always refreshed`() =
+        runTest {
+            // What makes the first run after this feature ships behave exactly as before.
+            val world = World(series = listOf("one-piece"), newChaptersEach = 1)
+
+            world.update()(Trigger.Foreground)
+
+            assertEquals(setOf("one-piece"), world.loader.asked)
+        }
+
+    @Test
+    fun `a refreshed series is given a schedule`() =
+        runTest {
+            val world = World(series = listOf("one-piece"), newChaptersEach = 1)
+
+            world.update()(Trigger.Manual)
+
+            val (mangaId, nextUpdateAt, interval) = world.mangaRepository.schedules.single()
+            assertEquals(world.library.single().id, mangaId)
+            assertEquals(7, interval, "one held chapter is no cadence at all — the default applies")
+            assertTrue(nextUpdateAt > Clock.System.now(), "a series just checked is not due again yet")
+        }
+
+    @Test
+    fun `a series that could not be refreshed keeps its old schedule`() =
+        runTest {
+            // A source that was down says nothing about how often the series publishes, and pushing its
+            // next check out would turn one bad afternoon into weeks of silence.
+            val world = World(series = listOf("one-piece"), failing = setOf("one-piece"))
+
+            world.update()(Trigger.Manual)
+
+            assertTrue(world.mangaRepository.schedules.isEmpty())
+        }
+
+    @Test
+    fun `a user-pinned interval survives a run`() =
+        runTest {
+            val world = World(series = listOf("one-piece"), newChaptersEach = 1, fetchInterval = -3)
+
+            world.update()(Trigger.Manual)
+
+            assertEquals(-3, world.mangaRepository.schedules.single().third)
+        }
+
     @Test
     fun `a second background run does not announce the same chapters again`() =
         runTest {
@@ -260,10 +365,24 @@ private class World(
     private val interval: LibraryUpdateInterval = LibraryUpdateInterval.DAILY,
     lastUpdate: Instant? = null,
     /** When each series was last synced — the stamp a per-series staleness gate would read. */
-    chaptersFetchedAt: Instant? = null
+    chaptersFetchedAt: Instant? = null,
+    /** When each series is next due; `null` (the default) means every run considers it. */
+    nextUpdateAt: Instant? = null,
+    /** A pre-existing cadence. Negative stands for one the user pinned by hand. */
+    fetchInterval: Int? = null
 ) {
-    val library = series.map(::manga).map { it.copy(chaptersFetchedAt = chaptersFetchedAt) }
+    val library =
+        series.map(::manga).map {
+            it.copy(
+                chaptersFetchedAt = chaptersFetchedAt,
+                nextUpdateAt = nextUpdateAt,
+                fetchInterval = fetchInterval
+            )
+        }
     val chapters = HeldChapterRepository(library.associate { it.id to listOf(heldChapter(it)) })
+
+    /** Shared across the whole graph, so the schedules a run stamps are all recorded in one place. */
+    val mangaRepository = FakeLibraryRepository(library)
     val updates = FakeChapterUpdateRepository()
     val settings = FakeSettingsRepository(interval, lastUpdate)
     private val notifier = RecordingNotifier()
@@ -282,10 +401,10 @@ private class World(
 
     fun update(): UpdateLibrary =
         UpdateLibrary.Default(
-            mangaRepository = FakeLibraryRepository(library),
+            mangaRepository = mangaRepository,
             syncSourceChapters =
                 SyncSourceChapters.Default(
-                    mangaRepository = FakeLibraryRepository(library),
+                    mangaRepository = mangaRepository,
                     sourceRepository = FakeSourceRepository(SOURCE),
                     chapterRepository = chapters,
                     chapterUpdateRepository = updates,
@@ -296,7 +415,7 @@ private class World(
             notifyNewChapters =
                 NotifyNewChapters.Default(
                     chapterUpdateRepository = updates,
-                    resolveChapterUpdates = ResolveChapterUpdates(FakeLibraryRepository(library), chapters),
+                    resolveChapterUpdates = ResolveChapterUpdates(mangaRepository, chapters),
                     notifier = notifier
                 ),
             settingsRepository = settings,
@@ -484,10 +603,13 @@ private class RecordingNotifier : LibraryUpdateNotifier {
     }
 }
 
-/** A [MangaRepository] whose library is canned. */
+/** A [MangaRepository] whose library is canned, recording the schedules a run stamps. */
 private class FakeLibraryRepository(
     private val library: List<Manga>
 ) : MangaRepository {
+    /** Every [recordChapterSync] schedule, in order. */
+    val schedules = mutableListOf<Triple<Uuid, Instant, Int>>()
+
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(library)
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(library.firstOrNull { it.id == mangaId })
@@ -515,13 +637,18 @@ private class FakeLibraryRepository(
 
     override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
 
-    // The real SyncSourceChapters stamps this after every successful refresh. Accepted and dropped:
-    // what this suite asserts about the gate is behavioural — that a fresh stamp does not stop a
-    // library run — and that is visible in the loader's fetch count, not here.
-    override suspend fun markChaptersFetched(
+    // The real SyncSourceChapters calls this after every successful refresh. The `at` stamp is accepted
+    // and dropped — what this suite asserts about the staleness gate is behavioural, and visible in the
+    // loader's fetch count rather than here — but the schedule is recorded, since whether a run hands
+    // out one at all is exactly what these tests are about.
+    override suspend fun recordChapterSync(
         mangaId: Uuid,
-        at: Instant
-    ) = Unit
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
+    ) {
+        schedules += Triple(mangaId, nextUpdateAt, fetchInterval)
+    }
 
     override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
 

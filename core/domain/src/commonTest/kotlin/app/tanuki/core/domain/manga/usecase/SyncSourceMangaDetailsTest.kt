@@ -328,9 +328,11 @@ private class DetailsMangaRepository(
         headers: Map<String, String>
     ) = error("unused")
 
-    override suspend fun markChaptersFetched(
+    override suspend fun recordChapterSync(
         mangaId: Uuid,
-        at: Instant
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
     ) = error("unused")
 
     override suspend fun setFilteredScanlators(

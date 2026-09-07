@@ -216,7 +216,7 @@ interface MangaDao {
      * A targeted write rather than a whole-row upsert of the domain object the sync started from: that
      * snapshot is read before the network call and written back after it, so anything else that touched
      * the row in between — the user picking a reading mode, a concurrent chapter sync stamping
-     * [markChaptersFetched] — would be silently reverted. The detail screen fires the two syncs at the
+     * [recordChapterSync] — would be silently reverted. The detail screen fires the two syncs at the
      * same time, so that window is the common case, not an edge one.
      */
     @Query(
@@ -255,19 +255,32 @@ interface MangaDao {
     )
 
     /**
-     * Records that a chapter sync completed for a manga, which is what the staleness gate in
-     * `SyncSourceChapters` reads to decide whether re-opening a series needs to ask its source again.
+     * Records everything a completed chapter sync knows about a manga: when it ran — which is what the
+     * staleness gate in `SyncSourceChapters` reads to decide whether re-opening a series needs to ask
+     * its source again — and the polling schedule it derived, meaning how many days apart the releases
+     * are and the day a library run should next reconsider the series.
      *
-     * Targeted, like every other write in this block: the stamp routinely lands while a details sync is
-     * in flight, and a whole-row upsert from that sync's snapshot would erase it.
+     * All three columns in **one** statement, not one statement each. Every write to `manga` invalidates
+     * the library and detail queries, both of which carry correlated sub-queries over `chapters` — so a
+     * second statement here would not cost a second `UPDATE`, it would cost a second full re-run of both
+     * of those, per series, on every library update.
+     *
+     * Targeted, like every other write in this block: it routinely lands while a details sync is in
+     * flight, and a whole-row upsert from that sync's snapshot would erase it.
      */
-    @Query("UPDATE manga SET chapters_fetched_at = :at WHERE id = :mangaId")
-    suspend fun markChaptersFetched(
+    @Query(
+        "UPDATE manga " +
+            "SET chapters_fetched_at = :at, next_update_at = :nextUpdateAt, fetch_interval = :fetchInterval " +
+            "WHERE id = :mangaId",
+    )
+    suspend fun recordChapterSync(
         mangaId: Uuid,
         at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int,
     )
 
-    /** The [markChaptersFetched] counterpart for a details sync. */
+    /** The [recordChapterSync] counterpart for a details sync; a synopsis carries no schedule. */
     @Query("UPDATE manga SET details_fetched_at = :at WHERE id = :mangaId")
     suspend fun markDetailsFetched(
         mangaId: Uuid,

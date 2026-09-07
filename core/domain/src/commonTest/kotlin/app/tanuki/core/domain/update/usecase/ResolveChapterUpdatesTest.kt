@@ -195,7 +195,12 @@ private class FakeMangaRepository(private val manga: Manga) : MangaRepository {
 
     override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
 
-    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) = error("unused")
+    override suspend fun recordChapterSync(
+        mangaId: Uuid,
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
+    ) = error("unused")
 
     override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
 

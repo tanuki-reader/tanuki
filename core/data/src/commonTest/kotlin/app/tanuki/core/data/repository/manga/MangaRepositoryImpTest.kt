@@ -313,9 +313,11 @@ private class RecordingMangaDao : MangaDao {
         coverHeaders = mangaId to encoded
     }
 
-    override suspend fun markChaptersFetched(
+    override suspend fun recordChapterSync(
         mangaId: Uuid,
-        at: Instant
+        at: Instant,
+        nextUpdateAt: Instant,
+        fetchInterval: Int
     ) {
         chaptersFetched += mangaId to at
     }

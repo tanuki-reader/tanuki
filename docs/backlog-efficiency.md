@@ -79,7 +79,61 @@ these columns — follow the existing targeted-`@Query` pattern already used by 
 `setReadingStatus` in `MangaDao.kt:155-174`, and add e.g. `markChaptersFetched(id, at, nextUpdate)`.
 Otherwise a stamp race can clobber a concurrent detail write.
 
-### 1.2 `FetchInterval` use case + per-manga skipping in `UpdateLibrary`
+### 1.2 `FetchInterval` use case + per-manga skipping in `UpdateLibrary` — **DONE**
+
+Shipped as `core/domain/.../manga/service/FetchInterval.kt` and a per-series filter in
+`UpdateLibrary.Default.run()`. The `Semaphore(MAX_CONCURRENT_SOURCES)` grouping is untouched;
+`Trigger.Manual` bypasses the schedule exactly as it bypasses `isDue()`, and a `nextUpdateAt` of `null`
+reads as "consider it", which is what makes the first run after the upgrade behave identically to every
+run before it. `COMPLETED`/`CANCELLED` start at the 28-day floor.
+
+**Where it lives, and why that is the efficiency of the change:** a **pure function in
+`manga/service/`** (alongside `chapter/service/MissingChapters`), taking the chapter list, and applied
+by **`SyncSourceChapters`** rather than by the run that called it. The obvious shape — a `FetchInterval`
+use case with a `ChapterRepository`, rescheduling from `UpdateLibrary.refresh` — re-reads and
+re-materializes every chapter of every series, on every run, to recompute two aggregates the sync had
+in hand a call earlier. On a thousand-chapter series that is a thousand `Chapter`/`Text`/`Url` objects
+rebuilt for a median and a max. The schedule also rides along on the existing stamp:
+`markChaptersFetched` became `recordChapterSync`, writing `chapters_fetched_at`, `next_update_at` and
+`fetch_interval` in **one** `UPDATE`. A second statement would not have cost a second write, it would
+have cost a second full re-run of the library and detail queries (both with correlated sub-queries over
+`chapters`) per series per run — the exact cost 3.3 exists to avoid. Applying it in the sync also keeps
+a series the user reads by hand as well-scheduled as one the run touches.
+
+The day arithmetic works on **epoch-day `Int`s in an `IntArray`**, in the style of
+`missingChaptersCount`, not on `LocalDate`s in a list: `Instant.epochDayIn(zone)` resolves the offset
+and floor-divides, where `toLocalDateTime(zone).date` resolves the same offset and then decomposes it
+into a year/month/day and allocates two objects the algorithm never reads. Gaps are subtraction, the
+sort is a primitive sort, and the fetch dates are only scanned when the upload dates came up short. The
+careful `LocalDate.atStartOfDayIn` conversion is kept for the two-or-three day numbers that become
+timestamps again — the first instant of a day is not always midnight, and Brazil, one of the two
+shipped locales, used to start DST at midnight.
+
+Skipping is **unconditional** for `Foreground`/`Background`, not behind a preference — Mihon makes it
+the opt-in `MANGA_OUTSIDE_RELEASE_PERIOD` restriction, but a setting whose off position is "waste most
+of your requests" is not a choice worth surfacing, and the escape hatch already exists in the pull-to-
+refresh of 1.4 and in `Trigger.Manual`.
+
+**The one real porting gap:** Mihon anchors `nextUpdate` on `manga.last_update`, *"last time the
+chapter list changed at all"*. There is no such column here, and `chapters_fetched_at` is the wrong
+thing — it is the last **poll**, so anchoring on it would push the next check forward on every run and
+no series could ever decay. `max(chapters.date_fetch)` is the same quantity for free:
+`SyncSourceChapters.merge` stamps `dateFetch` on new chapters only and leaves existing ones alone. No
+fifth column, no migration.
+
+**Deliberate deviation from the reference:** Mihon's `calculateNextUpdate` divides `timeSinceLatest` by
+the *increased* step but then adds multiples of the *base* interval, so a stale series lands a next
+check in the past and comes due sooner — the opposite of what the doubling exists for. The increased
+step is used on both sides here. The stored `fetch_interval` stays the derived cadence rather than the
+doubled step, so a series that revives is back on its real schedule the moment one chapter lands.
+
+Covered by a new `FetchIntervalTest` (23 cases, all against a fixed `TimeZone.UTC` and fixed instants
+now that no repository is involved: the median arithmetic against a fixed `TimeZone.UTC` —
+distinct *days* not timestamps, the upload→fetch-date fallback, the 3-vs-10 sample window, both clamps
+— plus the scheduling rules) and eight new `UpdateLibraryTest` cases (a not-due series is left alone, a
+manual run ignores the schedule, a run that skipped everything still stamps the clock, a pinned interval
+survives) plus three in `SyncSourceChaptersTest` pinning that the schedule shares the stamp's single
+write, that a failed sync writes neither, and that a TTL-suppressed one writes neither.
 
 **Problem:** `UpdateLibrary.Default.run()`
 (`core/domain/.../update/usecase/UpdateLibrary.kt:144-155`) takes `observeLibrary().first()`

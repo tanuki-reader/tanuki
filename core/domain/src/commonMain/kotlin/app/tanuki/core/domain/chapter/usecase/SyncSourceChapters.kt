@@ -7,6 +7,7 @@ import app.tanuki.core.domain.download.usecase.DeleteChapterDownloads
 import app.tanuki.core.domain.common.model.toTextOrNull
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.manga.service.fetchSchedule
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.ChapterListing
 import app.tanuki.core.domain.source.repository.SourceRepository
@@ -137,7 +138,14 @@ sealed interface SyncSourceChapters {
 
             // Last, and only on the happy path: a throw from the source layer leaves the stamp alone, so
             // a failed refresh is retried on the next open rather than suppressed for the whole TTL.
-            mangaRepository.markChaptersFetched(manga.id, now)
+            //
+            // The schedule is derived here rather than by the library run that asked for the sync,
+            // because `merged` is the chapter list it needs and it is already in hand — computing it a
+            // caller away would mean re-reading and re-materializing every chapter of the series, on
+            // every series, on every run. It also keeps the schedule of a series the user reads by hand
+            // as fresh as one the run touches.
+            val schedule = fetchSchedule(manga, merged, now)
+            mangaRepository.recordChapterSync(manga.id, now, schedule.nextUpdateAt, schedule.fetchInterval)
             return added
         }
 
