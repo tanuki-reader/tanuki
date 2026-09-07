@@ -9,6 +9,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlin.uuid.Uuid
@@ -24,10 +25,23 @@ class CategoryRepositoryImp(
     private val categoryDao: CategoryDao,
     private val dispatcherProvider: DispatcherProvider
 ) : CategoryRepository {
+    /**
+     * The `manga_categories` join table, declared once and shared by both readers below.
+     *
+     * Each of them needs the whole table and regroups it in Kotlin — by `categoryId` for
+     * [observeCategories], by `mangaId` for [observeLibraryCategories] — so subscribing the query
+     * separately per reader meant paying that regrouping twice for every change. Worse, Room invalidates
+     * the flow on *any* write to the table, including the membership rewrites `setMangaCategories`
+     * performs as a clear-then-insert, which frequently land on the same rows the reader already has.
+     * [distinctUntilChanged] stops those where they cost nothing: before either grouping.
+     */
+    private val mangaCategories: Flow<List<MangaCategoryEntity>> =
+        categoryDao.observeMangaCategories().distinctUntilChanged()
+
     override fun observeCategories(): Flow<List<Category>> =
         combine(
             categoryDao.observeCategories(),
-            categoryDao.observeMangaCategories()
+            mangaCategories
         ) { categories, memberships ->
             val mangasByCategory =
                 memberships
@@ -39,8 +53,7 @@ class CategoryRepositoryImp(
         }.flowOn(dispatcherProvider.io)
 
     override fun observeLibraryCategories(): Flow<Map<Uuid, Set<Uuid>>> =
-        categoryDao
-            .observeMangaCategories()
+        mangaCategories
             .map { rows ->
                 rows
                     .groupBy(MangaCategoryEntity::mangaId)

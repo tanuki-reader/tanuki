@@ -12,6 +12,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -23,6 +24,21 @@ import kotlin.uuid.Uuid
  * the flattened [app.tanuki.core.domain.manga.model.MangaCover] and the derived `lastRead`/library
  * fields). [upsertManga] also reconciles the manga's [app.tanuki.core.data.repository.library.LibraryEntryEntity]
  * from its favorite state, delegating to [MangaDao].
+ *
+ * **Every observed read is deduped before it is mapped.** The three read queries all derive
+ * `last_read`, `unread_count` and `downloaded_count` by joining or sub-querying `history`, `chapters`,
+ * `reading_progress` and `chapter_downloads`, so Room invalidates them on a write to any of six
+ * tables — and most of those writes cannot change the result. `ChapterDownloadDao.setProgress` is the
+ * clearest case: it fires once per downloaded *page* and only touches `downloaded_pages`/`bytes`,
+ * while `downloaded_count` counts committed chapters, so a chapter download re-runs the library query
+ * once per page to produce a byte-identical list every time.
+ *
+ * `distinctUntilChanged` sits **before** the mapper rather than after it so a duplicate costs only the
+ * comparison: the per-row [Manga]/[app.tanuki.core.domain.common.model.Text]/`MangaCover` allocation,
+ * the filter/search/sort passes in `ObserveLibrary`, and the recomposition behind them are all skipped.
+ * The entities are `data class`es of scalars, so the generated `equals` is structural, and the compare
+ * runs inside [DispatcherProvider.io] like the query itself. Don't remove it as redundant — Room's
+ * invalidation is per-table, not per-result.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -34,6 +50,7 @@ class MangaRepositoryImp(
     override fun observeManga(mangaId: Uuid): Flow<Manga?> =
         mangaDao
             .observeManga(mangaId)
+            .distinctUntilChanged()
             .map(MangaWithDetails?::toDomain)
             .flowOn(dispatcherProvider.io)
 
@@ -45,12 +62,14 @@ class MangaRepositoryImp(
     override fun observeLibrary(): Flow<List<Manga>> =
         mangaDao
             .observeLibrary()
+            .distinctUntilChanged()
             .map(List<MangaWithDetails>::toDomainList)
             .flowOn(dispatcherProvider.io)
 
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> =
         mangaDao
             .observeMangaBySource(sourceId)
+            .distinctUntilChanged()
             .map(List<MangaWithDetails>::toDomainList)
             .flowOn(dispatcherProvider.io)
 

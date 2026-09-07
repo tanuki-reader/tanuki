@@ -247,7 +247,29 @@ cover_last_modified, unread_count, downloaded_count` plus whatever the sort/filt
 The sort/filter work in `ObserveLibrary` is already correctly designed (knobs passed as `Flow`s
 so the Room subscription happens once) — only the row shape needs narrowing.
 
-### 3.3 `distinctUntilChanged()` after `observeLibrary()`
+### 3.3 `distinctUntilChanged()` after `observeLibrary()` — **DONE**
+
+Shipped on **all three** of `MangaRepositoryImp`'s observed reads — `observeLibrary`,
+`observeMangaBySource` (browse) and `observeManga` (the detail screen, which sits under the reader and
+so is re-run by every `reading_progress` write) — since they share the same six-table invalidation set.
+The operator sits **before** the `.map(...)`, not after, so a duplicate costs only the comparison: the
+per-row `Manga`/`Text`/`MangaCover` allocation, `ObserveLibrary`'s three list copies and the
+recomposition behind them are all skipped. `MangaWithDetails` and its embedded `MangaEntity` are data
+classes of scalars, so `equals` is structural, and the compare runs inside the existing `flowOn(io)`.
+
+`CategoryRepositoryImp` now reads `manga_categories` through **one** `private val mangaCategories`
+flow, deduped once and shared by both `observeCategories` and `observeLibraryCategories` — so an
+unchanged join table costs neither regrouping.
+
+**Deviation:** that shared flow is deliberately **not** `shareIn`-ed, so the two readers still open two
+Room observers when both are collected. Sharing the subscription would mean injecting a
+`CoroutineScope` into `:core:data` — the module has none today — to save two observers on a tiny join
+table, while the cost the item actually named (re-grouping in Kotlin on every change) is gone either
+way.
+
+Covered by `MangaRepositoryImpTest` / `CategoryRepositoryImpTest` in `core/data/src/commonTest`; both
+fakes emit from a `MutableSharedFlow` rather than a `MutableStateFlow`, because a state flow conflates
+equal values itself and would make the tests pass with the dedupe removed.
 
 **Problem:** the library query is invalidated by writes to six tables, including
 `chapter_downloads`. `ChapterDownloadDao.setProgress` (`ChapterDownloadDao.kt:61-69`) fires
@@ -365,8 +387,13 @@ short `max-age` causes covers and pages to be revalidated or re-downloaded despi
 of configured disk cache. The loader's own KDoc asserts "nothing needs revalidation" — that
 assertion is not currently enforced by anything.
 
-**Fix:** set an explicit forced/`respectCacheHeaders(false)` cache strategy on both loaders. This
-is plausibly the single biggest bandwidth win in the document, and it is a ~3-line change.
+**Correction (2026-09-07): the premise above is wrong for Coil 3, so there is nothing to fix.**
+`CacheStrategy.DEFAULT` in Coil 3 is `DefaultCacheStrategy`, whose `read` is literally
+`// Always return the disk cache response` — it does **not** honor `Cache-Control`/`Expires`/`ETag`.
+Header-driven revalidation is opt-in via the separate `coil-network-cache-control` artifact, which is
+not on this classpath, and `respectCacheHeaders` is a Coil **2** API that no longer exists. The loaders
+already behave the way this item wanted; the KDoc's "nothing needs revalidation" assertion holds.
+Leaving the item recorded so it isn't re-audited.
 
 Covers really are immutable (their URLs embed a file hash), so this is safe for them. For pages
 it's safe for the same reason. If a source is ever found that mutates content behind a stable
