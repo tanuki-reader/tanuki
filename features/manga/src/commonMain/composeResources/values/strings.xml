@@ -5,6 +5,11 @@
     <!-- %1$s is the chapter number the Read button resumes at (e.g. "5" or "4.5"). -->
     <string name="manga_read_chapter">Read Chapter %1$s</string>
     <string name="manga_chapters_title">Chapters</string>
+
+    <!-- Banner shown when a pull-to-refresh on the detail screen fails. -->
+    <string name="manga_refresh_failed">Couldn\'t refresh from the source</string>
+    <string name="manga_refresh_retry">Retry</string>
+
     <string name="manga_no_chapters">No chapters yet</string>
 
     <!-- Detail body tabs (Chapters reuses manga_chapters_title). -->

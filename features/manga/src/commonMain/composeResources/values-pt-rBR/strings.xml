@@ -5,6 +5,11 @@
     <!-- %1$s é o número do capítulo em que o botão Ler retoma (ex.: "5" ou "4.5"). -->
     <string name="manga_read_chapter">Ler Capítulo %1$s</string>
     <string name="manga_chapters_title">Capítulos</string>
+
+    <!-- Aviso mostrado quando o "puxar para atualizar" da tela de detalhes falha. -->
+    <string name="manga_refresh_failed">Não foi possível atualizar pela fonte</string>
+    <string name="manga_refresh_retry">Tentar de novo</string>
+
     <string name="manga_no_chapters">Nenhum capítulo ainda</string>
 
     <!-- Abas do corpo de detalhes (Capítulos reutiliza manga_chapters_title). -->

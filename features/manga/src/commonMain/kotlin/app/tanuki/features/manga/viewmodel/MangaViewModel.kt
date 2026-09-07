@@ -42,6 +42,7 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -69,7 +70,8 @@ import kotlin.uuid.Uuid
  *
  * Chapters are refreshed from the source on open ([SyncSourceChapters]) but nothing waits on it: the
  * cached list renders immediately and the fetched one replaces it through the same reactive pipeline
- * when it lands.
+ * when it lands. That open-time refresh is staleness-gated by the sync itself and stays silent;
+ * [onRefresh] is the user's way past the gate, and the only refresh that reports what it is doing.
  */
 @AssistedInject
 class MangaViewModel(
@@ -112,6 +114,13 @@ class MangaViewModel(
      */
     private val selectedChapterIds = MutableStateFlow<Set<Uuid>>(emptySet())
 
+    /**
+     * What a *user-requested* refresh is doing. Held apart from the reactive pipeline because it is the
+     * one part of this screen's state that isn't derived from the database: it describes a request in
+     * flight, which no query can report.
+     */
+    private val refresh = MutableStateFlow(MangaState.Refresh.Idle)
+
     init {
         combine(
             observeManga(mangaId),
@@ -149,6 +158,8 @@ class MangaViewModel(
             // records are folded in before it for the same reason in reverse: what a selection may *do*
             // depends on them, so they have to be there by the time the flags are computed.
             if (state is Content) state.copy(selection = state.selectionOf(selected)) else state
+        }.combine(refresh) { state, refreshing ->
+            if (state is Content) state.copy(refresh = refreshing) else state
         }.flowOn(dispatcher.default)
             .onEach { uiState.value = it }
             .launchIn(viewModelScope)
@@ -164,20 +175,18 @@ class MangaViewModel(
      * emitted whatever is cached and the refreshed rows arrive through that same flow. A failure
      * (offline, source error) therefore leaves the cached list on screen rather than emptying it.
      *
-     * The failure is currently only logged (WARN — recoverable, the cached list stays up): surfacing it
-     * needs a refresh affordance on the screen (a pull-to-refresh and an inline error), which doesn't
-     * exist yet.
+     * The failure is only logged (WARN — recoverable, the cached list stays up) and nothing is said on
+     * screen: the user didn't ask for this refresh, so an error about it would be an interruption about
+     * work they never requested. A refresh they *did* ask for reports itself — see [onRefresh].
      *
      * Asked for on every open, but **not** performed on every open: this view model is scoped to the
      * navigation entry, so browsing back and forth through ten series used to be ten chapter-list
      * requests. [SyncSourceChapters] drops the ones that fall inside its staleness window. The gate is
      * deliberately its own, not this screen's — it belongs to the sync, so a library run and a screen
-     * open answer to the same rule. Once a refresh affordance exists it passes `force` to bypass it.
+     * open answer to the same rule. [onRefresh] passes `force` to bypass it.
      */
     private fun refreshChapters() {
-        viewModelScope.launch {
-            tryIo("Chapter refresh failed for $mangaId") { syncSourceChapters(mangaId) }
-        }
+        viewModelScope.launch { syncChapters(force = false) }
     }
 
     /**
@@ -192,10 +201,46 @@ class MangaViewModel(
      * change on a scale of never, next to a chapter list.
      */
     private fun refreshDetails() {
+        viewModelScope.launch { syncDetails(force = false) }
+    }
+
+    /**
+     * The screen was pulled down to refresh — ask the source for this series again, ignoring both syncs'
+     * staleness windows.
+     *
+     * This is the escape hatch those windows need: without it a user who knows a chapter just landed has
+     * no way past a thirty-minute gate, and the day-long details gate would hold a fixed synopsis for a
+     * day. It is the *only* refresh path that passes `force`, which is what keeps the gates worth having
+     * — everything automatic still answers to them.
+     *
+     * Unlike the two on-open refreshes this one is reported: the user asked, so they are owed a spinner
+     * while it runs and a reason when it doesn't work. Only the chapter sync's failure is reported,
+     * though — see [MangaState.Refresh.failed]. The details sync runs concurrently rather than after,
+     * for the same reason the two are separate coroutines on open: different endpoints, and a slow
+     * synopsis must not hold the spinner over an already-updated chapter list.
+     */
+    fun onRefresh() {
+        if (refresh.value.inProgress) return
+        refresh.value = MangaState.Refresh(inProgress = true, failed = false)
         viewModelScope.launch {
-            tryIo("Detail refresh failed for $mangaId") { syncSourceMangaDetails(mangaId) }
+            val details = async { syncDetails(force = true) }
+            val chapters = syncChapters(force = true)
+            details.await()
+            refresh.value = MangaState.Refresh(inProgress = false, failed = chapters.isFailure)
         }
     }
+
+    /** The refresh error was dismissed (tapped away, or it timed out) — drop it without retrying. */
+    fun onDismissRefreshError() {
+        if (refresh.value.failed) refresh.value = refresh.value.copy(failed = false)
+    }
+
+    /** Both syncs in one place so the on-open and pull-to-refresh paths can't drift on how they log. */
+    private suspend fun syncChapters(force: Boolean) =
+        tryIo("Chapter refresh failed for $mangaId") { syncSourceChapters(mangaId, force = force) }
+
+    private suspend fun syncDetails(force: Boolean) =
+        tryIo("Detail refresh failed for $mangaId") { syncSourceMangaDetails(mangaId, force = force) }
 
     /**
      * A category chip was toggled in the sheet — add or remove this manga's membership and persist the new

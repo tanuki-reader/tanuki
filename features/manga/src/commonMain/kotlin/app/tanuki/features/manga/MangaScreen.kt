@@ -10,8 +10,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +40,7 @@ import app.tanuki.features.manga.composable.components.ChapterFilterSheet
 import app.tanuki.features.manga.composable.components.ChapterSelectionTopBar
 import app.tanuki.features.manga.composable.components.MangaCategoriesSheet
 import app.tanuki.features.manga.composable.components.MangaDownloadMenu
+import app.tanuki.features.manga.composable.components.MangaRefreshError
 import app.tanuki.features.manga.composable.components.ReadingModeSheet
 import app.tanuki.features.manga.composable.components.ReadingStatusSheet
 import app.tanuki.features.manga.resources.Res
@@ -44,8 +51,12 @@ import app.tanuki.features.manga.viewmodel.MangaState.Loading
 import app.tanuki.features.manga.viewmodel.MangaState.NotFound
 import app.tanuki.features.manga.viewmodel.MangaViewModel
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
 import kotlin.uuid.Uuid
+
+/** How long a failed-refresh banner stays up before it clears itself. */
+private const val RefreshErrorDurationMs = 6_000L
 
 /**
  * Stateful entry point for a manga's detail screen. Resolves the [MangaViewModel] from Metro — assisted
@@ -78,12 +89,15 @@ fun MangaRoute(
     MangaScreen(modifier = modifier, viewModel = viewModel)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MangaScreen(
     modifier: Modifier = Modifier,
     viewModel: MangaViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // Hoisted out of PullToRefreshBox so the custom indicator below reads the same drag state the box does.
+    val pullState = rememberPullToRefreshState()
     var showCategoriesSheet by remember { mutableStateOf(false) }
     var showChapterFilterSheet by remember { mutableStateOf(false) }
     var showReadingStatusSheet by remember { mutableStateOf(false) }
@@ -119,30 +133,52 @@ private fun MangaScreen(
                 }
 
                 is Content -> {
-                    MangaContentView(
-                        state = current,
-                        onToggleSort = viewModel::onToggleChapterSort,
-                        onOpenChapterFilter = { showChapterFilterSheet = true },
-                        onManageCategories = { showCategoriesSheet = true },
-                        onEditReadingStatus = { showReadingStatusSheet = true },
-                        onEditReadingMode = { showReadingModeSheet = true },
-                        onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
-                        onChapterLongClick = { chapter -> viewModel.onChapterLongClick(chapter.id) },
-                        onChapterDownloadClick = { chapter -> viewModel.onChapterDownloadClick(chapter.id) },
-                        onChapterDownloadDelete = { chapter -> viewModel.onDeleteChapterDownload(chapter.id) },
-                        onSelectAbove = viewModel::onSelectAbove,
-                        onSelectBelow = viewModel::onSelectBelow,
-                        onMarkSelectionRead = { viewModel.onMarkSelectionRead(read = true) },
-                        onMarkSelectionUnread = { viewModel.onMarkSelectionRead(read = false) },
-                        onDownloadSelection = viewModel::onDownloadSelection,
-                        onDeleteSelectionDownloads = viewModel::onDeleteSelectionDownloads,
-                        onClearSelection = viewModel::onClearSelection,
-                        onReadClick = viewModel::onReadClick,
-                        onAddToLibrary = viewModel::onAddToLibrary,
-                        onRemoveFromLibrary = viewModel::onRemoveFromLibrary,
-                        onHeroCollapsedChange = { heroCollapsed = it },
+                    // The pull gesture reaches this box through the panes' nested scroll — but only after
+                    // the collapsing hero has had its turn at the leftover downward drag, so an over-scroll
+                    // re-expands the hero first and starts a refresh only once it is fully open. That is
+                    // the right order: the hero is what the user is pulling back into view.
+                    PullToRefreshBox(
+                        isRefreshing = current.refresh.inProgress,
+                        onRefresh = viewModel::onRefresh,
+                        state = pullState,
+                        indicator = {
+                            PullToRefreshDefaults.Indicator(
+                                state = pullState,
+                                isRefreshing = current.refresh.inProgress,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                color = TanukiTheme.colors.accent,
+                                // The hero runs edge-to-edge under the status bar, so an indicator placed
+                                // from the top of the box would drop out of it while it travels.
+                                modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding()
+                            )
+                        },
                         modifier = Modifier.weight(1f)
-                    )
+                    ) {
+                        MangaContentView(
+                            state = current,
+                            onToggleSort = viewModel::onToggleChapterSort,
+                            onOpenChapterFilter = { showChapterFilterSheet = true },
+                            onManageCategories = { showCategoriesSheet = true },
+                            onEditReadingStatus = { showReadingStatusSheet = true },
+                            onEditReadingMode = { showReadingModeSheet = true },
+                            onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
+                            onChapterLongClick = { chapter -> viewModel.onChapterLongClick(chapter.id) },
+                            onChapterDownloadClick = { chapter -> viewModel.onChapterDownloadClick(chapter.id) },
+                            onChapterDownloadDelete = { chapter -> viewModel.onDeleteChapterDownload(chapter.id) },
+                            onSelectAbove = viewModel::onSelectAbove,
+                            onSelectBelow = viewModel::onSelectBelow,
+                            onMarkSelectionRead = { viewModel.onMarkSelectionRead(read = true) },
+                            onMarkSelectionUnread = { viewModel.onMarkSelectionRead(read = false) },
+                            onDownloadSelection = viewModel::onDownloadSelection,
+                            onDeleteSelectionDownloads = viewModel::onDeleteSelectionDownloads,
+                            onClearSelection = viewModel::onClearSelection,
+                            onReadClick = viewModel::onReadClick,
+                            onAddToLibrary = viewModel::onAddToLibrary,
+                            onRemoveFromLibrary = viewModel::onRemoveFromLibrary,
+                            onHeroCollapsedChange = { heroCollapsed = it },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         }
@@ -206,6 +242,26 @@ private fun MangaScreen(
         }
 
         val content = state as? Content
+
+        // A failed refresh is reported over the hero, just under the top bar — the strip a snackbar would
+        // occupy at the bottom belongs to the Read action, and this is where the pull started. It clears
+        // itself after a few seconds: the failure is already visible in that nothing new appeared, and a
+        // banner that outstays the moment turns into furniture the user reads around.
+        if (content?.refresh?.failed == true) {
+            LaunchedEffect(Unit) {
+                delay(RefreshErrorDurationMs)
+                viewModel.onDismissRefreshError()
+            }
+            MangaRefreshError(
+                onRetry = viewModel::onRefresh,
+                modifier =
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(top = TanukiTheme.spacing.appBarHeight + TanukiTheme.spacing.sm)
+            )
+        }
+
         if (showCategoriesSheet && content != null) {
             MangaCategoriesSheet(
                 categories = content.categories,

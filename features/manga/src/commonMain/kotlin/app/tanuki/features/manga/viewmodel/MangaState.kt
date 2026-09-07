@@ -43,6 +43,9 @@ sealed interface MangaState {
      *   runs to thousands of rows, and anything per-row — a flow, or a scan — is exactly what makes
      *   scrolling one expensive. A chapter absent from it has never been queued, which is the
      *   overwhelmingly common case and does not deserve a record.
+     * @param refresh what a *user-requested* refresh (pull-to-refresh) is doing — see [Refresh]. The
+     *   refreshes the screen asks for on open are not reported here: they are speculative and
+     *   staleness-gated, so a spinner for them would spin on an open that never asks the source anything.
      */
     data class Content(
         val manga: Manga,
@@ -53,7 +56,8 @@ sealed interface MangaState {
         val scanlators: List<ScanlatorChip>,
         val source: Source?,
         val selection: ChapterSelection = ChapterSelection.None,
-        val downloads: Map<Uuid, ChapterDownload> = emptyMap()
+        val downloads: Map<Uuid, ChapterDownload> = emptyMap(),
+        val refresh: Refresh = Refresh.Idle
     ) : MangaState {
         val inLibrary: Boolean get() = manga.dateAdded != null
 
@@ -79,6 +83,31 @@ sealed interface MangaState {
 
         /** Whether any group is currently hidden, which the filter affordance marks with a dot. */
         val isChapterFilterActive: Boolean get() = scanlators.any { !it.isShown }
+    }
+
+    /**
+     * A user-requested refresh of this series from its source — the pull-to-refresh gesture.
+     *
+     * Two flags rather than a sealed state because they are not alternatives: pulling again while the
+     * previous attempt's message is still up is both `inProgress` and — until the new attempt lands —
+     * still showing what the last one said.
+     *
+     * @param inProgress whether a refresh is running, which drives the pull indicator. Only ever true for
+     *   a refresh the user asked for: the ones fired on open are speculative and usually suppressed by the
+     *   syncs' staleness gate, so showing them would spin over a screen that isn't fetching anything.
+     * @param failed whether the last user-requested chapter refresh failed — the screen offers a retry.
+     *   Only the chapter sync counts: it is what the gesture is *for*, while the details sync is a
+     *   best-effort fill-in for fields a catalog listing omits, and a source that doesn't implement it
+     *   would otherwise fail every pull forever.
+     */
+    data class Refresh(
+        val inProgress: Boolean,
+        val failed: Boolean
+    ) {
+        companion object {
+            /** Nothing running, nothing to report — the state a screen opens in. */
+            val Idle = Refresh(inProgress = false, failed = false)
+        }
     }
 
     /**

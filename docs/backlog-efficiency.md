@@ -215,7 +215,36 @@ and testable without a Compose or ViewModel harness.
 `chapter_updates` rows and triggers `AutoDownloadNewChapters`. Returning early must skip all of
 it cleanly, which it does naturally if the guard is the first statement.
 
-### 1.4 Pull-to-refresh on the detail screen
+### 1.4 Pull-to-refresh on the detail screen — **DONE**
+
+Shipped as a `PullToRefreshBox` around `MangaContentView` and a `MangaViewModel.onRefresh()` that runs both
+syncs with `force = true` — the only caller in the app that passes `force` from a user gesture, which is
+what keeps 1.3's TTLs affordable.
+
+**What the collapsing hero forced:** the pull gesture and the hero share one nested-scroll chain. Leftover
+downward drag reaches the hero's connection (`onPostScroll`, nearest ancestor first) before it reaches the
+refresh box, so an over-scroll re-expands the hero and only then starts a refresh — the right order, since
+the hero is what the user is pulling back into view, and it costs nothing to arrange: it falls out of
+leaving the existing connection where it is and wrapping *outside* it. The indicator is
+`statusBarsPadding()`-ed because the hero runs edge-to-edge under the status bar and an indicator placed
+from the top of the box would travel out of sight.
+
+**Only the chapter sync's failure is surfaced.** The details sync runs concurrently (`async`, as on open —
+different endpoints, and a slow synopsis must not hold the spinner over an already-updated chapter list),
+but a source that doesn't implement `fetchMangaDetails` throws every time, and reporting that would put a
+permanent error under every pull on that source. The chapter list is what the gesture is *for*; the details
+sync stays the best-effort fill-in it is on open, logged and silent.
+
+`MangaState.Content` gained a `refresh: Refresh(inProgress, failed)` folded in through a fourth `.combine`
+— two flags, not a sealed state, because pulling again while the last message is still up is both. The
+`inProgress` flag is deliberately **not** set by the two on-open refreshes: those are speculative and
+usually suppressed by 1.3's gate, so a spinner for them would spin over a screen that is not fetching
+anything. The failure shows as `MangaRefreshError`, a strip under the top bar with a retry, self-clearing
+after six seconds — the bottom strip a snackbar would want belongs to the Read action, and the app has no
+snackbar host (nor does the design system have a toast component: `components/feedback/` is `Sheet` only).
+
+**No tests:** `:features:*` has no test source set at all (see Verification), so this is covered by the two
+compile targets and by hand. New strings in both `values/` and `values-pt-rBR/`.
 
 **Problem:** now that 1.3 has landed, a TTL-suppressed refresh leaves the user with no way to force
 one — this is the next item, and the `force = true` path it needs already exists.
