@@ -99,6 +99,47 @@ interface MangaDao {
     )
     suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<MangaWithDetails>
 
+    /**
+     * [getMangaByIds] as a subscription — the batch counterpart of [observeManga], for a caller that must
+     * keep tracking a set of ids rather than sample it once.
+     *
+     * Prefer [getMangaByIds] unless staying subscribed is the point. This projection sub-queries
+     * `chapters`, `reading_progress` and `chapter_downloads`, so Room invalidates it on a write to any of
+     * six tables and most of those writes cannot change the answer — a live subscription therefore has to
+     * be deduped before its rows are mapped, which is what [MangaRepositoryImp] does for every observed
+     * read here.
+     */
+    @Query(
+        """
+        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+               (
+                   SELECT COUNT(*)
+                   FROM chapters
+                   LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+                   WHERE chapters.manga_id = manga.id
+                     AND COALESCE(reading_progress.already_read, 0) = 0
+                     AND (
+                         chapters.scanlator IS NULL
+                         OR manga.filtered_scanlators IS NULL
+                         OR instr(char(10) || manga.filtered_scanlators || char(10),
+                                  char(10) || chapters.scanlator || char(10)) = 0
+                     )
+               ) AS unread_count,
+               (
+                   SELECT COUNT(*)
+                   FROM chapter_downloads
+                   WHERE chapter_downloads.manga_id = manga.id
+                     AND chapter_downloads.state = 'Downloaded'
+               ) AS downloaded_count
+        FROM manga
+        LEFT JOIN history ON history.manga_id = manga.id
+        LEFT JOIN library ON library.id = manga.id
+        WHERE manga.id IN (:mangaIds)
+        GROUP BY manga.id
+        """,
+    )
+    fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<MangaWithDetails>>
+
     /** The user's library: every manga with a `library` row, titled for stable display ordering. */
     @Query(
         """

@@ -15,6 +15,7 @@ import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.update.model.ChapterUpdate
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -121,6 +122,26 @@ class ResolveChapterUpdatesTest {
         )
     }
 
+    @Test
+    fun `the observed and one-shot forms agree`() = runTest {
+        val hidden = chapter(number = 2.0, scanlator = "Mangastream")
+        val shown = chapter(number = 3.0)
+        val read = chapter(number = 4.0).copy(progress = ReadingProgress(false, 1u, false))
+        val resolve =
+            resolve(
+                manga = MANGA.copy(filteredScanlators = setOf("Mangastream")),
+                chapters = listOf(hidden, shown, read),
+            )
+        val updates = listOf(update(hidden), update(shown), update(read))
+
+        // NotifyNewChapters takes the one-shot and Home takes the observed one; if these ever diverge the
+        // notification announces a chapter the list refuses to show.
+        assertEquals(
+            resolve(updates).map { it.chapter.id },
+            resolve.observe(updates).first().map { it.chapter.id },
+        )
+    }
+
     // --- helpers ---------------------------------------------------------------------------------
 
     private fun resolve(
@@ -179,6 +200,9 @@ private class FakeMangaRepository(private val manga: Manga) : MangaRepository {
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
         listOf(manga).filter { it.id in mangaIds }
 
+    override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
+        flowOf(listOf(manga).filter { it.id in mangaIds })
+
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(listOf(manga))
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
@@ -222,6 +246,9 @@ private class FakeChapterRepository(private val chapters: List<Chapter>) : Chapt
 
     override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
         chapters.filter { it.id in chapterIds }
+
+    override fun observeChaptersByIds(chapterIds: Collection<Uuid>): Flow<List<Chapter>> =
+        flowOf(chapters.filter { it.id in chapterIds })
     override suspend fun updateProgress(chapterId: Uuid, progress: ReadingProgress) = error("unused")
     override suspend fun updateProgress(progress: Map<Uuid, ReadingProgress>) = error("unused")
     override suspend fun upsertChapter(chapter: Chapter) = error("unused")

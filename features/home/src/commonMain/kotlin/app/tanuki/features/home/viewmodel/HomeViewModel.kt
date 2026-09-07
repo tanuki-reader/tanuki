@@ -42,8 +42,10 @@ import kotlin.math.floor
  *    not been opened.
  *  - **Sources** — the installed bundles' metadata, bucketed by language into collapsible groups.
  *
- * All three are live [Flow]s and are combined into one state. Sources re-emit only when the installed
- * set actually changes — reading each bundle's metadata is comparatively expensive — so a source being
+ * All three are live [Flow]s and are combined into one state. [ObserveNewChapters] is live in the
+ * strong sense: it holds the series and chapters it named under observation, so the New Chapters list
+ * corrects itself when one of them is read, filtered or unfollowed from another screen — Home does
+ * nothing to maintain it. Sources re-emit only when the installed set actually changes — reading each bundle's metadata is comparatively expensive — so a source being
  * installed or uninstalled updates the list in place, without the screen holding a stale snapshot and
  * without re-enumerating on every history or update tick.
  */
@@ -129,7 +131,8 @@ class HomeViewModel(
     /**
      * A "New Chapters" row was tapped — open that chapter in the reader. Nothing is dismissed here: the
      * reader records the chapter as opened, which is what drops it from the list (see
-     * [app.tanuki.core.domain.update.usecase.ResolveChapterUpdates]).
+     * [app.tanuki.core.domain.update.usecase.ResolveChapterUpdates]) — and because the list observes
+     * that chapter's row, it does so while the user is still in the reader, not at some later read.
      */
     fun onNewChapterClick(item: NewChapterItem) {
         navigateTo(Reader(mangaId = item.mangaId, chapterId = item.chapterId))

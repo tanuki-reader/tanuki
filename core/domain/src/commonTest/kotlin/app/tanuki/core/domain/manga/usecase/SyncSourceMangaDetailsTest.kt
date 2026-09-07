@@ -314,6 +314,8 @@ private class DetailsMangaRepository(
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> = error("unused")
 
+    override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> = error("unused")
+
     override fun observeLibrary(): Flow<List<Manga>> = error("unused")
 
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = error("unused")

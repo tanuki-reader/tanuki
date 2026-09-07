@@ -134,6 +134,30 @@ class MangaRepositoryImpTest {
         }
 
     @Test
+    fun `an identical by-ids re-emission is not passed on`() =
+        runTest {
+            val dispatcher = UnconfinedTestDispatcher(testScheduler)
+            val row = mangaRow("Berserk")
+            val dao = RecordingMangaDao()
+
+            val emissions = mutableListOf<List<String>>()
+            backgroundScope.launch(dispatcher) {
+                repository(dao, dispatcher)
+                    .observeMangaByIds(listOf(row.manga.id))
+                    .collect { emissions += it.map(::titleOf) }
+            }
+            advanceUntilIdle()
+
+            // This is the read that backs Home's pending-update list, so it is the one most likely to be
+            // subscribed while a download fires `setProgress` once per page.
+            dao.byIds.emit(listOf(row))
+            dao.byIds.emit(listOf(row.copy()))
+            advanceUntilIdle()
+
+            assertEquals(1, emissions.size)
+        }
+
+    @Test
     fun `deduping does not resubscribe the query`() =
         runTest {
             val dispatcher = UnconfinedTestDispatcher(testScheduler)
@@ -246,12 +270,13 @@ private fun mangaRow(
 
 /**
  * A [MangaDao] whose observed reads are driven by hand and whose library subscriptions are counted.
- * Only the three read flows are implemented — everything else is a write path these tests never take.
+ * Only the four read flows are implemented — everything else is a write path these tests never take.
  */
 private class RecordingMangaDao : MangaDao {
     val library = MutableSharedFlow<List<MangaWithDetails>>()
     val manga = MutableSharedFlow<MangaWithDetails?>()
     val bySource = MutableSharedFlow<List<MangaWithDetails>>()
+    val byIds = MutableSharedFlow<List<MangaWithDetails>>()
 
     var librarySubscriptions: Int = 0
         private set
@@ -263,6 +288,8 @@ private class RecordingMangaDao : MangaDao {
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<MangaWithDetails>> = bySource
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<MangaWithDetails> = error("unused")
+
+    override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<MangaWithDetails>> = byIds
 
     override suspend fun findMangaIdBySourceAndKey(
         sourceId: Uuid,

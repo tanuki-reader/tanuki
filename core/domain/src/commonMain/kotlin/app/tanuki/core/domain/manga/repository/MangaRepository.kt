@@ -44,6 +44,24 @@ interface MangaRepository {
     suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga>
 
     /**
+     * [getMangaByIds] as a subscription — for a caller whose resolved list must stay *true*, not merely
+     * have been true when it was read.
+     *
+     * Prefer [getMangaByIds]. Standing up a subscription to take a single emission costs more than the
+     * one-shot it imitates, so this is for the case where the answer is on screen and has to correct
+     * itself when the user renames, unfollows or re-filters one of these series from somewhere else.
+     *
+     * The id set is fixed for the life of the subscription — it is bound into the query. A caller whose
+     * ids change resubscribes (`flatMapLatest`); this flow will never widen to cover an id it was not
+     * given.
+     *
+     * @param mangaIds Local ids to resolve; duplicates and unknown ids are harmless.
+     * @return A [Flow] of the manga that exist, in unspecified order — key it by [Manga.id] rather than
+     *   position. Ids with no row are simply absent, so an emission may be shorter than [mangaIds].
+     */
+    fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>>
+
+    /**
      * Observes the user's library.
      *
      * @return A [Flow] of the library, re-emitting on any change.

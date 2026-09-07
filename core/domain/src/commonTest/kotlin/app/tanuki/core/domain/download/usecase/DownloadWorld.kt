@@ -831,6 +831,9 @@ internal class FakeChapterRepository(
     override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
         chapterIds.mapNotNull(held::get)
 
+    override fun observeChaptersByIds(chapterIds: Collection<Uuid>): Flow<List<Chapter>> =
+        flowOf(chapterIds.mapNotNull(held::get))
+
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> =
         held.values
             .filter { it.mangaId == mangaId }
@@ -878,6 +881,9 @@ internal class FakeMangaRepository(
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
         held.value.filter { it.id in mangaIds }
+
+    override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
+        held.map { all -> all.filter { it.id in mangaIds } }
 
     override fun observeLibrary(): Flow<List<Manga>> = held
 

@@ -299,7 +299,51 @@ exists and is unused; the batch form is what it wants.
 but memoizes — `resolve()` only re-runs when the *set* of ids changes, not on every progress
 emission. Copy that structure into the others.
 
-### 2.2 Fix the `ObserveNewChapters` staleness bug
+### 2.2 Fix the `ObserveNewChapters` staleness bug — **DONE**
+
+Shipped as observable twins of the 2.1 batch reads — `MangaRepository.observeMangaByIds` /
+`ChapterRepository.observeChaptersByIds`, chunked by a new `observeInBatches` beside `readInBatches` —
+plus a second entry point on the resolver: `invoke` still answers once (for `NotifyNewChapters`),
+`observe` keeps answering, and both project through one private pure `resolve`, so the list and the
+notification still cannot drift. `ObserveNewChapters` is now
+`observeUpdates().distinctUntilChangedBy { ids }.flatMapLatest(resolve::observe)`. The doc took the
+"make the claim true" branch rather than the "correct the doc" one.
+
+**The subtlety that decided the gate, and the one thing this cost:** the obvious
+`.distinctUntilChanged()` on the records is *wrong here*. `ChapterUpdate` carries `notified`, which
+`NotifyNewChapters` flips after **every** library run — a genuine change to the record list that the
+resolver cannot see, since it never reads that field. Under `flatMapLatest` a plain dedupe would let
+each of those writes tear down and rebuild both queries for a byte-identical answer, at the moment Home
+is most likely on screen. Keying on the chapter ids is exact rather than approximate: a row is immutable
+apart from `notified` (`insertIgnoring` never rewrites one), and the query's `ORDER BY discovered_at
+DESC` means the id *sequence* carries any reordering too. With that gate, resubscription happens exactly
+when the record set changes — strictly rarer than the unconditional re-resolve the old code did on the
+same signal, which is why there is deliberately **no** `ObserveDownloadQueue`-style memoized resolve.
+
+`ChapterDao.observeChaptersByIds` gained an `ORDER BY chapters.id` its suspend twin doesn't need. A live
+read is compared against its own previous emission by `distinctUntilChanged`, and an unordered `IN` lets
+SQLite return the same rows in a different order — the dedupe would have been silently useless.
+(`MangaDao`'s `GROUP BY manga.id` already pins that side.) Both new repository reads dedupe before the
+mapper, per 3.3; `ChapterRepositoryImp`'s is the only deduped read in that class, because it is the only
+one backing something longer-lived than a screen.
+
+`observeInBatches` short-circuits the empty case to `flowOf(emptyList())` rather than leaving it to
+`combine`, which over zero flows never emits — a collector would hang rather than be told there is
+nothing. That is load-bearing, not defensive, and `ResolveChapterUpdates.observe` short-circuits for the
+same reason one level up.
+
+**Accepted cost:** Home now holds two live Room subscriptions, one of them the six-table
+`MangaWithDetails` projection, and `HomeViewModel` is contributed to `AppScope` with a
+`launchIn(viewModelScope)` pipeline — so they are always-on **until 3.1 lands**. The repository dedupe
+keeps the downstream cost at zero, but the queries still re-run; 3.1 has one more reason to happen.
+
+Covered by a new `ObserveNewChaptersTest` (7 cases, `MutableStateFlow`-backed fakes since a `flowOf`
+fake cannot express "and then it changed"): reading a chapter, hiding a group, unfollowing a series and
+renaming one each correct the list **with no write to `chapter_updates`**, a new record still resolves,
+an emptied list settles on nothing, and `notified` flipping does not resubscribe. Five of the seven were
+confirmed to fail against the old implementation before the fix was kept. Plus four `BatchReadsTest`
+cases counting *subscriptions* the way the existing ones count reads, one `MangaRepositoryImpTest` case
+for the by-ids dedupe, and one in `ResolveChapterUpdatesTest` pinning that `observe` and `invoke` agree.
 
 **Problem:** the KDoc on `ObserveNewChapters` claims it "re-emits whenever the records change
 **or** the underlying manga/chapters do." It does not — `ResolveChapterUpdates` takes snapshots

@@ -170,6 +170,8 @@ private class FakeMangaRepository(
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> = error("unused")
 
+    override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> = error("unused")
+
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = error("unused")
 
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")

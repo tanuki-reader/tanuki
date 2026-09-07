@@ -77,6 +77,29 @@ interface ChapterDao {
     )
     suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<ChapterWithProgress>
 
+    /**
+     * [getChaptersByIds] as a subscription — for the one kind of caller that must notice the user opening
+     * a chapter, rather than only find out at its next read.
+     *
+     * The `ORDER BY` is what makes that affordable. This query is invalidated by every `reading_progress`
+     * write, which the reader makes on every page turn, so a live consumer deduplicates its emissions
+     * against the previous one — and an unordered `IN` lets SQLite return the same rows in a different
+     * order, which would make that comparison silently useless. Ordering by id costs a sort over a
+     * handful of rows and makes two equal answers compare equal. ([getChaptersByIds] needs none of this:
+     * its caller keys the result by id and never compares two reads.)
+     */
+    @Query(
+        """
+        SELECT chapters.*,
+               reading_progress.has_bookmark, reading_progress.last_page_read, reading_progress.already_read
+        FROM chapters
+        LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
+        WHERE chapters.id IN (:chapterIds)
+        ORDER BY chapters.id
+        """,
+    )
+    fun observeChaptersByIds(chapterIds: Collection<Uuid>): Flow<List<ChapterWithProgress>>
+
     @Upsert
     suspend fun upsertChapter(chapter: ChapterEntity)
 

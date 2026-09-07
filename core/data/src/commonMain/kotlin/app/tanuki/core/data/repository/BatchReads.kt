@@ -1,5 +1,9 @@
 package app.tanuki.core.data.repository
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
+
 /**
  * How many ids a single `WHERE id IN (:ids)` read binds at most.
  *
@@ -28,4 +32,25 @@ internal suspend fun <Id, Row> Collection<Id>.readInBatches(read: suspend (List<
         isEmpty() -> emptyList()
         size <= MAX_BOUND_IDS -> read(toList())
         else -> chunked(MAX_BOUND_IDS).flatMap { read(it) }
+    }
+
+/**
+ * The observed counterpart of [readInBatches]: runs [observe] over [ids] in chunks small enough to bind,
+ * emitting the concatenated rows and re-emitting whenever any chunk's query is invalidated.
+ *
+ * The empty case returns a flow that *emits* an empty list rather than one that never emits. That is not
+ * only an optimization: [combine] over zero flows never produces a value, so a collector of an empty id
+ * set would hang instead of being told there is nothing — a subscriber waiting forever is a worse answer
+ * than no rows.
+ *
+ * A split read is eventually consistent rather than atomic, which is the continuous form of the trade
+ * [readInBatches] already documents: the first emission waits for every chunk, but afterwards a write
+ * touching one chunk re-emits that chunk against its neighbours' last-seen rows. Callers key the result
+ * by id, so the worst case is again a row one write newer than the rest.
+ */
+internal fun <Id, Row> Collection<Id>.observeInBatches(observe: (List<Id>) -> Flow<List<Row>>): Flow<List<Row>> =
+    when {
+        isEmpty() -> flowOf(emptyList())
+        size <= MAX_BOUND_IDS -> observe(toList())
+        else -> combine(chunked(MAX_BOUND_IDS).map(observe)) { chunks -> chunks.flatMap(List<Row>::asIterable) }
     }

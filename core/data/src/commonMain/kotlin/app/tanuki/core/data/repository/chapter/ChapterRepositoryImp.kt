@@ -1,5 +1,6 @@
 package app.tanuki.core.data.repository.chapter
 
+import app.tanuki.core.data.repository.observeInBatches
 import app.tanuki.core.data.repository.readInBatches
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ReadingProgress
@@ -10,6 +11,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
@@ -47,6 +49,21 @@ class ChapterRepositoryImp(
 
     override suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter> =
         withContext(dispatcherProvider.io) { chapterIds.readInBatches(chapterDao::getChaptersByIds).toDomain() }
+
+    /**
+     * The only deduped read in this class, and deliberately so. The two per-manga reads above are driven
+     * by a screen that is torn down with them, so a duplicate emission costs one wasted recomposition.
+     * This one backs a process-lived subscription (Home's pending-update list) and its query is
+     * invalidated by every `reading_progress` write — which the reader makes on every page turn. Without
+     * the dedupe, reading one chapter would push an identical list at an unrelated screen a few hundred
+     * times a session. [ChapterDao.observeChaptersByIds] orders its rows so that comparison is sound.
+     */
+    override fun observeChaptersByIds(chapterIds: Collection<Uuid>): Flow<List<Chapter>> =
+        chapterIds
+            .observeInBatches(chapterDao::observeChaptersByIds)
+            .distinctUntilChanged()
+            .map(List<ChapterWithProgress>::toDomain)
+            .flowOn(dispatcherProvider.io)
 
     override suspend fun updateProgress(
         chapterId: Uuid,

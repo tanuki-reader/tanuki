@@ -63,6 +63,25 @@ interface ChapterRepository {
     suspend fun getChaptersByIds(chapterIds: Collection<Uuid>): List<Chapter>
 
     /**
+     * [getChaptersByIds] as a subscription — for a caller that must notice the user opening one of these
+     * chapters, rather than only find out at its next read.
+     *
+     * Prefer [getChaptersByIds] for one-shot work: two live queries stood up and torn down to take one
+     * emission is more expensive than the read it imitates. Reach for this when the resolved list is on
+     * screen and the reader may be writing [ReadingProgress] underneath it.
+     *
+     * The id set is fixed for the life of the subscription, as in
+     * [app.tanuki.core.domain.manga.repository.MangaRepository.observeMangaByIds] — a caller whose ids
+     * change resubscribes.
+     *
+     * @param chapterIds Local ids to resolve; duplicates and unknown ids are harmless.
+     * @return A [Flow] of the chapters that exist, in unspecified order — key it by [Chapter.id] rather
+     *   than position. Ids with no row are simply absent, so an emission may be shorter than
+     *   [chapterIds].
+     */
+    fun observeChaptersByIds(chapterIds: Collection<Uuid>): Flow<List<Chapter>>
+
+    /**
      * Writes the user's [ReadingProgress] for a chapter, creating the local progress row or replacing
      * it — the reader's counterpart to the `observe`/`get` reads above.
      *
