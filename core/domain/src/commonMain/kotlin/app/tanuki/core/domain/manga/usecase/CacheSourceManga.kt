@@ -106,14 +106,18 @@ sealed interface CacheSourceManga {
          * Writes only on an actual difference, so the overwhelmingly common case (no headers, before and
          * after) is a read and nothing else. [MangaCover.lastModified] is deliberately not bumped — it is
          * the image loader's cache key, and the art hasn't changed, only how it must be requested.
+         *
+         * The write is targeted at the one column rather than a whole-row upsert of the snapshot just
+         * read: browse can be caching a listing while the detail screen syncs the same series, and a
+         * full write would revert that sync's fields and its fetch stamps.
          */
         private suspend fun refreshCoverHeaders(
-            mangaId: Uuid,
+            existingId: Uuid,
             listing: MangaListing
         ) {
-            val manga = mangaRepository.observeManga(mangaId).first() ?: return
+            val manga = mangaRepository.observeManga(existingId).first() ?: return
             if (manga.cover.headers == listing.coverHeaders) return
-            mangaRepository.upsertManga(manga.copy(cover = manga.cover.copy(headers = listing.coverHeaders)))
+            mangaRepository.setCoverHeaders(existingId, listing.coverHeaders)
         }
     }
 }

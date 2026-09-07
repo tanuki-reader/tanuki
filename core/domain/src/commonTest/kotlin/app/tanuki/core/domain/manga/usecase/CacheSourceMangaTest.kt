@@ -4,6 +4,7 @@ import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
@@ -21,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
@@ -69,6 +71,65 @@ class CacheSourceMangaTest {
         assertEquals(0, repository.upserted.size, "an already-cached manga must not be re-upserted")
     }
 
+    @Test
+    fun `an already-cached row adopts cover headers the source has since added`() = runTest {
+        val existing = cached(headers = emptyMap())
+        val repository = FakeMangaRepository(existingId = existing.id, existing = existing)
+        val cache = CacheSourceManga.Default(FakeSourceLoader(SOURCE), repository)
+
+        cache(
+            "mangadex",
+            listing("op", "https://mangadex.org/title/op", "One Piece")
+                .copy(coverHeaders = mapOf("Referer" to "https://lerhentais.com/"))
+        )
+
+        // Without this a row cached before its source gained the headers renders as a blank tile
+        // forever — its CDN 403s any request without them.
+        val (id, headers) = repository.coverHeaders.single()
+        assertEquals(existing.id, id)
+        assertEquals(mapOf("Referer" to "https://lerhentais.com/"), headers)
+        // Targeted, not a whole-row rewrite: browse can be caching this listing while the detail screen
+        // syncs the same series, and a full write would revert that sync and its fetch stamps.
+        assertEquals(0, repository.upserted.size)
+    }
+
+    @Test
+    fun `an already-cached row with the same headers is not written at all`() = runTest {
+        val headers = mapOf("Referer" to "https://lerhentais.com/")
+        val existing = cached(headers = headers)
+        val repository = FakeMangaRepository(existingId = existing.id, existing = existing)
+        val cache = CacheSourceManga.Default(FakeSourceLoader(SOURCE), repository)
+
+        cache("mangadex", listing("op", "https://mangadex.org/title/op", "One Piece").copy(coverHeaders = headers))
+
+        // The overwhelmingly common case is a read and nothing else.
+        assertEquals(0, repository.coverHeaders.size)
+    }
+
+    private fun cached(headers: Map<String, String>): Manga {
+        val id = uuidV7()
+        return Manga(
+            id = id,
+            source = SOURCE.id,
+            title = Text("One Piece"),
+            author = null,
+            description = null,
+            cover =
+                MangaCover(
+                    mangaId = id,
+                    url = Url("https://cdn.example/op.jpg"),
+                    lastModified = Instant.fromEpochMilliseconds(1_000),
+                    headers = headers,
+                ),
+            sourceMangaKey = Text("op"),
+            url = Url("https://mangadex.org/title/op"),
+            dateAdded = null,
+            readingMode = ReadingMode.LEFT_TO_RIGHT,
+            publishStatus = PublishStatus.ONGOING,
+            readingStatus = null,
+        )
+    }
+
     private fun listing(key: String, url: String?, title: String) = MangaListing(
         sourceMangaKey = key,
         url = url?.let(::Url),
@@ -103,13 +164,34 @@ private class FakeSourceLoader(private val source: Source) : SourceLoader {
 }
 
 /** In-memory [MangaRepository]; records upserts and answers the dedupe lookup with [existingId]. */
-private class FakeMangaRepository(private val existingId: Uuid? = null) : MangaRepository {
+private class FakeMangaRepository(
+    private val existingId: Uuid? = null,
+    private val existing: Manga? = null
+) : MangaRepository {
     val upserted = mutableListOf<Manga>()
+    val coverHeaders = mutableListOf<Pair<Uuid, Map<String, String>>>()
 
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = existingId
     override suspend fun upsertManga(manga: Manga) { upserted += manga }
 
-    override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(null)
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = error("unused")
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) {
+        coverHeaders += mangaId to headers
+    }
+
+    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) = error("unused")
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
+
+    override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(existing)
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> = error("unused")
     override fun observeLibrary(): Flow<List<Manga>> = flowOf(emptyList())

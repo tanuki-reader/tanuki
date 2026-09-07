@@ -22,6 +22,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration7To8,
         Migration8To9,
         Migration9To10,
+        Migration10To11,
     )
 
 /**
@@ -262,5 +263,31 @@ internal object Migration9To10 : Migration(9, 10) {
             "CREATE INDEX IF NOT EXISTS `index_chapter_downloads_queued_at` " +
                 "ON `chapter_downloads` (`queued_at`)",
         )
+    }
+}
+
+/**
+ * Adds the four sync-bookkeeping columns to `manga` — `chapters_fetched_at`, `details_fetched_at`,
+ * `next_update_at` and `fetch_interval`.
+ *
+ * Before these there was no record anywhere of *when* a series was last polled, so opening a series
+ * re-asked its source every time. (`cover_last_modified` is not that record: it is the image loader's
+ * cache key, and a details sync deliberately avoids bumping it.) The first two feed the staleness gate
+ * in the sync use cases; the last two are the schedule a per-series library update will keep, and are
+ * added now so that lands without a second migration.
+ *
+ * All nullable with nothing to backfill: no existing row has ever been stamped, and `NULL` is exactly
+ * the value that means "never polled" — which every gate reads as "poll now". So the first open of any
+ * series after upgrading behaves as it did before, and the schedule builds itself from there.
+ *
+ * `fetch_interval` is a day count that carries Mihon's sign convention: negative means the user pinned
+ * the interval by hand and it must not be recomputed.
+ */
+internal object Migration10To11 : Migration(10, 11) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE manga ADD COLUMN chapters_fetched_at INTEGER")
+        connection.execSQL("ALTER TABLE manga ADD COLUMN details_fetched_at INTEGER")
+        connection.execSQL("ALTER TABLE manga ADD COLUMN next_update_at INTEGER")
+        connection.execSQL("ALTER TABLE manga ADD COLUMN fetch_interval INTEGER")
     }
 }

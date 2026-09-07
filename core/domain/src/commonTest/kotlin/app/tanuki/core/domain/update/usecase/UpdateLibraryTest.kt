@@ -80,6 +80,25 @@ class UpdateLibraryTest {
         }
 
     @Test
+    fun `a run refreshes a series the detail screen synced moments ago`() =
+        runTest {
+            // The gate inside SyncSourceChapters exists for the detail screen, which asks on every open.
+            // A library run does its own scheduling, so it must pass through that gate, not be caught by
+            // it — otherwise the very series a user is reading would be the one the run silently skips.
+            val world =
+                World(
+                    series = listOf("one-piece", "berserk"),
+                    newChaptersEach = 2,
+                    chaptersFetchedAt = Clock.System.now()
+                )
+
+            val result = world.update()(Trigger.Manual)
+
+            assertEquals(setOf("one-piece", "berserk"), world.loader.asked)
+            assertEquals(Completed(checked = 2, failed = 0, newChapters = 4, updatedSeries = 2), result)
+        }
+
+    @Test
     fun `chapters found by a run are recorded as updates`() =
         runTest {
             val world = World(series = listOf("one-piece"), newChaptersEach = 3)
@@ -239,9 +258,11 @@ private class World(
     newChaptersEach: Int = 1,
     failing: Set<String> = emptySet(),
     private val interval: LibraryUpdateInterval = LibraryUpdateInterval.DAILY,
-    lastUpdate: Instant? = null
+    lastUpdate: Instant? = null,
+    /** When each series was last synced — the stamp a per-series staleness gate would read. */
+    chaptersFetchedAt: Instant? = null
 ) {
-    val library = series.map(::manga)
+    val library = series.map(::manga).map { it.copy(chaptersFetchedAt = chaptersFetchedAt) }
     val chapters = HeldChapterRepository(library.associate { it.id to listOf(heldChapter(it)) })
     val updates = FakeChapterUpdateRepository()
     val settings = FakeSettingsRepository(interval, lastUpdate)
@@ -482,6 +503,27 @@ private class FakeLibraryRepository(
     ): Uuid? = error("unused")
 
     override suspend fun upsertManga(manga: Manga) = error("unused")
+
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = error("unused")
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
+
+    // The real SyncSourceChapters stamps this after every successful refresh. Accepted and dropped:
+    // what this suite asserts about the gate is behavioural — that a fresh stamp does not stop a
+    // library run — and that is visible in the loader's fetch count, not here.
+    override suspend fun markChaptersFetched(
+        mangaId: Uuid,
+        at: Instant
+    ) = Unit
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
 
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
 

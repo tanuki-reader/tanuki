@@ -1,7 +1,10 @@
 package app.tanuki.core.domain.manga.usecase
 
+import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.MangaCover
+import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
@@ -10,6 +13,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
@@ -46,6 +50,22 @@ private class RecordingMangaRepository : MangaRepository {
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
     override suspend fun upsertManga(manga: Manga) = error("unused")
+
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = error("unused")
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
+
+    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) = error("unused")
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
+
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
     override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) = error("unused")
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")

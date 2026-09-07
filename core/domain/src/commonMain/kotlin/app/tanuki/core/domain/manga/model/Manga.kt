@@ -43,6 +43,19 @@ import kotlin.uuid.Uuid
  *   list rather than an include list: an aggregator gains groups over time, and a group that starts
  *   translating a series next month should show up on its own rather than be silently hidden by a
  *   filter set today. Empty — the default — means every group is shown.
+ * @property chaptersFetchedAt When [app.tanuki.core.domain.chapter.usecase.SyncSourceChapters] last
+ *   completed for this series, or `null` if it never has. Bookkeeping for the staleness gate that keeps
+ *   re-opening a series from re-asking its source; stamped by a targeted column write, never by a
+ *   whole-row upsert.
+ * @property detailsFetchedAt The same for
+ *   [app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails]. Separate from [chaptersFetchedAt]
+ *   because the two carry very different staleness: a chapter list changes weekly, a synopsis almost
+ *   never.
+ * @property nextUpdateAt When a library update run should next consider this series. `null` means
+ *   "no schedule yet — consider it". Reserved: nothing writes it yet.
+ * @property fetchInterval Days between this series' expected releases, derived from how often it has
+ *   actually published. A **negative** value means the user pinned the interval by hand and it must not
+ *   be recomputed. `null` means "not yet derived". Reserved: nothing writes it yet.
  */
 data class Manga(
     val id: Uuid,
@@ -60,5 +73,9 @@ data class Manga(
     val readingMode: ReadingMode,
     val publishStatus: PublishStatus,
     val readingStatus: ReadingStatus?,
-    val filteredScanlators: Set<String> = emptySet()
+    val filteredScanlators: Set<String> = emptySet(),
+    val chaptersFetchedAt: Instant? = null,
+    val detailsFetchedAt: Instant? = null,
+    val nextUpdateAt: Instant? = null,
+    val fetchInterval: Int? = null
 )

@@ -167,6 +167,12 @@ class MangaViewModel(
      * The failure is currently only logged (WARN — recoverable, the cached list stays up): surfacing it
      * needs a refresh affordance on the screen (a pull-to-refresh and an inline error), which doesn't
      * exist yet.
+     *
+     * Asked for on every open, but **not** performed on every open: this view model is scoped to the
+     * navigation entry, so browsing back and forth through ten series used to be ten chapter-list
+     * requests. [SyncSourceChapters] drops the ones that fall inside its staleness window. The gate is
+     * deliberately its own, not this screen's — it belongs to the sync, so a library run and a screen
+     * open answer to the same rule. Once a refresh affordance exists it passes `force` to bypass it.
      */
     private fun refreshChapters() {
         viewModelScope.launch {
@@ -181,7 +187,9 @@ class MangaViewModel(
      * A separate coroutine from [refreshChapters], not a step inside it: they hit different source
      * endpoints and neither is worth delaying for the other, so a slow chapter feed can't hold up the
      * description and a source that implements one but not the other still delivers what it has.
-     * Fire-and-forget and failure-tolerant for the same reason: the cached row stays on screen.
+     * Fire-and-forget and failure-tolerant for the same reason: the cached row stays on screen. Also
+     * staleness-gated like [refreshChapters], on a far longer window — a synopsis and an author credit
+     * change on a scale of never, next to a chapter list.
      */
     private fun refreshDetails() {
         viewModelScope.launch {

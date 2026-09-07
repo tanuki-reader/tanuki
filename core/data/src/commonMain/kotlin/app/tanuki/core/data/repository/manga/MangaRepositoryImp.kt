@@ -3,7 +3,10 @@ package app.tanuki.core.data.repository.manga
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
 import app.tanuki.core.data.repository.readInBatches
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.MangaCover
+import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
@@ -17,6 +20,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
@@ -81,6 +85,35 @@ class MangaRepositoryImp(
 
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) =
         mangaDao.updateFilteredScanlators(mangaId, encodeScanlators(scanlators))
+
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = mangaDao.updateSourceDetails(
+        mangaId = mangaId,
+        title = title.value,
+        author = author?.value,
+        description = description?.value,
+        publishStatus = publishStatus,
+        coverUrl = cover.url?.value,
+        // The header codec lives here with the other column codecs, so the domain never sees the
+        // storage encoding.
+        coverHeaders = encodeHeaders(cover.headers),
+        coverLastModified = cover.lastModified
+    )
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) =
+        mangaDao.updateCoverHeaders(mangaId, encodeHeaders(headers))
+
+    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) =
+        mangaDao.markChaptersFetched(mangaId, at)
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) =
+        mangaDao.markDetailsFetched(mangaId, at)
 
     override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) =
         // `dateAddedIfAbsent` is only used when the manga isn't yet in the library (implicit add). An

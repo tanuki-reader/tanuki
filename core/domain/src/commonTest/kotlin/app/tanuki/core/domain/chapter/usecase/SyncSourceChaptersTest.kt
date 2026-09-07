@@ -31,10 +31,12 @@ import app.tanuki.core.domain.download.usecase.inertDeleteChapterDownloads
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -240,19 +242,123 @@ class SyncSourceChaptersTest {
             assertTrue(updates.recorded.isEmpty(), "a chapter already held is not an update")
         }
 
+    // --- staleness gate --------------------------------------------------------------------------
+
+    @Test
+    fun `a series synced moments ago is not asked again`() =
+        runTest {
+            val chapters = FakeChapterRepository()
+            val loader = FakeSourceLoader(listOf(listing("md-1", 1.0)))
+            val sync =
+                sync(
+                    chapters,
+                    listings = emptyList(),
+                    manga = MANGA.copy(chaptersFetchedAt = Clock.System.now()),
+                    loader = loader
+                )
+
+            val added = sync(MANGA.id)
+
+            assertEquals(0, loader.chapterFetches, "the source must not be asked inside the TTL")
+            assertTrue(added.isEmpty())
+            assertTrue(chapters.upserted.isEmpty(), "a suppressed sync writes nothing at all")
+        }
+
+    @Test
+    fun `a series synced long ago is asked again`() =
+        runTest {
+            val chapters = FakeChapterRepository()
+            val loader = FakeSourceLoader(listOf(listing("md-1", 1.0)))
+            val sync =
+                sync(
+                    chapters,
+                    listings = emptyList(),
+                    // Comfortably past any plausible TTL, so this test doesn't encode the exact value.
+                    manga = MANGA.copy(chaptersFetchedAt = Clock.System.now() - 30.days),
+                    loader = loader
+                )
+
+            assertEquals(1, sync(MANGA.id).size)
+            assertEquals(1, loader.chapterFetches)
+        }
+
+    @Test
+    fun `a series that has never been synced is asked`() =
+        runTest {
+            val chapters = FakeChapterRepository()
+            val loader = FakeSourceLoader(listOf(listing("md-1", 1.0)))
+            // No stamp is what every row has right after the migration, and what a freshly cached series
+            // has: it must read as "ask now", or an upgrade would look like a dead app.
+            val sync = sync(chapters, listings = emptyList(), manga = MANGA, loader = loader)
+
+            sync(MANGA.id)
+
+            assertEquals(1, loader.chapterFetches)
+        }
+
+    @Test
+    fun `force overrides a fresh stamp`() =
+        runTest {
+            val chapters = FakeChapterRepository()
+            val loader = FakeSourceLoader(listOf(listing("md-1", 1.0)))
+            val sync =
+                sync(
+                    chapters,
+                    listings = emptyList(),
+                    manga = MANGA.copy(chaptersFetchedAt = Clock.System.now()),
+                    loader = loader
+                )
+
+            // What the library update run passes: it schedules series itself and must not be gated twice.
+            sync(MANGA.id, force = true)
+
+            assertEquals(1, loader.chapterFetches)
+        }
+
+    @Test
+    fun `a completed sync stamps the manga`() =
+        runTest {
+            val repository = FakeMangaRepository(MANGA)
+            val sync = sync(FakeChapterRepository(), listings = listOf(listing("md-1", 1.0)), mangaRepository = repository)
+
+            sync(MANGA.id)
+
+            assertEquals(MANGA.id, repository.chaptersFetched.single().first)
+        }
+
+    @Test
+    fun `a sync that fails leaves the stamp alone`() =
+        runTest {
+            val repository = FakeMangaRepository(MANGA)
+            val sync =
+                sync(
+                    FakeChapterRepository(),
+                    listings = emptyList(),
+                    loader = FakeSourceLoader(emptyList(), failure = IllegalStateException("offline")),
+                    mangaRepository = repository
+                )
+
+            assertFailsWith<IllegalStateException> { sync(MANGA.id) }
+
+            // Otherwise a single failed refresh would suppress every retry for the whole TTL.
+            assertTrue(repository.chaptersFetched.isEmpty())
+        }
+
     // --- helpers ---------------------------------------------------------------------------------
 
     private fun sync(
         chapters: FakeChapterRepository,
         listings: List<ChapterListing>,
         manga: Manga = MANGA,
-        updates: FakeChapterUpdateRepository = FakeChapterUpdateRepository()
+        updates: FakeChapterUpdateRepository = FakeChapterUpdateRepository(),
+        loader: FakeSourceLoader = FakeSourceLoader(listings),
+        mangaRepository: FakeMangaRepository = FakeMangaRepository(manga)
     ) = SyncSourceChapters.Default(
-        mangaRepository = FakeMangaRepository(manga),
+        mangaRepository = mangaRepository,
         sourceRepository = FakeSourceRepository(SOURCE),
         chapterRepository = chapters,
         chapterUpdateRepository = updates,
-        sourceLoader = FakeSourceLoader(listings),
+        sourceLoader = loader,
         autoDownloadNewChapters = inertAutoDownloadNewChapters(),
         deleteChapterDownloads = inertDeleteChapterDownloads()
     )
@@ -391,6 +497,8 @@ private class FakeChapterRepository(
 private class FakeMangaRepository(
     private val manga: Manga?
 ) : MangaRepository {
+    val chaptersFetched = mutableListOf<Pair<Uuid, Instant>>()
+
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(manga)
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> =
@@ -406,6 +514,26 @@ private class FakeMangaRepository(
     ): Uuid? = error("unused")
 
     override suspend fun upsertManga(manga: Manga) = error("unused")
+
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = error("unused")
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
+
+    override suspend fun markChaptersFetched(
+        mangaId: Uuid,
+        at: Instant
+    ) {
+        chaptersFetched += mangaId to at
+    }
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
 
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
 
@@ -446,12 +574,20 @@ private class FakeSourceRepository(
 
 /** A [SourceLoader] whose chapter feed is canned; it records what it was asked for. */
 private class FakeSourceLoader(
-    private val listings: List<ChapterListing>
+    private val listings: List<ChapterListing>,
+    private val failure: Throwable? = null
 ) : SourceLoader {
+    var chapterFetches: Int = 0
+        private set
+
     override suspend fun fetchChapterList(
         sourceId: String,
         mangaKey: String
-    ): List<ChapterListing> = listings
+    ): List<ChapterListing> {
+        chapterFetches++
+        failure?.let { throw it }
+        return listings
+    }
 
     override suspend fun loadSource(id: String): Source = error("unused")
 

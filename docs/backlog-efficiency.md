@@ -27,7 +27,28 @@ that's true).
 
 The three items below are one coherent feature and are best done in order.
 
-### 1.1 Add sync bookkeeping columns to `manga` (schema v11)
+### 1.1 Add sync bookkeeping columns to `manga` (schema v11) — **DONE**
+
+Shipped as `Migration10To11` — four nullable columns on `manga` (`chapters_fetched_at`,
+`details_fetched_at`, `next_update_at`, `fetch_interval`), carried onto `MangaEntity` and the domain
+`Manga`, and stamped only through the targeted `MangaDao.markChaptersFetched` / `markDetailsFetched`
+queries. Nothing writes `next_update_at` or `fetch_interval` yet; they are here so 1.2 costs no second
+migration.
+
+**What this forced, and is the more interesting half of the change:** stamping a column on `manga` is
+worthless while anything still writes the *whole* row from a snapshot. `SyncSourceMangaDetails` did
+exactly that, and the detail screen runs it concurrently with the chapter sync — so a stamp landing
+mid-request would have been reverted about half the time, on the one screen the gate exists for. Both
+remaining read-modify-write paths are now targeted column writes: `SyncSourceMangaDetails` goes through
+`MangaRepository.setSourceDetails` (the seven columns a details sync owns) and
+`CacheSourceManga.refreshCoverHeaders` through `setCoverHeaders`. That also closes a pre-existing bug
+the `MangaDao` KDoc had already predicted: a details sync landing while the user flipped reading mode
+reverted it.
+
+**No migration test**, in keeping with the other ten: the repo has no instrumented/host test source set
+for `:core:data` and no `room-testing` artifact, and standing that up is its own piece of work. What
+protects it is the exported schema — Room checks the identity hash on open — plus four `ADD COLUMN`s
+being the lowest-risk migration shape there is. Verified by hand across an upgrade.
 
 **Problem:** there is no timestamp anywhere saying when a series was last polled. The only
 time-ish column, `manga.cover_last_modified`, is an image cache key that
@@ -96,7 +117,27 @@ series should get the 28-day interval floor immediately rather than earning it o
 `kotlinx-datetime` (`Instant` + `TimeZone.currentSystemDefault()` + `LocalDate`). Day-boundary
 arithmetic is the whole point of the algorithm — do not simplify it to "hours since last fetch".
 
-### 1.3 TTL-gate the detail screen's two refreshes
+### 1.3 TTL-gate the detail screen's two refreshes — **DONE**
+
+Shipped as a `force: Boolean = false` parameter on both `SyncSourceChapters.invoke` and
+`SyncSourceMangaDetails.invoke`, with the guard as the first thing after the manga row is resolved and
+ahead of every side effect — so a suppressed chapter sync writes no chapters, records no
+`chapter_updates` and queues no auto-downloads. TTLs are `CHAPTERS_TTL = 30.minutes` and
+`DETAILS_TTL = 24.hours`, private to each use case. The stamp is written **last and only on success**,
+so a failed refresh retries on the next open instead of being suppressed for the whole window; a
+`null` stamp reads as "ask now", which is what makes the upgrade a no-op behaviourally.
+
+`UpdateLibrary.refresh` passes `force = true` — it schedules series itself (and `Trigger.Manual` means
+*all* of it), so it must not be gated twice. `MangaViewModel` takes the default.
+
+Covered by the new staleness matrix in `SyncSourceChaptersTest`, a new `SyncSourceMangaDetailsTest`
+(which also pins the previously untested blank-field and cover-`lastModified` rules), and a
+`UpdateLibraryTest` case proving a library run still refreshes a series the detail screen synced
+seconds ago.
+
+**Accepted cost:** a stamp is a write to `manga`, so it invalidates `observeManga`/`observeLibrary` and
+the 3.3 dedupe cannot absorb it — the row really did change. That is one extra emission per TTL per
+series, against the fetches removed, and a sync that finds chapters invalidates those queries anyway.
 
 **Problem:** `MangaViewModel.init` (`features/manga/.../viewmodel/MangaViewModel.kt:156-157`)
 calls `refreshChapters()` and `refreshDetails()` unconditionally. The VM is scoped to the
@@ -122,7 +163,8 @@ it cleanly, which it does naturally if the guard is the first statement.
 
 ### 1.4 Pull-to-refresh on the detail screen
 
-**Problem:** once 1.3 lands, a TTL-suppressed refresh leaves the user with no way to force one.
+**Problem:** now that 1.3 has landed, a TTL-suppressed refresh leaves the user with no way to force
+one — this is the next item, and the `force = true` path it needs already exists.
 There is currently **no pull-to-refresh anywhere in the app** (grep for `pullToRefresh` — zero
 hits), and `MangaViewModel`'s own KDoc at line 165 flags the gap.
 
@@ -493,11 +535,16 @@ Per item, before moving to the next:
 
 ```bash
 ./gradlew :androidApp:assembleDebug                 # Android stays green
-./gradlew :core:domain:testAndroidHostTest \
-          :core:data:testAndroidHostTest \
-          :features:manga:testAndroidHostTest       # unit tests
-./gradlew :core:domain:iosSimulatorArm64Test        # iOS target stays green
+./gradlew :core:domain:iosSimulatorArm64Test \
+          :core:data:iosSimulatorArm64Test          # unit tests
 ```
+
+Note the task names: neither `:core:domain` nor `:core:data` declares `withHostTest {}`, so their
+`commonTest` runs on the iOS simulator target only and there is no `testAndroidHostTest` task for
+either. The modules that do have one are `:core:source`, `:core:navigation`, `:core:presentation` and
+`:shared`; no `:features:*` module has a test source set at all. Kotlin/Native also rejects a backtick
+test name containing a comma, and a `private` top-level fake collides with an identically-named one in
+another file of the same package.
 
 CLAUDE.md warns: never pipe gradle through `tail` or use `-q` when checking results, and check the
 embedded `Shared.framework` mtime before believing an iOS-only bug.

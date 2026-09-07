@@ -34,6 +34,12 @@ import kotlin.uuid.Uuid
  * this series' chapter list, newline-joined. Denormalized onto the row rather than given a join table
  * because it is only ever read and written whole, with one manga's worth of it — a table would buy
  * nothing but a second query. `NULL` and `""` both read as "no filter"; see [encodeScanlators].
+ *
+ * The four sync-bookkeeping columns (v11) are app-owned, not source-owned: when each sync last
+ * completed, and when the next library run should look again. They are nullable with no backfill —
+ * `NULL` reads as "never polled", which every gate treats as "poll now", so an upgraded install
+ * behaves exactly as it did before. They are only ever written by targeted `UPDATE`s (see
+ * [MangaDao.markChaptersFetched]); a whole-row upsert built from a stale snapshot would revert them.
  */
 @Entity(
     tableName = "manga",
@@ -61,6 +67,10 @@ data class MangaEntity(
     @ColumnInfo(name = "reading_mode") val readingMode: ReadingMode,
     @ColumnInfo(name = "publish_status") val publishStatus: PublishStatus,
     @ColumnInfo(name = "filtered_scanlators") val filteredScanlators: String?,
+    @ColumnInfo(name = "chapters_fetched_at") val chaptersFetchedAt: Instant? = null,
+    @ColumnInfo(name = "details_fetched_at") val detailsFetchedAt: Instant? = null,
+    @ColumnInfo(name = "next_update_at") val nextUpdateAt: Instant? = null,
+    @ColumnInfo(name = "fetch_interval") val fetchInterval: Int? = null,
 )
 
 /**
@@ -116,6 +126,10 @@ fun MangaEntity.toDomain(
         publishStatus = publishStatus,
         readingStatus = readingStatus,
         filteredScanlators = decodeScanlators(filteredScanlators),
+        chaptersFetchedAt = chaptersFetchedAt,
+        detailsFetchedAt = detailsFetchedAt,
+        nextUpdateAt = nextUpdateAt,
+        fetchInterval = fetchInterval,
     )
 
 fun Manga.toEntity(): MangaEntity =
@@ -133,6 +147,10 @@ fun Manga.toEntity(): MangaEntity =
         readingMode = readingMode,
         publishStatus = publishStatus,
         filteredScanlators = encodeScanlators(filteredScanlators),
+        chaptersFetchedAt = chaptersFetchedAt,
+        detailsFetchedAt = detailsFetchedAt,
+        nextUpdateAt = nextUpdateAt,
+        fetchInterval = fetchInterval,
     )
 
 /**

@@ -183,6 +183,22 @@ private class FakeMangaRepository(private val manga: Manga) : MangaRepository {
     override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
     override suspend fun upsertManga(manga: Manga) = error("unused")
+
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = error("unused")
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
+
+    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) = error("unused")
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
+
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
     override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) = error("unused")

@@ -2,7 +2,10 @@ package app.tanuki.core.data.repository.manga
 
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
@@ -150,6 +153,59 @@ class MangaRepositoryImpTest {
             assertEquals(1, dao.librarySubscriptions)
         }
 
+    @Test
+    fun `a source-detail write reaches the dao as columns with the headers encoded`() =
+        runTest {
+            val dispatcher = UnconfinedTestDispatcher(testScheduler)
+            val dao = RecordingMangaDao()
+            val id = Uuid.random()
+
+            repository(dao, dispatcher).setSourceDetails(
+                mangaId = id,
+                title = Text("Berserk"),
+                author = Text("Kentaro Miura"),
+                description = null,
+                publishStatus = PublishStatus.ONGOING,
+                cover =
+                    MangaCover(
+                        mangaId = id,
+                        url = Url("https://cdn.example/berserk.jpg"),
+                        lastModified = Instant.fromEpochMilliseconds(7_000),
+                        headers = mapOf("Referer" to "https://example.com/")
+                    )
+            )
+            advanceUntilIdle()
+
+            // The storage encoding stays in this layer: the domain hands over a Map and never sees the
+            // newline-joined column the codec produces.
+            assertEquals(
+                listOf(
+                    id,
+                    "Berserk",
+                    "Kentaro Miura",
+                    null,
+                    PublishStatus.ONGOING,
+                    "https://cdn.example/berserk.jpg",
+                    "Referer: https://example.com/",
+                    Instant.fromEpochMilliseconds(7_000)
+                ),
+                dao.sourceDetails
+            )
+        }
+
+    @Test
+    fun `a cover-header write reaches the dao encoded`() =
+        runTest {
+            val dispatcher = UnconfinedTestDispatcher(testScheduler)
+            val dao = RecordingMangaDao()
+            val id = Uuid.random()
+
+            repository(dao, dispatcher).setCoverHeaders(id, mapOf("Referer" to "https://example.com/"))
+            advanceUntilIdle()
+
+            assertEquals(id to "Referer: https://example.com/", dao.coverHeaders)
+        }
+
     private fun repository(
         dao: MangaDao,
         dispatcher: CoroutineDispatcher
@@ -225,6 +281,51 @@ private class RecordingMangaDao : MangaDao {
         mangaId: Uuid,
         encoded: String?
     ) = error("unused")
+
+    /** Records the arguments of the targeted source-detail write, which one test asserts on. */
+    var sourceDetails: List<Any?>? = null
+        private set
+
+    var coverHeaders: Pair<Uuid, String?>? = null
+        private set
+
+    val chaptersFetched = mutableListOf<Pair<Uuid, Instant>>()
+    val detailsFetched = mutableListOf<Pair<Uuid, Instant>>()
+
+    override suspend fun updateSourceDetails(
+        mangaId: Uuid,
+        title: String,
+        author: String?,
+        description: String?,
+        publishStatus: PublishStatus,
+        coverUrl: String?,
+        coverHeaders: String?,
+        coverLastModified: Instant
+    ) {
+        sourceDetails =
+            listOf(mangaId, title, author, description, publishStatus, coverUrl, coverHeaders, coverLastModified)
+    }
+
+    override suspend fun updateCoverHeaders(
+        mangaId: Uuid,
+        encoded: String?
+    ) {
+        coverHeaders = mangaId to encoded
+    }
+
+    override suspend fun markChaptersFetched(
+        mangaId: Uuid,
+        at: Instant
+    ) {
+        chaptersFetched += mangaId to at
+    }
+
+    override suspend fun markDetailsFetched(
+        mangaId: Uuid,
+        at: Instant
+    ) {
+        detailsFetched += mangaId to at
+    }
 
     override suspend fun updateReadingMode(
         mangaId: Uuid,

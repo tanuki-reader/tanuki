@@ -891,6 +891,21 @@ internal class FakeMangaRepository(
 
     override suspend fun upsertManga(manga: Manga) = error("unused")
 
+    override suspend fun setSourceDetails(
+        mangaId: Uuid,
+        title: Text,
+        author: Text?,
+        description: Text?,
+        publishStatus: PublishStatus,
+        cover: MangaCover
+    ) = error("unused")
+
+    override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) = error("unused")
+
+    override suspend fun markChaptersFetched(mangaId: Uuid, at: Instant) = error("unused")
+
+    override suspend fun markDetailsFetched(mangaId: Uuid, at: Instant) = error("unused")
+
     override suspend fun setFilteredScanlators(
         mangaId: Uuid,
         scanlators: Set<String>,

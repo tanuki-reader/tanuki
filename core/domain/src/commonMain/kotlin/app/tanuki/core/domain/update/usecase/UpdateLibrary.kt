@@ -179,7 +179,10 @@ sealed interface UpdateLibrary {
          */
         private suspend fun refresh(manga: Manga): Int? =
             try {
-                syncSourceChapters(manga.id).size
+                // `force`: this run does its own scheduling — the interval check in [isDue], and a manual
+                // trigger that deliberately bypasses it — so the sync's own staleness gate must not
+                // second-guess it. A user asking to update the library means all of it.
+                syncSourceChapters(manga.id, force = true).size
             } catch (cancellation: CancellationException) {
                 // The run itself is being torn down (the app closed, the OS reclaimed the task). Not a
                 // failure of this series, and swallowing it would keep the loop alive past its scope.

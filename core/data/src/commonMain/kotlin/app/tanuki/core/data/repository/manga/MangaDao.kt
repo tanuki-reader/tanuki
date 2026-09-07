@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
+import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import kotlinx.coroutines.flow.Flow
@@ -207,6 +208,70 @@ interface MangaDao {
     suspend fun updateReadingMode(
         mangaId: Uuid,
         mode: ReadingMode,
+    )
+
+    /**
+     * Rewrites exactly the columns a details sync owns, leaving the rest of the row alone.
+     *
+     * A targeted write rather than a whole-row upsert of the domain object the sync started from: that
+     * snapshot is read before the network call and written back after it, so anything else that touched
+     * the row in between — the user picking a reading mode, a concurrent chapter sync stamping
+     * [markChaptersFetched] — would be silently reverted. The detail screen fires the two syncs at the
+     * same time, so that window is the common case, not an edge one.
+     */
+    @Query(
+        """
+        UPDATE manga
+        SET title = :title,
+            author = :author,
+            description = :description,
+            publish_status = :publishStatus,
+            cover_url = :coverUrl,
+            cover_headers = :coverHeaders,
+            cover_last_modified = :coverLastModified
+        WHERE id = :mangaId
+        """,
+    )
+    suspend fun updateSourceDetails(
+        mangaId: Uuid,
+        title: String,
+        author: String?,
+        description: String?,
+        publishStatus: PublishStatus,
+        coverUrl: String?,
+        coverHeaders: String?,
+        coverLastModified: Instant,
+    )
+
+    /**
+     * Writes only the cover's request headers, for the browse-time refresh that adopts headers a source
+     * gained after a row was cached. Targeted for the same reason as [updateSourceDetails]; deliberately
+     * leaves `cover_last_modified` alone, since the art has not changed, only how it must be requested.
+     */
+    @Query("UPDATE manga SET cover_headers = :encoded WHERE id = :mangaId")
+    suspend fun updateCoverHeaders(
+        mangaId: Uuid,
+        encoded: String?,
+    )
+
+    /**
+     * Records that a chapter sync completed for a manga, which is what the staleness gate in
+     * `SyncSourceChapters` reads to decide whether re-opening a series needs to ask its source again.
+     *
+     * Targeted, like every other write in this block: the stamp routinely lands while a details sync is
+     * in flight, and a whole-row upsert from that sync's snapshot would erase it.
+     */
+    @Query("UPDATE manga SET chapters_fetched_at = :at WHERE id = :mangaId")
+    suspend fun markChaptersFetched(
+        mangaId: Uuid,
+        at: Instant,
+    )
+
+    /** The [markChaptersFetched] counterpart for a details sync. */
+    @Query("UPDATE manga SET details_fetched_at = :at WHERE id = :mangaId")
+    suspend fun markDetailsFetched(
+        mangaId: Uuid,
+        at: Instant,
     )
 
     /** Writes only the reading-status column of an existing `library` row; a no-op if there is none. */

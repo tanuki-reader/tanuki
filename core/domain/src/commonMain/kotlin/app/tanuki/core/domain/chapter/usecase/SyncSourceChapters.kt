@@ -17,6 +17,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.first
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -58,6 +59,14 @@ import kotlin.uuid.Uuid
  * source like MangaDex, where several scanlation groups publish the same number as genuinely distinct
  * chapters.
  *
+ * **Gated by [Manga.chaptersFetchedAt].** The detail screen's view model asks for a refresh on every
+ * open and is scoped to the navigation entry, so browsing back and forth through ten series used to be
+ * ten chapter-list requests — each one serialized behind the source's mutex, stalling any browse or
+ * reader page fetch queued behind it. Within [CHAPTERS_TTL] of the last successful sync this returns
+ * before touching the source, which also means no `chapter_updates` rows and no auto-download pass.
+ * `force` bypasses the gate for the library update run, which schedules series itself and must not be
+ * gated twice.
+ *
  * Throws whatever the source layer throws (no network, HTTP error, a guest-side `SourceAbiException`);
  * the caller decides how to surface a failed refresh.
  */
@@ -68,8 +77,13 @@ sealed interface SyncSourceChapters {
      * @return The chapters this sync added, empty when it added none (including every no-op case).
      *   Note this is what was *inserted*, not what was recorded as an update — a baseline sync adds
      *   chapters without any of them being news.
+     * @param force Skip the [Manga.chaptersFetchedAt] staleness check and always ask the source. For
+     *   callers that already decided this series is due; a user-facing open should leave it `false`.
      */
-    suspend operator fun invoke(mangaId: Uuid): List<Chapter>
+    suspend operator fun invoke(
+        mangaId: Uuid,
+        force: Boolean = false
+    ): List<Chapter>
 
     @Inject
     @ContributesBinding(AppScope::class)
@@ -82,8 +96,16 @@ sealed interface SyncSourceChapters {
         private val autoDownloadNewChapters: AutoDownloadNewChapters,
         private val deleteChapterDownloads: DeleteChapterDownloads
     ) : SyncSourceChapters {
-        override suspend fun invoke(mangaId: Uuid): List<Chapter> {
+        override suspend fun invoke(
+            mangaId: Uuid,
+            force: Boolean
+        ): List<Chapter> {
             val manga = mangaRepository.observeManga(mangaId).first() ?: return emptyList()
+            val now = Clock.System.now()
+            // Ahead of the fetch, and so ahead of every side effect below it — a suppressed sync writes
+            // no chapters, records no updates and queues no downloads. A never-synced row has no stamp,
+            // which reads as "ask now", so an upgraded install behaves as it did before.
+            if (!force && manga.chaptersFetchedAt?.let { now - it < CHAPTERS_TTL } == true) return emptyList()
             // Both are needed to address the series in its source: the source's native id ("mangadex")
             // selects the bundle, the manga key identifies the series inside it.
             val sourceKey = manga.sourceMangaKey?.value ?: return emptyList()
@@ -101,7 +123,6 @@ sealed interface SyncSourceChapters {
             // decided against the library as it was, not as the write leaves it.
             val localIds = local.mapTo(mutableSetOf(), Chapter::id)
 
-            val now = Clock.System.now()
             val merged = listings.map { listing -> listing.merge(localByKey[listing.chapterKey], manga, now) }
             chapterRepository.upsertChapters(merged)
 
@@ -113,7 +134,25 @@ sealed interface SyncSourceChapters {
             // page — mean the same thing by "new chapter arrived", so the auto-download rule is applied
             // here rather than in each of them. It no-ops unless the user has asked for it.
             autoDownloadNewChapters(manga, added)
+
+            // Last, and only on the happy path: a throw from the source layer leaves the stamp alone, so
+            // a failed refresh is retried on the next open rather than suppressed for the whole TTL.
+            mangaRepository.markChaptersFetched(manga.id, now)
             return added
+        }
+
+        private companion object {
+            /**
+             * How long a chapter sync's result is considered fresh.
+             *
+             * Short, because this is the field that actually moves: a series the user is following can
+             * publish at any hour, and a reader who opens it expecting today's chapter must not be told
+             * yesterday's list. Half an hour collapses the burst of opens that a browsing session
+             * produces — the case this gate exists for — while leaving a deliberate return to a series
+             * later in the day free to fetch. The library update run is what covers the long tail; it
+             * passes `force` and is scheduled on its own interval.
+             */
+            val CHAPTERS_TTL = 30.minutes
         }
 
         /**
