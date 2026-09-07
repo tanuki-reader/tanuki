@@ -19,6 +19,12 @@ internal class FakeConnectionObserver(
 
     override val status: ConnectionStatus get() = state.value
 
+    private val meteredState = MutableStateFlow(false)
+
+    override val metered: Flow<Boolean> = meteredState.asStateFlow()
+
+    override val isMetered: Boolean get() = meteredState.value
+
     /** Moves the device onto (or off) a network mid-test. */
     fun set(status: ConnectionStatus) {
         state.value = status

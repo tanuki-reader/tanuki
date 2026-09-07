@@ -7,6 +7,12 @@ import app.tanuki.core.domain.download.model.DownloadError
 import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.source.FakeConnectionObserver
+import app.tanuki.core.source.TestLogger
+import app.tanuki.core.source.net.cloudflare.CfClearance
+import app.tanuki.core.source.net.cloudflare.CloudflareChallenge
+import app.tanuki.core.source.net.cloudflare.CloudflareChallengeSolver
+import app.tanuki.core.source.net.cloudflare.CloudflareCookieStore
+import app.tanuki.core.source.net.cookie.SourceCookieJar
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -113,6 +119,23 @@ class KtorPageFetcherTest {
         }
 
     @Test
+    fun `leaves retrying a page to the download queue rather than the client`() =
+        runTest {
+            var attempts = 0
+            val fetcher =
+                fetcherReturning {
+                    attempts++
+                    respondError(HttpStatusCode.ServiceUnavailable)
+                }
+
+            assertFailsWith<PageFetchException> { fetcher.fetch(page()) }
+
+            // The client retries a 503 twice for everyone else. DownloadManager already gives a page
+            // three attempts with its own backoff, and stacking the two would silently make it nine.
+            assertEquals(1, attempts)
+        }
+
+    @Test
     fun `a delisted page is not retried into the ground`() =
         runTest {
             val fetcher = fetcherReturning { respondError(HttpStatusCode.NotFound) }
@@ -197,13 +220,24 @@ class KtorPageFetcherTest {
     private fun page(url: String = "https://cdn.example/chapter/0.jpg") =
         Page(index = 0u, imageUrl = Url(url), url = null)
 
+    /**
+     * Built on the **real** client configuration ([installSourcePlugins]), not a bare one: the fetcher opts
+     * out of the client's retry policy per request, and that opt-out is only meaningful — or testable —
+     * against a client that actually has the policy installed.
+     */
     private fun fetcherReturning(
         connection: ConnectionObserver = FakeConnectionObserver(),
         handler: suspend MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
     ): KtorPageFetcher =
         KtorPageFetcher(
             HttpClient(MockEngine) {
-                expectSuccess = false
+                installSourcePlugins(
+                    solver = UnsolvableSolver,
+                    cookieStore = CloudflareCookieStore(),
+                    cookieJar = SourceCookieJar(),
+                    userAgent = { "Configured/9.9" },
+                    logger = TestLogger,
+                )
                 engine { addHandler(handler) }
             },
             connection,
@@ -231,4 +265,9 @@ class KtorPageFetcherTest {
                     append("server-timing", "chlray;desc=\"abc123\"")
                 },
         )
+}
+
+/** A solver that never solves — these tests are about classification, not about the bypass. */
+private object UnsolvableSolver : CloudflareChallengeSolver {
+    override suspend fun solve(challenge: CloudflareChallenge): CfClearance? = null
 }

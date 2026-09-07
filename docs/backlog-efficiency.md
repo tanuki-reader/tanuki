@@ -323,7 +323,23 @@ most important thing in the whole reader and it is correct.
 
 ## Phase 5 — Network hygiene
 
-### 5.1 Install `HttpTimeout` and `HttpRequestRetry` on the shared client
+### 5.1 Install `HttpTimeout` and `HttpRequestRetry` on the shared client — **DONE**
+
+Shipped in `installSourcePlugins`, which now installs `HttpTimeout` outermost and `HttpRequestRetry` just
+inside it, above the Cloudflare and cookie plugins — retry copies the request builder per attempt, so
+sitting outside is what lets each attempt re-derive the clearance and jar cookies instead of replaying a
+header built for the attempt that failed. Retries are two, exponential (1 s → 8 s, honouring `Retry-After`),
+and restricted to `GET`/`HEAD` on `408`/`429`/`5xx` that are **not** `isCloudflareChallenge()`.
+
+**Deviation from what this item asked for:** there is deliberately **no client-wide `requestTimeoutMillis`**.
+Ktor implements it by cancelling the request's *execution context*, which spans the whole `Send` chain —
+challenge solving included — and this app's solver is `InteractiveCloudflareSolver`, bounded only by how
+long the user takes to answer a Turnstile widget. A client-wide ceiling would cancel a browse or detail
+call out from under them. The client sets `connectTimeout` (15 s) and `socketTimeout` (30 s) instead; the
+socket timeout is what actually unsticks the stalled-body case the item was about. The hard per-call
+ceiling lives where it is safe: `KtorPageFetcher` sets `requestTimeoutMillis = 120 s` per request, the one
+path that is never interactive. That same call site sets `retry { maxRetries = 0 }`, because
+`DownloadManager` already owns page retry and stacking the two would have silently made it nine attempts.
 
 **Problem:** `installSourcePlugins` (`core/source/.../net/HttpClient.kt`) installs only the
 user-agent, Cloudflare and cookie plugins. **No `HttpTimeout` anywhere.** Engine defaults apply

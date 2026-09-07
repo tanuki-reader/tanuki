@@ -12,6 +12,8 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.retry
+import io.ktor.client.plugins.timeout
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.HttpResponse
@@ -60,6 +62,19 @@ class KtorPageFetcher(
             try {
                 client.get(url) {
                     page.headers.forEach { (name, value) -> header(name, value) }
+                    // A hard ceiling on the whole call, which the client deliberately does not set
+                    // globally (an interactive Cloudflare session is bounded only by the user, see
+                    // `installSourceTimeouts`). It is safe *here* because this is the one path that is
+                    // never interactive: a download runs in the background, where an unsolvable
+                    // challenge already leaves as NeedsVerification rather than waiting for anyone. The
+                    // socket timeout catches a stalled body; this catches one that trickles forever.
+                    timeout { requestTimeoutMillis = PAGE_REQUEST_TIMEOUT_MS }
+                    // Client-level retries are turned off for downloads only. DownloadManager already
+                    // retries a page three times with its own backoff and reasons about that budget;
+                    // letting the client retry underneath would silently multiply it and stretch each
+                    // of the manager's attempts by the client's backoff. The reader's page loads go
+                    // over the same client and do keep client retries — nothing is retrying for them.
+                    retry { maxRetries = 0 }
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -131,6 +146,13 @@ class KtorPageFetcher(
                 .substringAfterLast('.', missingDelimiterValue = "")
                 .lowercase()
                 .takeIf { it.isNotEmpty() && it.length <= MAX_EXTENSION_LENGTH && it.all(Char::isLetterOrDigit) }
+
+        /**
+         * The longest a single page fetch may take, end to end. Long enough for a big page on a poor
+         * connection, short enough that a host trickling bytes frees the queue's one slot instead of
+         * holding it for the rest of the session.
+         */
+        const val PAGE_REQUEST_TIMEOUT_MS = 120_000L
 
         /** What a page with no usable extension is stored as; the store applies the same fallback. */
         const val FALLBACK_EXTENSION = "img"
