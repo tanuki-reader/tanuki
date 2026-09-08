@@ -55,7 +55,7 @@ import kotlinx.coroutines.flow.flowOn
  *
  * @see NewChapter
  */
-sealed interface ObserveNewChapters {
+interface ObserveNewChapters {
     /**
      * @return A [Flow] of the pending updates, most-recently-discovered first. Empty until a sync finds
      *   a chapter the user doesn't already have.

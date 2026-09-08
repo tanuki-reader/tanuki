@@ -11,12 +11,14 @@ import app.tanuki.core.domain.source.model.CatalogSource
 import app.tanuki.core.domain.source.usecase.InstallSource
 import app.tanuki.core.domain.source.usecase.ObserveSourceCatalog
 import app.tanuki.core.domain.source.usecase.UninstallSource
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -56,12 +58,12 @@ class SourcesViewModel(
     private val deleteSourceDownloads: DeleteSourceDownloads,
     dispatcher: DispatcherProvider,
     logger: Logger
-) : TanukiViewModel(dispatcher, logger) {
+) : StateViewModel<SourcesState>(dispatcher, logger, SourcesState()) {
     private val busyIds = MutableStateFlow<Set<String>>(emptySet())
     private val failedIds = MutableStateFlow<Set<String>>(emptySet())
     private val pendingUsage = MutableStateFlow<SourceDownloadUsage?>(null)
 
-    val uiState: StateFlow<SourcesState> =
+    override val state: Flow<SourcesState> =
         combine(
             observeSourceCatalog(),
             busyIds,
@@ -77,7 +79,7 @@ class SourcesViewModel(
                 failedIds = failed,
                 pendingUsage = usage
             )
-        }.asState(SourcesState())
+        }
 
     /** Install (or re-install) a source. Ignored while that source already has an action in flight. */
     fun onInstall(sourceId: String) = act(sourceId) { installSource(sourceId) }

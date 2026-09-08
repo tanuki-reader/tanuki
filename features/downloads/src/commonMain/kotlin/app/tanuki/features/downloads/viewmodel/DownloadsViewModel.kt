@@ -12,12 +12,14 @@ import app.tanuki.core.domain.download.usecase.ObserveDownloadQueue
 import app.tanuki.core.domain.download.usecase.ObserveDownloadHold
 import app.tanuki.core.domain.download.usecase.SetDownloadsPaused
 import app.tanuki.core.navigation.MangaDetail
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -50,10 +52,10 @@ class DownloadsViewModel(
     downloadScheduler: DownloadScheduler,
     dispatcher: DispatcherProvider,
     logger: Logger,
-) : TanukiViewModel(dispatcher, logger) {
+) : StateViewModel<DownloadsState>(dispatcher, logger, DownloadsState()) {
     private val busy = MutableStateFlow(false)
 
-    val uiState: StateFlow<DownloadsState> =
+    override val state: Flow<DownloadsState> =
         combine(
             observeDownloadQueue(),
             observeDownloadHold(),
@@ -68,7 +70,7 @@ class DownloadsViewModel(
                 // by which binding the graph has, and that cannot change while the app is running.
                 runsInBackground = downloadScheduler.runsInBackground,
             )
-        }.asState(DownloadsState())
+        }
 
     /** Pause or resume the whole queue. Resuming starts the engine again (see [SetDownloadsPaused]). */
     fun onTogglePaused() {

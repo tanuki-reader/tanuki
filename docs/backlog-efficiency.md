@@ -367,7 +367,75 @@ needs the whole table — that one argues for retention rather than `LIMIT`.
 
 ## Phase 3 — Memory: stop holding the whole library
 
-### 3.1 Route screen state through `TanukiViewModel.asState`
+### 3.1 Route screen state through `TanukiViewModel.asState` — **DONE**
+
+Shipped as a second tier rather than a per-ViewModel edit: `StateViewModel<S>` (`:core:presentation`)
+extends `TanukiViewModel` and owns `val uiState: StateFlow<S> by lazy { state.asState(initialState) }`
+over an abstract `protected val state: Flow<S>`. Ten ViewModels now extend it — the four that already
+called `asState` are re-parented unchanged, and `LibraryViewModel`, `HomeViewModel`, `ActivityViewModel`
+and `MangaViewModel` moved onto it. The three single-value settings ViewModels (`theme`, `categories`,
+`crashReportingEnabled`) have no screen state and stay on the base.
+
+**Why a base class rather than ten local edits.** The two saved lines are not the point: `uiState` on
+`StateViewModel` has no setter and no backing field a subclass can see, so **`uiState.value = …` stops
+compiling**. The pattern this item exists to delete becomes unrepresentable rather than discouraged, and
+a ViewModel still declaring its own `MutableStateFlow` is now *saying* something — that its state
+genuinely isn't derived. `by lazy` is what makes it work at all: `state` is abstract, so it is not
+initialized while the base constructor runs and cannot be read from there. Deferring to first access is
+also when the pipeline *should* be built.
+
+`TanukiViewModel`'s KDoc predicted this shape ("a second tier — a `StateViewModel<S>` extending this")
+and has been rewritten; its argument against hoisting was about a type parameter on *itself*, which
+would still be wrong.
+
+**The one real refactor was `LibraryViewModel`**, which had three faults that turned out to be one:
+its combine lambda read `uiState.value` to decide which state to emit (a pipeline that is a function of
+its own output), `onFilterClick`/`toLibraryState` wrote over that output and `require`d its shape, and
+`latestCategories` was a plain `var` written inside the lambda on `dispatcher.default` and read from a
+main-thread tap — **item 3.5's data race**. All three are gone: the sheet is now a `sheetOpen` knob
+flow, and its chips come straight from the live `ObserveCategories` arm, so there is no snapshot left to
+race on and the sheet cannot open on a stale category set. `filter`/`sort`/`searchQuery` became real
+combine arms too (bundled into one `Knobs` value, since the typed overloads stop at five) — they were
+read as `.value` from inside the lambda, so a library-only emission could pair a fresh list with knobs
+sampled at some other instant. `onFilterClick` now clears the search *for real*, which is what its own
+KDoc always claimed; `toLibraryState` used to fake an empty query into the closed state and the next
+emission silently contradicted it. `LibraryState` is unchanged, so no screen was touched.
+
+`HomeViewModel` lost its `sources` mirror — a second always-on `launchIn` whose only job was to keep
+"not enumerated yet" distinguishable from "enumerated, and there are none". **Nothing replaced it:**
+`combine` emits only once every arm has, and `GetInstalledSources` is silent until the bundles are read
+(a directory listing, then a `SOURCE_META` decode per bundle — not a value that starts empty), so the
+combine *is* the gate. The `null` sentinel only ever existed because the mirror was a
+`MutableStateFlow<List<SourceMeta>?>(null)`, and a StateFlow always has a value: it emitted immediately,
+so something had to mark "not yet". Combining the flow directly removes the need, and the first shape
+shipped here carried the sentinel across out of habit before it was dropped. The restart the gate
+implies is proved harmless by test rather than by argument: the pipeline re-emits nothing until its arms
+answer again, and `stateIn` keeps sharing the last value, so a tab round trip resumes on the sources
+already on screen.
+
+`MangaViewModel` kept `init { refreshChapters(); refreshDetails() }`. Those must run because the screen
+was *opened*, not because something is collecting it — the one part of that ViewModel that is
+deliberately not subscription-scoped.
+
+**What made this verifiable: the first tests in `:features:*`.** Every feature module already declared a
+`commonTest` block and not one had a file in it, because the domain's use cases are `sealed interface`s
+and a sealed interface admits implementations only in its own module *and* package — nothing in
+`:features:library` could fake `ObserveLibrary`. The ten use cases the three tested ViewModels take are
+now plain interfaces (one keyword each; `@ContributesBinding Default` and every call site unaffected).
+16 new tests: `StateViewModelTest` in `:core:presentation` (the pipeline is not collected before the
+first subscriber, it stops one timeout after the last, a subscriber returning inside the window resumes
+the same collection, and the last value survives a stop), plus `LibraryViewModelTest` (7),
+`HomeViewModelTest` (5) and `ActivityViewModelTest` (4). Two of those count *subscriptions* rather than
+values, which is the only way to tell a genuine teardown from a resubscribe inside the sharing window —
+and is the assertion this whole item is about. `MangaViewModel` takes ~12 more use cases and ships
+migrated but untested. The shared fakes in `:core:presentation` moved to an `internal` `TestDoubles.kt`,
+since Kotlin/Native rejects two identically-named private top-level declarations in one package.
+
+**Still imperative, and deliberately left:** `ReaderViewModel` (three out-of-pipeline writes, ordered
+side effects that must run *after* the state is published, and a second warm pipeline) and
+`SourceBrowseViewModel` (eight imperative writes and no derived pipeline at all — a cursor-driven paging
+machine). Both are route-scoped, so neither is part of the always-on cost this item was about; each is a
+rewrite rather than a migration and deserves its own diff.
 
 **Problem:** `TanukiViewModel.asState` (`core/presentation/.../TanukiViewModel.kt:89-95`)
 correctly uses `SharingStarted.WhileSubscribed(5_000L)` — but **almost nothing uses it for main
@@ -389,11 +457,14 @@ fan-out — running for the life of the process, including while the user is dee
 **Fix:** convert each to `val uiState = pipeline.asState(Loading)`. This is a mechanical change
 per ViewModel and can be done one screen at a time.
 
+**Correction found while implementing:** this item claimed `MangaViewModel` "pushes imperative state
+updates". It does not — it had **zero** out-of-pipeline `uiState` writes, all of its imperative state
+already living in four side `MutableStateFlow`s. `DownloadsViewModel` had already been migrated too.
+
 **Constraint from CLAUDE.md:** `uiState` uses Kotlin's explicit backing field
-(`val uiState: StateFlow<S>` / `field = MutableStateFlow(...)`). Converting to `asState` means
-dropping the mutable backing field for screens whose state is purely derived. `MangaViewModel`
-and `ReaderViewModel` also push *imperative* state updates, so check each one — some may need to
-keep the `MutableStateFlow` and instead gain a `subscriptionCount`-based upstream gate.
+(`val uiState: StateFlow<S>` / `field = MutableStateFlow(...)`). *Superseded:* that constraint was
+relaxed deliberately — see the `StateViewModel` note above, and CLAUDE.md, which now records the second
+tier.
 
 ### 3.2 Narrow the library projection
 
@@ -459,13 +530,16 @@ same full join table, each re-grouped in Kotlin on every change. Share one flow.
 full sort on every emission. Minor at 200 titles, real at 2000+. Folds naturally into whichever
 migration comes next.
 
-### 3.5 Fix the `LibraryViewModel.latestCategories` data race
+### 3.5 Fix the `LibraryViewModel.latestCategories` data race — **DONE (with 3.1)**
 
-`LibraryViewModel.kt:72` is a `var` mutated from inside the `combine` block (running on
+Closed by the Library refactor in 3.1 rather than fixed on its own: the `var` is deleted, not
+synchronized. The sheet's chips are now derived from the live `ObserveCategories` combine arm, so there
+is no cached snapshot for a main-thread tap to read while `dispatcher.default` writes it — and as a
+bonus the sheet can no longer open on a category set that has since changed.
+
+**Problem:** `LibraryViewModel.kt:72` is a `var` mutated from inside the `combine` block (running on
 `dispatcher.default`) and read from `onFilterClick()` on the main thread. Not a leak, but an
 unsynchronized cross-thread read. Fold it into the state or make it a `StateFlow`.
-
----
 
 ## Phase 4 — Reader memory
 
@@ -669,7 +743,8 @@ Per item, before moving to the next:
 Note the task names: neither `:core:domain` nor `:core:data` declares `withHostTest {}`, so their
 `commonTest` runs on the iOS simulator target only and there is no `testAndroidHostTest` task for
 either. The modules that do have one are `:core:source`, `:core:navigation`, `:core:presentation` and
-`:shared`; no `:features:*` module has a test source set at all. Kotlin/Native also rejects a backtick
+`:shared`. `:features:library`, `:features:home` and `:features:activity` have `commonTest` source sets
+as of 3.1 — iOS-simulator only, same as `:core:domain` — and the other feature modules still have none. Kotlin/Native also rejects a backtick
 test name containing a comma, and a `private` top-level fake collides with an identically-named one in
 another file of the same package.
 

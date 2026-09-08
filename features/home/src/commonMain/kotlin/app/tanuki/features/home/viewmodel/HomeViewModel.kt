@@ -1,7 +1,6 @@
 package app.tanuki.features.home.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.history.model.HistoryEntry
@@ -13,7 +12,7 @@ import app.tanuki.core.domain.update.usecase.ObserveNewChapters
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.navigation.SourceBrowse
-import app.tanuki.core.presentation.TanukiViewModel
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.features.home.viewmodel.HomeState.Content
 import app.tanuki.features.home.viewmodel.HomeState.Loading
 import dev.zacsweers.metro.AppScope
@@ -23,12 +22,7 @@ import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlin.math.floor
 
 /**
@@ -58,18 +52,7 @@ class HomeViewModel(
     getInstalledSources: GetInstalledSources,
     dispatcher: DispatcherProvider,
     logger: Logger
-) : TanukiViewModel(dispatcher, logger) {
-    val uiState: StateFlow<HomeState>
-        field = MutableStateFlow<HomeState>(Loading)
-
-    /**
-     * Installed sources, tracking the runtime. `null` until the first enumeration finishes, which holds
-     * the screen on [Loading] — otherwise the Sources view would flash its "no sources" empty state while
-     * the bundles are still being read. Mirrored into a [MutableStateFlow] rather than combined directly
-     * so that "not enumerated yet" stays distinguishable from "enumerated, and there are none".
-     */
-    private val sources = MutableStateFlow<List<SourceMeta>?>(null)
-
+) : StateViewModel<HomeState>(dispatcher, logger, Loading) {
     /**
      * The one expanded language group, or `null` when none is — which is also how the list starts.
      *
@@ -80,32 +63,31 @@ class HomeViewModel(
      */
     private val expandedLang = MutableStateFlow<String?>(null)
 
-    init {
-        // No flowOn: SourceLoader dispatches its own engine work (and the bundle reads beneath it hop to
-        // `io` themselves), so adding one would only bounce a hop before it switched again.
-        getInstalledSources()
-            .onEach { sources.value = it }
-            .launchIn(viewModelScope)
-
+    /**
+     * No `flowOn` beyond the one `asState` applies: SourceLoader dispatches its own engine work (and the
+     * bundle reads beneath it hop to `io` themselves), so another hop would only bounce before switching.
+     *
+     * The [Loading] gate is [combine] itself, with nothing standing in for "not enumerated yet": a
+     * combine emits only once *every* arm has, and [GetInstalledSources] is silent until the bundles have
+     * actually been read — it is a directory listing followed by a `SOURCE_META` decode per bundle, not a
+     * value that starts empty. So the Sources view cannot flash its "no sources" empty state at a runtime
+     * that simply hasn't answered yet, and an enumeration that genuinely finds none still reaches
+     * [Content]. The same holds when the pipeline restarts after the screen has been away: it re-emits
+     * nothing until the arms answer again, and [uiState] keeps sharing the last value meanwhile.
+     */
+    override val state: Flow<HomeState> =
         combine(
             observeLibraryReadingHistory(CONTINUE_READING_LIMIT),
             observeNewChapters(),
-            sources,
+            getInstalledSources(),
             expandedLang
         ) { history, updates, installed, expanded ->
-            // Null `installed` = sources not enumerated yet; emit nothing so the screen stays on Loading.
-            installed?.let {
-                Content(
-                    continueReading = history.toContinueReading(),
-                    newChapters = updates.map(NewChapter::toItem),
-                    sourceGroups = it.toLanguageGroups(expanded)
-                )
-            }
-        }.filterNotNull()
-            .flowOn(dispatcher.default)
-            .onEach { uiState.value = it }
-            .launchIn(viewModelScope)
-    }
+            Content(
+                continueReading = history.toContinueReading(),
+                newChapters = updates.map(NewChapter::toItem),
+                sourceGroups = installed.toLanguageGroups(expanded)
+            )
+        }
 
     /** A language group header was tapped — open it, or close it if it was already the open one. */
     fun onToggleLanguage(lang: String) {

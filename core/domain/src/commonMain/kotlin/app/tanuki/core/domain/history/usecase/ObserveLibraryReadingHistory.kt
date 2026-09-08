@@ -23,7 +23,7 @@ import kotlinx.coroutines.flow.Flow
  *
  * @see HistoryEntry
  */
-sealed interface ObserveLibraryReadingHistory {
+interface ObserveLibraryReadingHistory {
     operator fun invoke(limit: Int): Flow<List<HistoryEntry>>
 
     @Inject

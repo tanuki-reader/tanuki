@@ -67,7 +67,7 @@ shared module with a clear responsibility, so don't over-modularize.
 > | `:core:domain` | models, repository interfaces, use cases, `DispatcherProvider`/`Logger` | no |
 > | `:core:data` | Room entities/DAOs + repository implementations | no |
 > | `:core:navigation` | `Destination`, `NavEvent`, `NavCommand`, `AppNavigator` | no |
-> | **`:core:presentation`** | **`TanukiViewModel`** — the base class every screen's ViewModel extends | no |
+> | **`:core:presentation`** | **`TanukiViewModel`** + **`StateViewModel<S>`** — the base classes every screen's ViewModel extends | no |
 > | `:core:source` | WASM source runtime + Cloudflare/session networking | no |
 > | `:features:<x>` | one per slice (`library`, `manga`, `reader`, `activity`, `home`, `source`, `settings`) — each holds that slice's Compose screens **and** its ViewModels | yes |
 > | `:assets:designSystem` | the Compose design system | yes |
@@ -121,16 +121,24 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
   - `tag` — defaults to the class's `simpleName`; used by the logging helpers.
   - `Flow<T>.asState(initial)` for a `StateFlow` derived straight from a domain flow, and
     `io { }` / `tryIo("what failed") { }` for suspend work that must hop to the IO dispatcher.
+- **A screen whose state is *derived* extends `StateViewModel<S>`** (`:core:presentation`), the second
+  tier on top of `TanukiViewModel`. Give it `initialState` through `super` and implement
+  `override val state: Flow<S>`; the base owns `uiState`, sharing it through `asState` so the pipeline
+  runs only while the screen is watching. **Don't add a `flowOn`** — `asState` already maps on
+  `dispatcher.default`. Everything the user sets on the screen (a sheet being open, a selected period, a
+  refresh in flight) is an **input** `MutableStateFlow` folded into the pipeline, never something written
+  over its output: `uiState` has no setter, so `uiState.value = …` will not compile.
 
-  `uiState` stays per-ViewModel, declared with Kotlin's explicit backing field
-  (`val uiState: StateFlow<S>` / `field = MutableStateFlow(Loading)`). Don't hoist it into a
-  `TanukiViewModel<S>`: that backing field is visible only inside the declaring class, so a generic base
-  would have to expose a separate `protected` mutable property and bring back the `_uiState`/`uiState`
-  pair — and it fits only the six ViewModels with a mutable screen state, not the settings ones that
-  derive theirs via `asState`. Screen-specific one-shot effects stay local too (`ReaderViewModel.commands`).
+  The two screens whose state genuinely isn't derived — the reader and source browse, driven by a paging
+  cursor and by fetches in flight — extend `TanukiViewModel` directly and declare their own state with
+  Kotlin's explicit backing field (`val uiState: StateFlow<S>` / `field = MutableStateFlow(Loading)`).
+  That declaration is a marker; reach for it only when a pipeline honestly can't express the screen.
+  Don't put a type parameter on `TanukiViewModel` itself — it serves both kinds, plus the settings
+  ViewModels that expose a single domain value under its own name rather than a screen state.
+  Screen-specific one-shot effects stay local too (`ReaderViewModel.commands`).
 - **Metro gotcha — a ViewModel's `@ContributesIntoMap` must name its bound type explicitly:**
   `@ContributesIntoMap(AppScope::class, binding = binding<ViewModel>())`. Metro otherwise infers the
-  bound type from the supertype, which is now `TanukiViewModel`, and the ViewModel lands in a
+  bound type from the supertype, which is now `StateViewModel`/`TanukiViewModel`, and the ViewModel lands in a
   multibinding nothing consumes — `metroViewModel<X>()` then fails to resolve **at runtime**, while the
   build only emits a `SuspiciousUnusedMultibinding` warning. Assisted ViewModels are unaffected (their
   `Factory` supertype is `ManualViewModelAssistedFactory`).
@@ -351,6 +359,9 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
 - Don't extend `ViewModel` directly, and don't re-declare a `navEvents` channel, a `stateIn` timeout, or
   a `withContext(dispatcher.io)` wrapper in a ViewModel — extend `TanukiViewModel` and use what it owns
   (see "Presentation pattern"), including the `binding<ViewModel>()` requirement on `@ContributesIntoMap`.
+- Don't end a ViewModel pipeline with `.onEach { uiState.value = it }.launchIn(viewModelScope)` — that
+  runs for the ViewModel's whole lifetime whether or not any UI is subscribed. Extend `StateViewModel<S>`
+  and let its `asState` gate the pipeline on `WhileSubscribed`.
 - Don't invent ad-hoc colors, type scales, spacing, or UI components — base all designs on the Tanuki
   Design System (remote claude.ai/design project, via the `claude_design` MCP). One Compose design system
   serves both platforms; the iOS Liquid Glass kit is reference only, so don't fork components per platform.

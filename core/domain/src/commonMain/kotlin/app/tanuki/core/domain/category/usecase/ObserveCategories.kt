@@ -7,7 +7,7 @@ import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
 
-sealed interface ObserveCategories {
+interface ObserveCategories {
     operator fun invoke(): Flow<List<Category>>
 
     @Inject

@@ -1,17 +1,14 @@
 package app.tanuki.core.presentation
 
-import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.core.navigation.SettingsAppearance
-import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.cancellation.CancellationException
@@ -136,38 +133,4 @@ private class TestViewModel(
         what: String,
         block: suspend () -> T
     ): Result<T> = tryIo(what) { block() }
-}
-
-private class TestDispatcherProvider(
-    private val dispatcher: CoroutineDispatcher = UnconfinedTestDispatcher()
-) : DispatcherProvider {
-    override val default: CoroutineDispatcher get() = dispatcher
-    override val io: CoroutineDispatcher get() = dispatcher
-    override val main: CoroutineDispatcher get() = dispatcher
-}
-
-private data class LogEntry(
-    val priority: LogPriority,
-    val tag: String?,
-    val message: String?,
-    val throwable: Throwable?
-)
-
-private class RecordingLogger : Logger {
-    val entries = mutableListOf<LogEntry>()
-
-    override fun log(
-        priority: LogPriority,
-        tag: String?,
-        message: String?,
-        throwable: Throwable?,
-        analyticsEvent: String?,
-        addToBreadcrumbs: Boolean
-    ) {
-        entries += LogEntry(priority, tag, message, throwable)
-    }
-
-    override fun addReceiver(receiver: Logger.LogReceiver) = Unit
-
-    override fun removeReceiver(receiver: Logger.LogReceiver) = Unit
 }

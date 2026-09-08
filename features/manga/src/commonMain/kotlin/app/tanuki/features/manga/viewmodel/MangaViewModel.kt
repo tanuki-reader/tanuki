@@ -29,6 +29,7 @@ import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.source.usecase.ObserveSources
 import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.Reader
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.manga.viewmodel.MangaState.Content
 import app.tanuki.features.manga.viewmodel.MangaState.Loading
@@ -43,12 +44,10 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.Double.Companion.MAX_VALUE
 import kotlin.Double.Companion.MIN_VALUE
@@ -97,10 +96,7 @@ class MangaViewModel(
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
     dispatcher: DispatcherProvider,
     logger: Logger
-) : TanukiViewModel(dispatcher, logger) {
-    val uiState: StateFlow<MangaState>
-        field = MutableStateFlow<MangaState>(Loading)
-
+) : StateViewModel<MangaState>(dispatcher, logger, Loading) {
     /** Chapter ordering: `true` = ascending by chapter number (1 → N), `false` = descending. */
     private val chapterSortAscending = MutableStateFlow(false)
 
@@ -121,7 +117,7 @@ class MangaViewModel(
      */
     private val refresh = MutableStateFlow(MangaState.Refresh.Idle)
 
-    init {
+    override val state: Flow<MangaState> =
         combine(
             observeManga(mangaId),
             observeChapters(mangaId),
@@ -160,10 +156,11 @@ class MangaViewModel(
             if (state is Content) state.copy(selection = state.selectionOf(selected)) else state
         }.combine(refresh) { state, refreshing ->
             if (state is Content) state.copy(refresh = refreshing) else state
-        }.flowOn(dispatcher.default)
-            .onEach { uiState.value = it }
-            .launchIn(viewModelScope)
+        }
 
+    init {
+        // Deliberately not part of [state]: these are the on-open syncs, and they must run because the
+        // screen was opened, not because something is collecting it.
         refreshChapters()
         refreshDetails()
     }

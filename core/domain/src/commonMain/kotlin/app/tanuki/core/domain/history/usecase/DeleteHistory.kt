@@ -13,7 +13,7 @@ import dev.zacsweers.metro.Inject
  *
  * @see HistoryEntry
  */
-sealed interface DeleteHistory {
+interface DeleteHistory {
     suspend operator fun invoke(entry: HistoryEntry)
 
     @Inject

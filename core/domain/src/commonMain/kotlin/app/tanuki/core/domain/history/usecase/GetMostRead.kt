@@ -32,7 +32,7 @@ import kotlin.uuid.Uuid
  *
  * @see MostReadManga
  */
-sealed interface GetMostRead {
+interface GetMostRead {
     /**
      * @param period The window to rank within.
      * @return A reactive leaderboard (all manga read in [period], most-read first), re-emitting

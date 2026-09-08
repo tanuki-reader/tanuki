@@ -15,6 +15,7 @@ import app.tanuki.core.domain.history.usecase.ObserveReadHistory
 import app.tanuki.core.domain.history.usecase.ObserveReadingStats
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.activity.viewmodel.ActivityState.Loaded
 import app.tanuki.features.activity.viewmodel.ActivityState.Loading
@@ -24,13 +25,11 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlin.uuid.Uuid
 
@@ -60,23 +59,22 @@ class ActivityViewModel(
     private val deleteHistory: DeleteHistory,
     dispatcher: DispatcherProvider,
     logger: Logger
-) : TanukiViewModel(dispatcher, logger) {
-    val uiState: StateFlow<ActivityState>
-        field = MutableStateFlow<ActivityState>(Loading)
-
+) : StateViewModel<ActivityState>(dispatcher, logger, Loading) {
     /** The window the reading curve charts. Drives [GetReadingActivity] below. */
     private val period = MutableStateFlow(TimePeriod.WEEK)
 
-    init {
-        // Bundle the period with everything it scopes (its curve + its leaderboard) so a Loaded state never
-        // shows one period's label over another period's data.
-        val periodScoped =
-            period.flatMapLatest { window ->
-                combine(getReadingActivity(window), getMostRead(window)) { activity, mostRead ->
-                    PeriodScoped(window, activity, mostRead)
-                }
+    /**
+     * Bundle the period with everything it scopes (its curve + its leaderboard) so a Loaded state never
+     * shows one period's label over another period's data.
+     */
+    private val periodScoped: Flow<PeriodScoped> =
+        period.flatMapLatest { window ->
+            combine(getReadingActivity(window), getMostRead(window)) { activity, mostRead ->
+                PeriodScoped(window, activity, mostRead)
             }
+        }
 
+    override val state: Flow<ActivityState> =
         combine(observeReadHistory(), observeReadingStats(), periodScoped) { history, stats, scoped ->
             Loaded(
                 period = scoped.period,
@@ -85,10 +83,7 @@ class ActivityViewModel(
                 mostRead = scoped.mostRead,
                 stats = stats
             )
-        }.flowOn(dispatcher.default)
-            .onEach { uiState.value = it }
-            .launchIn(viewModelScope)
-    }
+        }
 
     /** Switch the period; [GetReadingActivity] and [GetMostRead] re-derive their data for it. */
     fun onPeriodChange(period: TimePeriod) {

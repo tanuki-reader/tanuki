@@ -14,12 +14,14 @@ import app.tanuki.core.domain.download.usecase.SetDeleteAfterReading
 import app.tanuki.core.domain.download.usecase.SetDownloadOnWifiOnly
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -53,10 +55,10 @@ class DownloadSettingsViewModel(
     private val deleteAllDownloads: DeleteAllDownloads,
     dispatcher: DispatcherProvider,
     logger: Logger,
-) : TanukiViewModel(dispatcher, logger) {
+) : StateViewModel<DownloadSettingsState>(dispatcher, logger, DownloadSettingsState()) {
     private val busy = MutableStateFlow(false)
 
-    val uiState: StateFlow<DownloadSettingsState> =
+    override val state: Flow<DownloadSettingsState> =
         combine(
             observeDownloadSettings(),
             observeCategories(),
@@ -71,7 +73,7 @@ class DownloadSettingsViewModel(
                 usage = usage,
                 busy = busy,
             )
-        }.asState(DownloadSettingsState())
+        }
 
     /**
      * Pick the auto-download rule.

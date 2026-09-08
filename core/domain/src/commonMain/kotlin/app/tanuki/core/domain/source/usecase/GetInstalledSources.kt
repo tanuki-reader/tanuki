@@ -28,7 +28,7 @@ import kotlinx.coroutines.flow.catch
  *
  * @see GetSourceMeta for the single-source lookup.
  */
-sealed interface GetInstalledSources {
+interface GetInstalledSources {
     operator fun invoke(): Flow<List<SourceMeta>>
 
     @Inject

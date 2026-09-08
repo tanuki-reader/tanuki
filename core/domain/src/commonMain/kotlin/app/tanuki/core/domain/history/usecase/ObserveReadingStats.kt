@@ -36,7 +36,7 @@ import kotlin.uuid.Uuid
  *
  * @see ReadingStats
  */
-sealed interface ObserveReadingStats {
+interface ObserveReadingStats {
     operator fun invoke(): Flow<ReadingStats>
 
     @Inject

@@ -1,7 +1,6 @@
 package app.tanuki.features.library.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.model.TriState
@@ -13,22 +12,20 @@ import app.tanuki.core.domain.library.model.LibrarySort
 import app.tanuki.core.domain.library.usecase.ObserveLibrary
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.navigation.MangaDetail
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
 import app.tanuki.features.library.viewmodel.LibraryState.Loading
 import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet
-import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet.CategoryChip
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlin.uuid.Uuid
 
 /**
@@ -51,10 +48,7 @@ class LibraryViewModel(
     observeCategories: ObserveCategories,
     dispatcher: DispatcherProvider,
     logger: Logger
-) : TanukiViewModel(dispatcher, logger) {
-    val uiState: StateFlow<LibraryState>
-        field = MutableStateFlow<LibraryState>(Loading)
-
+) : StateViewModel<LibraryState>(dispatcher, logger, Loading) {
     /**
      * The live search query. Fed into [ObserveLibrary] below, which re-derives the list whenever the library
      * or the query changes. Being a [StateFlow], rapid keystrokes are conflated to the latest value — no
@@ -65,32 +59,44 @@ class LibraryViewModel(
     private val sort = MutableStateFlow(LibrarySort.Default)
 
     /**
-     * The most recent library categories (each carrying its member manga ids). Cached from the pipeline
-     * below so [onFilterClick] can seed the sheet immediately, rather than opening with an empty category
-     * list until the next emission.
+     * Whether the filter & sort sheet is open — the one part of this screen's state the database cannot
+     * report, so it is an input to the pipeline rather than something written over its output.
      */
-    private var latestCategories: List<CategoryChip> = emptyList()
+    private val sheetOpen = MutableStateFlow(false)
 
-    init {
+    /**
+     * Everything the user has set on this screen, bundled so it can ride as a single [combine] arm — the
+     * typed overloads stop at five, and the library and the categories already take two.
+     *
+     * Bundling is not only arity: these were previously read as `.value` from inside the mapping lambda,
+     * so an emission triggered by the library alone could pair a fresh list with knobs read at some other
+     * instant. As real sources they are sampled with the list they are shown against.
+     */
+    private val knobs = combine(searchQuery, filter, sort, sheetOpen, ::Knobs)
+
+    override val state: Flow<LibraryState> =
         combine(
             observeLibrary(searchQuery = searchQuery, sort = sort, filter = filter),
-            observeCategories()
-        ) { library, categories ->
-            val selectedIds = filter.value.categories.mapTo(mutableSetOf()) { it.id }
-            latestCategories = categories.map { it.toCategoryChip(selectedIds) }
-            when (uiState.value) {
-                is Loading, is DisplayLibrary -> {
-                    DisplayLibrary(library, filter.value, sort.value, searchQuery.value)
-                }
-
-                is ShowingBottomSheet -> {
-                    ShowingBottomSheet(library, filter.value, sort.value, latestCategories)
-                }
+            observeCategories(),
+            knobs
+        ) { library, categories, knobs ->
+            if (knobs.sheetOpen) {
+                val selectedIds = knobs.filter.categories.mapTo(mutableSetOf()) { it.id }
+                ShowingBottomSheet(
+                    items = library,
+                    filter = knobs.filter,
+                    sort = knobs.sort,
+                    categories = categories.map { it.toCategoryChip(selectedIds) }
+                )
+            } else {
+                DisplayLibrary(
+                    items = library,
+                    filter = knobs.filter,
+                    sort = knobs.sort,
+                    searchQuery = knobs.query
+                )
             }
-        }.flowOn(dispatcher.default)
-            .onEach { uiState.value = it }
-            .launchIn(viewModelScope)
-    }
+        }
 
     /** A library cover was tapped — request navigation to that manga's detail screen. */
     fun onMangaClick(mangaId: Uuid) {
@@ -102,35 +108,23 @@ class LibraryViewModel(
         searchQuery.value = query
     }
 
+    /** The sheet was dismissed — the grid comes back with the same list under it. */
     fun toLibraryState() {
-        val curr = uiState.value
-        if (curr is Loading || curr is DisplayLibrary) return
-        require(curr is ShowingBottomSheet)
-        uiState.value =
-            DisplayLibrary(
-                items = curr.items,
-                filter = curr.filter,
-                sort = curr.sort,
-                searchQuery = ""
-            )
+        sheetOpen.value = false
     }
 
     /**
      * The filter button was tapped — open the filter & sort sheet ([LibraryState.ShowingBottomSheet])
      * over the grid. Search is cleared so the sheet acts on the whole library; the sheet's controls feed
      * [onSortChange]/[onReadingStatusChange]/[onPublicationCompletedChange], which re-derive the list.
+     *
+     * The chips it opens with come straight from the live [ObserveCategories] arm, so the sheet can never
+     * show a category set that has since changed — and there is no snapshot held between emissions for a
+     * main-thread tap to race against.
      */
     fun onFilterClick() {
-        val curr = uiState.value
-        if (curr is Loading || curr is ShowingBottomSheet) return
-        require(curr is DisplayLibrary)
-        uiState.value =
-            ShowingBottomSheet(
-                items = curr.items,
-                filter = curr.filter,
-                sort = curr.sort,
-                categories = latestCategories
-            )
+        searchQuery.value = ""
+        sheetOpen.value = true
     }
 
     /**
@@ -190,4 +184,17 @@ class LibraryViewModel(
         filter.value = LibraryFilter.None
         sort.value = LibrarySort.Default
     }
+
+    /**
+     * The screen's own inputs, kept together so [state] samples them as one value.
+     *
+     * @property query The live search text.
+     * @property sheetOpen Whether the filter & sort sheet is over the grid.
+     */
+    private data class Knobs(
+        val query: String,
+        val filter: LibraryFilter,
+        val sort: LibrarySort,
+        val sheetOpen: Boolean
+    )
 }

@@ -33,7 +33,7 @@ import kotlin.time.Clock
  *
  * @see ReadingActivityPoint
  */
-sealed interface GetReadingActivity {
+interface GetReadingActivity {
     /**
      * @param period The window to chart.
      * @return A reactive, gap-filled series (oldest bucket first), re-emitting whenever the underlying

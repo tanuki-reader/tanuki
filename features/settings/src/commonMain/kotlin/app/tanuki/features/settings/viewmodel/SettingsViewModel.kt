@@ -8,12 +8,14 @@ import app.tanuki.core.domain.download.usecase.ObserveDownloadQueueCount
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
+import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 
@@ -37,8 +39,8 @@ class SettingsViewModel(
     observeDownloadQueueCount: ObserveDownloadQueueCount,
     dispatcher: DispatcherProvider,
     logger: Logger
-) : TanukiViewModel(dispatcher, logger) {
-    val uiState: StateFlow<SettingsState> =
+) : StateViewModel<SettingsState>(dispatcher, logger, SettingsState()) {
+    override val state: Flow<SettingsState> =
         combine(
             observeThemePreference(),
             observeCategories(),
@@ -53,5 +55,5 @@ class SettingsViewModel(
                 crashReportingEnabled = crashReporting,
                 downloadQueueCount = queued
             )
-        }.asState(SettingsState())
+        }
 }

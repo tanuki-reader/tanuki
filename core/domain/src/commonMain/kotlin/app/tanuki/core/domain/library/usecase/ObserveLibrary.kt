@@ -39,7 +39,7 @@ import kotlin.uuid.Uuid
  * @see LibrarySort
  * @see LibraryFilter
  */
-sealed interface ObserveLibrary {
+interface ObserveLibrary {
     /**
      * @param searchQuery A [Flow] of the live text query; re-emits re-match titles in memory. Blank
      *   (or all-whitespace) matches everything.

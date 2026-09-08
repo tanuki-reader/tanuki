@@ -29,7 +29,7 @@ import kotlin.time.Instant.Companion.DISTANT_PAST
  * @see HistoryEntry
  * @see ChapterHistory
  */
-sealed interface ObserveReadHistory {
+interface ObserveReadHistory {
     operator fun invoke(): Flow<List<HistoryEntry>>
 
     @Inject
