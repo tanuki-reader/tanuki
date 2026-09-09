@@ -981,10 +981,81 @@ transparent gzip and gets raw bytes back**.
 **Fix:** install Ktor's `ContentEncoding` plugin so encoding is explicit and uniform across both
 engines.
 
-### 5.6 Cap `WasmSourceLoader.modules` with an LRU
+### 5.6 Cap `WasmSourceLoader.modules` with an LRU — **DONE**
 
-`WasmSourceLoader.modules` (`:87`) holds instantiated WASM modules — the heaviest objects in the
-app's long-lived caches. It *is* evicted, but only via `evictModulesOutside(ids)` when the
+Shipped as a soft LRU cap of **three** modules on the fetch path, an `acquire`/`release` bracket around
+every `callModule`, and — the larger half — a `withTransientModule` that takes the metadata path out of
+the cache entirely. `modules` is now a `LinkedHashMap` whose iteration order *is* the eviction order
+(`acquire` re-inserts on every hit), and `trim()` closes from the old end until the map fits.
+
+**The item's premise understated where the modules come from.** `observeInstalledSources` asks
+`SOURCE_META` of **every installed bundle**, and it asked through `callModule` — so the cache didn't hold
+"every source the user browses", it held every source *installed*, from the first enumeration onward, for
+sources the user may never open. That path now instantiates, calls and closes, which is affordable
+precisely because the enumeration is rare: `observeInstalledIds()` is a revision counter behind a
+`distinctUntilChanged`, so it runs at launch and on install/remove, not per screen. Peak cost during an
+enumeration drops from one live module per bundle to one, and the steady-state cost drops to zero.
+`loadSource` uses the same path (its `SOURCE_META` call happens once per source, ever). What is left in
+the cache is exactly what the cap is for: the source the user is actually reading or browsing.
+
+**What the cap cost, and why three.** A reading session never leaves its series' source, and the detail
+screen's parallel details+chapters refresh is two calls to the *same* one — so the working set is one,
+and the two spare slots are for hopping between sources in browse. Past that, coming back re-reads the
+bundle and instantiates again; that is the trade, and a test pins that the call still answers normally.
+
+**The cap is soft, and that is the load-bearing part.** `callModule` releases `modulesLock` before it
+takes the module's own lock, so a module handed to a caller is reachable by nobody else but is not yet
+protecting itself. `LoadedModule.inUse` (guarded by `modulesLock`, never by the module's lock) is what
+closes that window: `trim()` **skips** an in-use module rather than waiting for it, so calls to more
+distinct sources than the cap can hold exceed it briefly and every `release` trims again. Waiting would
+have been the wrong shape — it would make an unrelated source's slow feed block instantiating the one the
+user is looking at, which is the exact thing the per-module lock exists to avoid.
+
+**It closed a pre-existing race the cap would otherwise have made routine.** `evictModulesOutside` closed
+whatever was no longer installed, including a module with a call in flight. On Android that is inert
+(`ChicoryWasmModule.close()` is `Unit` — instances are GC-managed, so eviction there only drops a
+reference), but on iOS `WasmiWasmModule.close()` is `tanuki_module_free` + `hostRef.dispose()`, i.e. a
+use-after-free while the guest is executing. The sweep now removes from the map unconditionally — so no
+later `acquire` can find it — and either closes immediately or sets `closeWhenIdle` and lets the call's
+own `release` do it. That asymmetry is also why the whole item is worth more on iOS than the Android
+profiler would suggest: it is the only one of the two platforms where this frees anything at all.
+
+`release` runs inside `withContext(NonCancellable)`, because it is called from a `finally` and
+`Mutex.lock` is cancellable — a fetch cancelled while holding a module would otherwise skip its
+decrement and pin that module for the life of the process, recreating this item's leak in a worse form.
+
+**One Kotlin/Native difference, found by the simulator run and not the host one.** The first `trim()` held
+a `MutableEntry` across `modules.remove(...)` and then read `.value`. Kotlin/Native invalidates the entry
+on the modification and throws `ConcurrentModificationException`; the JVM's tolerates it, so the host
+tests were green while all four cap tests failed on iOS. The key and value are copied out before the
+removal now — the same reason the pre-existing `evictModulesOutside` snapshots its keys with `filterNot`.
+
+Covered by 7 new `WasmSourceLoaderTest` cases (the cap closes the LRU; eviction is by recency and not
+insertion; an evicted source is instantiated again and still answers; enumeration leaves the cache empty
+and closes each transient module; `loadSource` caches nothing; a failed call still releases). Four were
+confirmed failing with the cap raised to 99 before the change was kept. `FakeWasmEngine` now records
+every instantiation with the module it produced, and `FakeWasmModule.close()` sets a flag instead of
+being a no-op — so "which instances is the loader holding" is directly assertable. 26 tests in that
+class, 115 in `:core:source`, green on both the JVM host and the iOS simulator; Android builds.
+
+**Not reachable by unit test, and deliberately not worked around:** the in-use guard itself. Between
+`acquire` and `release` the only suspension point is the contended module lock, and `WasmModule.call` is
+not a suspend function — so with in-memory fakes a call never yields, and no test can hold one in flight
+while another coroutine evicts. Faking it would have meant blocking a test thread or adding a seam to
+production code for the test's benefit. What *is* pinned is the `finally` (the failed-call case above);
+the rest rests on the invariant that `inUse` only changes under `modulesLock`.
+
+**The minor siblings: audited, deliberately left.** All three are keyed by *host*, and a session touches
+a handful — they are per-host entries holding a few short strings, not a memory item:
+`CloudflareCookieStore.byHost` (one `CfClearance`), `CloudflareInterceptor.locks` (one `Mutex`, and its
+KDoc already says why it is never removed) and `SourceCookieJar.byHost`. The last is the only one with a
+*correctness* smell rather than a size one — `parseSetCookie` drops `Max-Age`/`Expires`, so nothing ever
+expires — and its own KDoc already records the decision: the jar is process-lived and host-scoped, so an
+expiry days away changes nothing, and `Max-Age=0` (which means *delete*) is left for the first source
+that uses it. That is a cookie-correctness item, not this one.
+
+**Problem:** `WasmSourceLoader.modules` (`:87`) holds instantiated WASM modules — the heaviest objects in
+the app's long-lived caches. It *is* evicted, but only via `evictModulesOutside(ids)` when the
 *installed* source set changes. So every source the user browses in a session stays instantiated
 for that whole session. An LRU cap (say 3–5 modules) would bound it.
 
@@ -1001,6 +1072,9 @@ reduces how often that happens, it's worth checking whether the serialization is
 correctness (WASM instance reentrancy) or whether a small pool of instances would let browse and
 reader calls proceed concurrently. **Investigate before changing** — this guard may be
 load-bearing for memory safety in the wasm runtime.
+
+*(Untouched by 5.6: that item bracketed `callModule` with `acquire`/`release` so the cache can tell a
+cached module from a mid-call one, but the per-source mutex and what it serializes are unchanged.)*
 
 ---
 

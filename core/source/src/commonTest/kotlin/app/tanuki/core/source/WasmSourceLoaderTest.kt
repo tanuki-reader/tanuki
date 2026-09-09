@@ -118,15 +118,103 @@ class WasmSourceLoaderTest {
             val engine = FakeWasmEngine(metas = mapOf("mangadex" to metaWire("mangadex", "MangaDex")))
             val loader = loader(engine, store)
 
-            // Enumerating instantiates and caches the module; removing the bundle must retire it, or the
-            // loader would keep serving a source that is no longer installed.
-            assertEquals(listOf("mangadex"), loader.observeInstalledSources().first().map { it.id })
-            store.removeBundle("mangadex")
+            // Fetching is what caches a module (enumeration deliberately doesn't); removing the bundle
+            // must retire it, or the loader would keep serving a source that is no longer installed.
+            loader.fetchMangaList("mangadex")
+            assertEquals(listOf("mangadex"), engine.openIds())
 
+            store.removeBundle("mangadex")
             assertEquals(emptyList(), loader.observeInstalledSources().first())
+            assertEquals(emptyList(), engine.openIds())
             // Not "is not installed" from a stale cache hit — the module was dropped, so the reload is
             // what fails, and the bundle read is what reports it.
             assertFailsWith<IllegalStateException> { loader.loadSource("mangadex") }
+        }
+
+    @Test
+    fun `the module cache holds at most three sources - closing the least recently used`() =
+        runTest {
+            val engine = FakeWasmEngine()
+            val loader = loader(engine, FakeBundleStore("a", "b", "c", "d"))
+
+            listOf("a", "b", "c").forEach { loader.fetchMangaList(it) }
+            assertEquals(listOf("a", "b", "c"), engine.openIds())
+
+            loader.fetchMangaList("d")
+
+            // "a" is the oldest borrow, so it is what pays for "d" — and it is closed, not just dropped:
+            // on iOS that call is what returns the instance's memory.
+            assertEquals(listOf("b", "c", "d"), engine.openIds())
+        }
+
+    @Test
+    fun `eviction is by recency - not by insertion order`() =
+        runTest {
+            val engine = FakeWasmEngine()
+            val loader = loader(engine, FakeBundleStore("a", "b", "c", "d"))
+
+            listOf("a", "b", "c", "a").forEach { loader.fetchMangaList(it) }
+            loader.fetchMangaList("d")
+
+            // Touching "a" again moved it to the young end, so "b" is now the oldest.
+            assertEquals(listOf("a", "c", "d"), engine.openIds())
+            assertEquals(1, engine.instantiations("a"))
+        }
+
+    @Test
+    fun `a source evicted from the cache is instantiated again on its next call`() =
+        runTest {
+            val engine = FakeWasmEngine()
+            val loader = loader(engine, FakeBundleStore("a", "b", "c", "d"))
+
+            listOf("a", "b", "c", "d").forEach { loader.fetchMangaList(it) }
+            val page = loader.fetchMangaList("a")
+
+            // The cap is a cost, not a failure: coming back to an evicted source re-reads its bundle and
+            // instantiates a second module, and the call answers normally.
+            assertEquals(2, engine.instantiations("a"))
+            assertTrue(page.entries.isEmpty())
+            assertEquals(listOf("c", "d", "a"), engine.openIds())
+        }
+
+    @Test
+    fun `enumerating installed sources leaves nothing cached`() =
+        runTest {
+            val ids = listOf("a", "b", "c", "d", "e")
+            val engine = FakeWasmEngine(metas = ids.associateWith { metaWire(it, it.uppercase()) })
+            val loader = loader(engine, FakeBundleStore(*ids.toTypedArray()))
+
+            assertEquals(ids, loader.observeInstalledSources().first().map { it.id })
+
+            // SOURCE_META is asked of every installed bundle, so caching it would pin an instance per
+            // installed source — for sources the user may never open. Each is closed on the way out.
+            assertEquals(emptyList(), engine.openIds())
+            assertEquals(ids.size, engine.instantiated.size)
+        }
+
+    @Test
+    fun `loadSource does not cache a module`() =
+        runTest {
+            val engine = FakeWasmEngine(metas = mapOf("mangadex" to metaWire("mangadex", "MangaDex")))
+            val loader = loader(engine, FakeBundleStore("mangadex"))
+
+            loader.loadSource("mangadex")
+
+            assertEquals(emptyList(), engine.openIds())
+        }
+
+    @Test
+    fun `a call that fails still frees its module for eviction`() =
+        runTest {
+            val engine = FakeWasmEngine()
+            val loader = loader(engine, FakeBundleStore("a", "b", "c", "d"))
+
+            // A guest-reported error propagates out of the call, so the release has to happen from a
+            // finally — a module left marked in-use would be pinned in the cache for the whole process.
+            assertFailsWith<SourceAbiException> { loader.fetchMangaDetails("a", "ghost") }
+            listOf("b", "c", "d").forEach { loader.fetchMangaList(it) }
+
+            assertEquals(listOf("b", "c", "d"), engine.openIds())
         }
 
     @Test
@@ -564,6 +652,12 @@ private class FakeWasmEngine(
     /** Records the last MANGA_LIST request each module received, so arg plumbing can be asserted. */
     val requests: MutableList<Wire.MangaListRequest> = mutableListOf()
 ) : WasmEngine {
+    /**
+     * Every [instantiate] in order, with the module it produced — the module cache's whole observable
+     * surface: how often a source was instantiated, and which instances the loader has closed.
+     */
+    val instantiated: MutableList<Pair<String, FakeWasmModule>> = mutableListOf()
+
     override fun instantiate(
         sourceId: String,
         wasmBytes: ByteArray,
@@ -577,7 +671,13 @@ private class FakeWasmEngine(
             chapters = chapters,
             abiVersion = abiVersion,
             requests = requests
-        )
+        ).also { instantiated += sourceId to it }
+
+    /** Source ids with a module the loader instantiated and hasn't closed — i.e. what it is holding. */
+    fun openIds(): List<String> = instantiated.filterNot { (_, module) -> module.closed }.map { it.first }
+
+    /** How many times [sourceId] was instantiated — a second one means it had been evicted. */
+    fun instantiations(sourceId: String): Int = instantiated.count { (id, _) -> id == sourceId }
 }
 
 private class FakeWasmModule(
@@ -646,5 +746,11 @@ private class FakeWasmModule(
 
     override fun callReturningI32(export: String): Int = abiVersion
 
-    override fun close() = Unit
+    /** Whether the loader has closed this instance; the real iOS module frees native memory here. */
+    var closed = false
+        private set
+
+    override fun close() {
+        closed = true
+    }
 }

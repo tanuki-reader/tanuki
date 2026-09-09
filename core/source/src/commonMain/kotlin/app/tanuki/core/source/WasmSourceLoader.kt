@@ -29,6 +29,7 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -60,9 +61,14 @@ import kotlinx.coroutines.withContext
  * unwinding. Refusing before entering the engine keeps an offline failure an ordinary Kotlin exception
  * on both platforms.
  *
- * Modules are cached per source id behind a [Mutex] so a source is instantiated once (and its ABI
- * version checked once) and concurrent calls don't double-instantiate. The shared [host] is bound to
- * every module's imports, so all source HTTP flows through one Ktor client.
+ * Modules are cached per source id behind a [Mutex] so concurrent calls don't double-instantiate, and
+ * that cache is bounded: at most [MAX_CACHED_MODULES] modules are kept, the least recently used closed
+ * to make room (see [trim]). An engine instance is the heaviest long-lived object the app holds — on
+ * iOS `close` frees memory the Kotlin heap can't see at all — so "instantiated once" is deliberately no
+ * longer the contract; "instantiated once *while in use*" is. Only the `fetch*` path caches:
+ * `SOURCE_META` runs against a [withTransientModule] instance, because it is asked of every installed
+ * bundle rather than of the source the user is looking at. The shared [host] is bound to every module's
+ * imports, so all source HTTP flows through one Ktor client.
  *
  * [observeInstalledSources] and [fetchChapterPages] map straight to pre-persistence domain types. [fetchMangaList],
  * [fetchMangaDetails] and [fetchChapterList] return browse-shaped types ([MangaPage], [MangaListing],
@@ -84,7 +90,14 @@ class WasmSourceLoader(
 ) : SourceLoader {
 
     private val modulesLock = Mutex()
-    private val modules = mutableMapOf<String, LoadedModule>()
+
+    /**
+     * Instantiated modules of the sources being *fetched* from, least-recently-used first.
+     *
+     * A [LinkedHashMap] rather than a plain map because that iteration order is the eviction order (see
+     * [trim]); [acquire] re-inserts on every hit to keep it true.
+     */
+    private val modules = LinkedHashMap<String, LoadedModule>()
 
     override suspend fun loadSource(id: String): Source = withContext(dispatchers.default) {
         // Instantiating + decoding SOURCE_META both validates the bundle loads and yields display
@@ -92,7 +105,7 @@ class WasmSourceLoader(
         // thereafter — so a source keeps a stable local identity across app runs.
         sourceRepository.getSourceByNativeId(id) ?: run {
             val meta = SourceCodec.decode<SourceMetaWire>(
-                callModule(id, SourceAbi.Exports.SOURCE_META, EMPTY),
+                withTransientModule(id) { it.call(SourceAbi.Exports.SOURCE_META, EMPTY) },
             )
             val baseUrl = meta.baseUrl?.let(::Url)
                 ?: error("Source \"$id\" reported no baseUrl in its metadata; cannot install it.")
@@ -127,7 +140,7 @@ class WasmSourceLoader(
                 ids.mapNotNull { id ->
                     runCatching {
                         SourceCodec.decode<SourceMetaWire>(
-                            callModule(id, SourceAbi.Exports.SOURCE_META, EMPTY),
+                            withTransientModule(id) { it.call(SourceAbi.Exports.SOURCE_META, EMPTY) },
                         ).toDomain()
                     }.getOrNull()
                 }
@@ -204,7 +217,7 @@ class WasmSourceLoader(
     }
 
     /**
-     * Calls [export] on [sourceId]'s module, **one call at a time per source**.
+     * Calls [export] on [sourceId]'s cached module, **one call at a time per source**.
      *
      * The exclusion is not optional. A [WasmModule] wraps a live engine instance with a single operand
      * stack and one linear memory; entering it twice at once interleaves two calls' stack traffic and
@@ -215,40 +228,124 @@ class WasmSourceLoader(
      *
      * Per source, not global: two different sources are separate instances sharing nothing, and one
      * source's slow feed shouldn't block another's browse.
+     *
+     * [acquire] / [release] bracket the call so the cap and the uninstall sweep can tell a module that is
+     * merely cached from one that is mid-call — see [trim].
      */
     private suspend fun callModule(
         sourceId: String,
         export: String,
         input: ByteArray,
     ): ByteArray {
-        val loaded = moduleFor(sourceId)
-        return loaded.lock.withLock { loaded.module.call(export, input) }
+        val loaded = acquire(sourceId)
+        return try {
+            loaded.lock.withLock { loaded.module.call(export, input) }
+        } finally {
+            release(loaded)
+        }
     }
 
     /**
-     * Returns the instantiated module for [sourceId], instantiating + version-checking it on first use
-     * and caching it thereafter. [modulesLock] guards the *map* only, and is released before the call
-     * itself runs — a source's own [LoadedModule.lock] serializes the calls (see [callModule]), so a
-     * long guest call can't block instantiating an unrelated source.
+     * Runs [block] against a module instantiated for [sourceId] alone, closed as soon as it returns.
+     *
+     * The metadata path uses this rather than the cache. `SOURCE_META` is asked of **every installed
+     * bundle** by [observeInstalledSources], so routing it through [callModule] left an instance resident
+     * per installed source — the largest term in this cache, and for sources the user may never open.
+     * Re-instantiating instead is affordable because that enumeration is driven by
+     * [SourceBundleStore.observeInstalledIds], a revision counter behind a `distinctUntilChanged`: it
+     * runs at launch and on install/remove, not per screen. Peak cost becomes one live module instead of
+     * one per bundle.
+     *
+     * The ABI check happens here too, which is what lets the caller's `runCatching` skip a bundle that
+     * targets another ABI version instead of failing the whole enumeration.
      */
-    private suspend fun moduleFor(sourceId: String): LoadedModule = modulesLock.withLock {
-        // Not getOrPut: reading the bundle is a suspend call, which getOrPut's lambda can't make.
-        modules[sourceId] ?: run {
-            val bytes = bundleStore.readBundle(sourceId)
-                ?: error("Source \"$sourceId\" is not installed.")
-            engine.instantiate(sourceId, bytes, host).let { module ->
-                val version = module.callReturningI32(SourceAbi.Exports.ABI_VERSION)
-                require(version == SourceAbi.VERSION) {
-                    "Source \"$sourceId\" targets ABI v$version, but the host speaks v${SourceAbi.VERSION}."
-                }
-                LoadedModule(module).also { modules[sourceId] = it }
+    private suspend fun <T> withTransientModule(sourceId: String, block: (WasmModule) -> T): T {
+        val module = instantiate(sourceId)
+        return try {
+            block(module)
+        } finally {
+            module.close()
+        }
+    }
+
+    /**
+     * Takes [sourceId]'s cached module for one call, instantiating it on first use, marking it in-use and
+     * moving it to the most-recently-used end. Balanced by [release] — never call it without one.
+     *
+     * [modulesLock] guards the *map* only, and is released before the call itself runs: a source's own
+     * [LoadedModule.lock] serializes its calls (see [callModule]), so a long guest call can't block
+     * instantiating an unrelated source. That release is exactly why [LoadedModule.inUse] exists — a
+     * module handed out here is reachable by nobody else, but is not yet holding its own lock, so a
+     * concurrent [trim] or [evictModulesOutside] would otherwise be free to close it out from under the
+     * caller.
+     */
+    private suspend fun acquire(sourceId: String): LoadedModule = modulesLock.withLock {
+        // remove + put rather than a plain get: a LinkedHashMap keeps insertion order, so re-inserting a
+        // hit is what makes iteration order least-recently-used first for trim().
+        val loaded = modules.remove(sourceId) ?: LoadedModule(instantiate(sourceId))
+        modules[sourceId] = loaded
+        loaded.inUse++
+        trim()
+        loaded
+    }
+
+    /**
+     * Ends the borrow [acquire] began: drops the in-use mark, closes the module if it was retired while
+     * the call was running, and brings the cache back under its cap.
+     *
+     * [NonCancellable] because this runs from a `finally` and [Mutex.lock] is cancellable — a fetch
+     * cancelled while it held a module would otherwise skip the decrement and leave that module pinned
+     * in the cache for the life of the process, which is the exact leak this whole item is about.
+     */
+    private suspend fun release(loaded: LoadedModule) = withContext(NonCancellable) {
+        modulesLock.withLock {
+            loaded.inUse--
+            if (loaded.inUse == 0 && loaded.closeWhenIdle) loaded.module.close()
+            trim()
+        }
+    }
+
+    /**
+     * Closes least-recently-used modules until at most [MAX_CACHED_MODULES] remain. Call under
+     * [modulesLock].
+     *
+     * The cap is **soft**: a module with a call in flight is skipped rather than waited for, so calls to
+     * more distinct sources than the cap can hold exceed it briefly. Every [release] trims again, so the
+     * excess lasts only as long as the concurrent calls do. Closing under [modulesLock] is safe because a
+     * victim is removed from the map first and [LoadedModule.inUse] only ever rises under that same lock,
+     * so nothing can acquire it after the decision.
+     */
+    private fun trim() {
+        while (modules.size > MAX_CACHED_MODULES) {
+            // Copied out of the entry before the removal: Kotlin/Native invalidates a `MutableEntry` the
+            // moment its backing map changes and throws on the next read, where the JVM's tolerates it.
+            val (id, victim) = modules.entries.firstOrNull { it.value.inUse == 0 }
+                ?.let { it.key to it.value }
+                ?: return
+            modules.remove(id)
+            victim.module.close()
+        }
+    }
+
+    /** Reads [sourceId]'s bundle, instantiates it and checks that it speaks this host's ABI version. */
+    private suspend fun instantiate(sourceId: String): WasmModule {
+        val bytes = bundleStore.readBundle(sourceId)
+            ?: error("Source \"$sourceId\" is not installed.")
+        return engine.instantiate(sourceId, bytes, host).also { module ->
+            val version = module.callReturningI32(SourceAbi.Exports.ABI_VERSION)
+            require(version == SourceAbi.VERSION) {
+                "Source \"$sourceId\" targets ABI v$version, but the host speaks v${SourceAbi.VERSION}."
             }
         }
     }
 
     /**
-     * Drops every cached module whose source is no longer in [installed], closing each one so the engine
-     * releases its instance rather than leaking it for the life of the process.
+     * Retires every cached module whose source is no longer in [installed], closing each one so the
+     * engine releases its instance rather than leaving it to answer calls for a bundle that is gone.
+     *
+     * A module mid-call is removed from the map immediately — so no later [acquire] can find it — but
+     * closed by its own [release] rather than here: on iOS `close` frees the native instance, and freeing
+     * one while the guest is executing inside it is a use-after-free rather than a leak.
      *
      * Only *removal* is handled here. A bundle rewritten in place keeps its id, so this cannot see it —
      * today that is harmless, because the only writer is the dev installer and it runs at launch before
@@ -259,18 +356,41 @@ class WasmSourceLoader(
         val keep = installed.toSet()
         modulesLock.withLock {
             val removed = modules.keys.filterNot { it in keep }
-            removed.forEach { id -> modules.remove(id)?.module?.close() }
+            removed.forEach { id ->
+                val loaded = modules.remove(id) ?: return@forEach
+                if (loaded.inUse == 0) loaded.module.close() else loaded.closeWhenIdle = true
+            }
         }
     }
 
-    /** A cached module plus the lock that keeps its single engine instance single-threaded. */
+    /**
+     * A cached module, the lock that keeps its single engine instance single-threaded, and the two flags
+     * that say whether it may be closed. Both flags are guarded by [modulesLock], never by [lock].
+     */
     private class LoadedModule(
         val module: WasmModule,
         val lock: Mutex = Mutex(),
-    )
+    ) {
+        /** Calls currently borrowing this module. Non-zero means it must not be closed. */
+        var inUse: Int = 0
+
+        /** Set when the module was retired mid-call; its last [release] does the closing. */
+        var closeWhenIdle: Boolean = false
+    }
 
     private companion object {
         /** Reused empty payload for no-argument exports (e.g. SOURCE_META). */
         val EMPTY = ByteArray(0)
+
+        /**
+         * How many instantiated modules the fetch path may keep.
+         *
+         * Three, because the app's access pattern is overwhelmingly one source at a time: a reading
+         * session never leaves its series' source, and the detail screen's parallel details+chapters
+         * refresh is two calls to the *same* one. Two spare slots cover moving between a couple of
+         * sources in browse without paying to re-instantiate on every hop, and everything past that is a
+         * source the user has moved on from.
+         */
+        const val MAX_CACHED_MODULES = 3
     }
 }
