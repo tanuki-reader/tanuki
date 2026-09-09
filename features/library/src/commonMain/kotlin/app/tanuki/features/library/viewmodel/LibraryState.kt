@@ -5,7 +5,7 @@ import app.tanuki.core.domain.library.model.LibraryFilter
 import app.tanuki.core.domain.library.model.LibraryFilter.Companion.None
 import app.tanuki.core.domain.library.model.LibrarySort
 import app.tanuki.core.domain.library.model.LibrarySort.Companion.Default
-import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet.CategoryChip
 import kotlin.uuid.Uuid
 
@@ -13,14 +13,14 @@ sealed interface LibraryState {
     data object Loading : LibraryState
 
     data class DisplayLibrary(
-        val items: List<Manga>,
+        val items: List<LibraryManga>,
         val filter: LibraryFilter = None,
         val sort: LibrarySort = Default,
         val searchQuery: String = ""
     ) : LibraryState
 
     data class ShowingBottomSheet(
-        val items: List<Manga>,
+        val items: List<LibraryManga>,
         val filter: LibraryFilter,
         val sort: LibrarySort,
         val categories: List<CategoryChip>

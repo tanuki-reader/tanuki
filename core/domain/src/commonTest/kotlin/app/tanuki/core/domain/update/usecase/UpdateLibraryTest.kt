@@ -10,6 +10,7 @@ import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.RecordingLogger
 import app.tanuki.core.domain.common.service.uuidV7
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -31,6 +32,7 @@ import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
 import app.tanuki.core.domain.update.model.ChapterUpdate
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import app.tanuki.core.domain.update.model.MangaUpdateSummary
 import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import app.tanuki.core.domain.update.service.LibraryUpdateNotifier
@@ -613,7 +615,12 @@ private class FakeLibraryRepository(
     /** Every [recordChapterSync] schedule, in order. */
     val schedules = mutableListOf<Triple<Uuid, Instant, Int>>()
 
-    override fun observeLibrary(): Flow<List<Manga>> = flowOf(library)
+    // A run reads the library through [getLibraryUpdateTargets], not this. The world still holds whole
+    // manga because the chapter sync underneath it does need them.
+    override fun observeLibrary(): Flow<List<LibraryManga>> = error("unused")
+
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> =
+        library.map { LibraryUpdateTarget(it.id, it.source, it.title, it.nextUpdateAt) }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = flowOf(library.firstOrNull { it.id == mangaId })
 
@@ -623,7 +630,7 @@ private class FakeLibraryRepository(
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
         flowOf(library.filter { it.id in mangaIds })
 
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> = emptyList()
 
     override suspend fun getMangaIdBySourceAndKey(
         sourceId: Uuid,

@@ -28,6 +28,7 @@ import app.tanuki.core.domain.download.service.FetchedPage
 import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.download.service.PageFetcher
 import app.tanuki.core.domain.download.service.StoredChapter
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -48,6 +49,7 @@ import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Dispatchers
@@ -885,10 +887,28 @@ internal class FakeMangaRepository(
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
         held.map { all -> all.filter { it.id in mangaIds } }
 
-    override fun observeLibrary(): Flow<List<Manga>> = held
+    override fun observeLibrary(): Flow<List<LibraryManga>> =
+        held.map { all ->
+            all.map {
+                LibraryManga(
+                    id = it.id,
+                    title = it.title,
+                    cover = it.cover,
+                    unreadCount = it.unreadCount,
+                    isDownloaded = it.isDownloaded,
+                    dateAdded = it.dateAdded ?: Instant.DISTANT_PAST,
+                    lastRead = it.lastRead,
+                    readingStatus = it.readingStatus ?: ReadingStatus.PLANNING_TO_READ,
+                    publishStatus = it.publishStatus,
+                )
+            }
+        }
 
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> =
-        held.map { all -> all.filter { it.source == sourceId } }
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> =
+        held.value.map { LibraryUpdateTarget(it.id, it.source, it.title, it.nextUpdateAt) }
+
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> =
+        held.value.filter { it.source == sourceId }.map(Manga::id)
 
     override suspend fun getMangaIdBySourceAndKey(
         sourceId: Uuid,

@@ -11,11 +11,13 @@ import app.tanuki.core.data.repository.source.SourceEntity
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.model.toTextOrNull
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -91,6 +93,67 @@ data class MangaWithDetails(
 
 fun MangaWithDetails.toDomain(): Manga =
     manga.toDomain(lastRead, dateAdded, readingStatus, unreadCount.toUInt(), downloadedCount > 0)
+
+/**
+ * The library grid's row: the six `manga` columns the grid and its filter/search/sort actually read,
+ * plus the same derived `last_read` / `unread_count` / `downloaded_count` and the `library` row's own
+ * `date_added` / `reading_status`.
+ *
+ * Deliberately **not** an `@Embedded` [MangaEntity] with extras, the way [MangaWithDetails] is. Embedding
+ * would put every column of the row back into the projection — `description` above all — which is the
+ * entire cost this shape exists to avoid, and it would do it invisibly, since `manga.*` and an embed
+ * agree by construction. Naming the eleven columns is what makes a widening show up in a diff.
+ *
+ * `date_added` and `reading_status` are non-null here where [MangaWithDetails] has them nullable:
+ * [MangaDao.observeLibrary] INNER JOINs `library`, so a row exists only when the membership does. The
+ * other reads LEFT JOIN it, which is where the nullability belongs.
+ */
+data class LibraryMangaRow(
+    val id: Uuid,
+    val title: String,
+    @ColumnInfo(name = "cover_url") val coverUrl: String?,
+    @ColumnInfo(name = "cover_headers") val coverHeaders: String?,
+    @ColumnInfo(name = "cover_last_modified") val coverLastModified: Instant,
+    @ColumnInfo(name = "publish_status") val publishStatus: PublishStatus,
+    @ColumnInfo(name = "last_read") val lastRead: Instant?,
+    @ColumnInfo(name = "date_added") val dateAdded: Instant,
+    @ColumnInfo(name = "reading_status") val readingStatus: ReadingStatus,
+    @ColumnInfo(name = "unread_count") val unreadCount: Long,
+    @ColumnInfo(name = "downloaded_count") val downloadedCount: Long,
+)
+
+fun LibraryMangaRow.toDomain(): LibraryManga =
+    LibraryManga(
+        id = id,
+        title = Text(title),
+        cover =
+            MangaCover(
+                mangaId = id,
+                url = coverUrl?.let(::Url),
+                lastModified = coverLastModified,
+                headers = decodeHeaders(coverHeaders),
+            ),
+        unreadCount = unreadCount.toUInt(),
+        isDownloaded = downloadedCount > 0,
+        dateAdded = dateAdded,
+        lastRead = lastRead,
+        readingStatus = readingStatus,
+        publishStatus = publishStatus,
+    )
+
+/**
+ * A library series as a library update run reads it — see [LibraryUpdateTarget]. Four scalars off
+ * `library ⋈ manga`, with none of the joins or sub-queries the grid's row needs.
+ */
+data class LibraryUpdateTargetRow(
+    val id: Uuid,
+    val source: Uuid,
+    val title: String,
+    @ColumnInfo(name = "next_update_at") val nextUpdateAt: Instant?,
+)
+
+fun LibraryUpdateTargetRow.toDomain(): LibraryUpdateTarget =
+    LibraryUpdateTarget(id = id, source = source, title = Text(title), nextUpdateAt = nextUpdateAt)
 
 fun MangaEntity.toDomain(
     lastRead: Instant?,

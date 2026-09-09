@@ -3,17 +3,15 @@ package app.tanuki.features.library.viewmodel
 import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.model.Text
-import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.library.model.LibraryFilter
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.library.model.LibrarySort
 import app.tanuki.core.domain.library.usecase.ObserveLibrary
-import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
-import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
 import app.tanuki.features.library.viewmodel.LibraryState.Loading
@@ -195,13 +193,13 @@ class LibraryViewModelTest {
 
 /** Answers with whatever the backing flow holds; the filtering itself belongs to `ObserveLibrary`. */
 private class FakeObserveLibrary(
-    private val library: Flow<List<Manga>>
+    private val library: Flow<List<LibraryManga>>
 ) : ObserveLibrary {
     override fun invoke(
         searchQuery: Flow<String>,
         sort: Flow<LibrarySort>,
         filter: Flow<LibraryFilter>
-    ): Flow<List<Manga>> = library
+    ): Flow<List<LibraryManga>> = library
 }
 
 private class FakeObserveCategories(
@@ -234,17 +232,15 @@ private object SilentLogger : Logger {
 private fun manga(
     title: String,
     id: Uuid = Uuid.random()
-): Manga =
-    Manga(
+): LibraryManga =
+    LibraryManga(
         id = id,
-        source = Uuid.random(),
         title = Text(title),
-        author = null,
-        description = null,
         cover = MangaCover(mangaId = id, url = null, lastModified = Instant.DISTANT_PAST),
-        url = Url("https://example.com/$title"),
-        dateAdded = null,
-        readingMode = ReadingMode.RIGHT_TO_LEFT,
-        publishStatus = PublishStatus.ONGOING,
-        readingStatus = ReadingStatus.READING
+        unreadCount = 0u,
+        isDownloaded = false,
+        dateAdded = Instant.DISTANT_PAST,
+        lastRead = null,
+        readingStatus = ReadingStatus.READING,
+        publishStatus = PublishStatus.ONGOING
     )

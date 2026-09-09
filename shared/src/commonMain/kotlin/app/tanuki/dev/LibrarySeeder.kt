@@ -104,7 +104,10 @@ class LibrarySeeder(
 
     /** Gives every library manga a sample chapter list; skips any manga that already has chapters. */
     private suspend fun seedChaptersIfMissing() {
-        mangaRepository.observeLibrary().first().forEach { manga ->
+        // The library rows are narrow (see `MangaRepository.observeLibrary`) and a sample chapter's url
+        // is built from its series' permalink, so resolve the full manga for the ids they carry.
+        val library = mangaRepository.getMangaByIds(mangaRepository.observeLibrary().first().map { it.id })
+        library.forEach { manga ->
             if (chapterRepository.observeChapters(manga.id).first().isNotEmpty()) return@forEach
             buildSampleChapters(manga).forEach { chapterRepository.upsertChapter(it) }
         }

@@ -2,9 +2,9 @@ package app.tanuki.core.domain.library.usecase
 
 import app.tanuki.core.domain.category.repository.CategoryRepository
 import app.tanuki.core.domain.common.model.Text
-import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.library.model.LibraryFilter
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.library.model.LibrarySort
 import app.tanuki.core.domain.library.model.LibrarySort.Direction.Ascending
 import app.tanuki.core.domain.library.model.LibrarySort.Direction.Descending
@@ -15,6 +15,7 @@ import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -135,36 +136,34 @@ class GetLibraryTest {
         )
 }
 
-private fun titleOf(manga: Manga): String = manga.title.value
+private fun titleOf(manga: LibraryManga): String = manga.title.value
 
 private fun manga(
     title: String,
-    readingStatus: ReadingStatus? = ReadingStatus.READING,
+    readingStatus: ReadingStatus = ReadingStatus.READING,
     publishStatus: PublishStatus = PublishStatus.ONGOING,
     id: Uuid = Uuid.random()
-): Manga =
-    Manga(
+): LibraryManga =
+    LibraryManga(
         id = id,
-        source = Uuid.random(),
         title = Text(title),
-        author = null,
-        description = null,
         cover = MangaCover(mangaId = id, url = null, lastModified = Instant.DISTANT_PAST),
-        url = Url("https://example.com/$title"),
-        dateAdded = null,
-        readingMode = ReadingMode.RIGHT_TO_LEFT,
-        publishStatus = publishStatus,
-        readingStatus = readingStatus
+        unreadCount = 0u,
+        isDownloaded = false,
+        dateAdded = Instant.DISTANT_PAST,
+        lastRead = null,
+        readingStatus = readingStatus,
+        publishStatus = publishStatus
     )
 
 /** Records how many times [observeLibrary] is subscribed, to prove knob changes don't re-query. */
 private class FakeMangaRepository(
-    private val library: MutableStateFlow<List<Manga>>
+    private val library: MutableStateFlow<List<LibraryManga>>
 ) : MangaRepository {
     var subscriptions: Int = 0
         private set
 
-    override fun observeLibrary(): Flow<List<Manga>> = library.onStart { subscriptions++ }
+    override fun observeLibrary(): Flow<List<LibraryManga>> = library.onStart { subscriptions++ }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = error("unused")
 
@@ -172,7 +171,9 @@ private class FakeMangaRepository(
 
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> = error("unused")
 
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = error("unused")
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")
+
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> = error("unused")
 
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
 

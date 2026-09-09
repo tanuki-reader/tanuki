@@ -8,6 +8,7 @@ import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.uuidV7
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -15,6 +16,7 @@ import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.update.model.ChapterUpdate
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import app.tanuki.core.domain.update.model.NewChapter
 import app.tanuki.core.domain.update.repository.ChapterUpdateRepository
 import kotlinx.coroutines.CoroutineDispatcher
@@ -223,8 +225,10 @@ private class LiveMangaRepository(manga: Manga) : MangaRepository {
         listOf(held.value).filter { it.id in mangaIds }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = error("unused")
-    override fun observeLibrary(): Flow<List<Manga>> = error("unused")
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = error("unused")
+    override fun observeLibrary(): Flow<List<LibraryManga>> = error("unused")
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")
+
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> = emptyList()
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? = error("unused")
     override suspend fun upsertManga(manga: Manga) = error("unused")
 

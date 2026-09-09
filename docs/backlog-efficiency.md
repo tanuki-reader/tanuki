@@ -476,7 +476,70 @@ already living in four side `MutableStateFlow`s. `DownloadsViewModel` had alread
 relaxed deliberately — see the `StateViewModel` note above, and CLAUDE.md, which now records the second
 tier.
 
-### 3.2 Narrow the library projection
+### 3.2 Narrow the library projection — **DONE**
+
+Shipped as **two** new domain row types and **three** narrowed reads, replacing one wide query and
+deleting another. `MangaDao` wrote the same `manga.*` + `last_read` + `date_added` + `reading_status` +
+two correlated sub-queries projection five times; it now writes it three times, for the three callers
+that genuinely want a whole `Manga` (`observeManga`, `getMangaByIds`, `observeMangaByIds`).
+
+| read | now returns | what its callers read |
+|---|---|---|
+| `observeLibrary()` | `LibraryManga` (9 fields) | the grid, and `ObserveLibrary`'s filter/search/sort |
+| `getLibraryUpdateTargets()` *(new)* | `LibraryUpdateTarget` (4 scalars) | `UpdateLibrary.run` |
+| `getMangaIdsBySource()` *(replaces `observeMangaBySource`)* | `List<Uuid>` | `GetSourceDownloadUsage` |
+
+**The item's suggested name was taken.** `LibraryEntry` is already
+`app.tanuki.core.data.repository.library.LibraryEntryEntity`, the `library` table row — two
+`LibraryEntry`s meaning different things one module apart is worse than a rename, so the grid's type is
+**`LibraryManga`** (Mihon's name for the same thing).
+
+**Narrowing only the grid would not have removed the wide query, which is why all three moved.**
+`UpdateLibrary` and `GetSourceDownloadUsage` were the other two callers, and either one left on
+`observeLibrary`/`observeMangaBySource` would have kept `manga.*` alive on the library path. Both turned
+out to want dramatically less than the grid does, not more: an update run reads a schedule, a source to
+group by and a title to log, and `GetSourceDownloadUsage` — the *only* consumer of
+`observeMangaBySource` — built a full domain object per row from three joins and two correlated
+sub-queries in order to keep the primary key. Both are now one-shots over flat scans with **no** joins
+and **no** sub-queries at all, which is a larger saving than the grid's and was invisible until the grid
+forced the reads apart. `observeMangaBySource` is gone entirely rather than narrowed; nothing observed it.
+
+**What the row shape buys, and what it does not.** The bytes were never the point on their own — what
+`MangaEntity.toDomain` did per row per emission was: wrap `description` (unbounded prose) and `author` in
+`Text`, parse a **second** `Url` for the permalink (`Url`'s `init` parses and `require`s protocol+host),
+split `filtered_scanlators`, and box `sourceMangaKey`. On a library query invalidated from six tables —
+`ChapterDownloadDao.setProgress` alone fires once per downloaded *page* — that ran per title per page of
+every download. `filtered_scanlators` is still *referenced*, inside `unread_count`, and still not
+projected: the badge wants the filter's result, not the filter. The cover's `Url` parse stays, because
+`cover` stays a whole `MangaCover`: its own KDoc names the library grid as a reason headers travel with
+it, `MangaCoverTile`'s call shape is unchanged, and keeping `cover_last_modified` on the row leaves 5.3
+open rather than deciding it by omission.
+
+**Two fields became non-null, which is the projection telling the truth.** `observeLibrary` INNER JOINs
+`library`, so `date_added` and `reading_status` are always present; `MangaWithDetails` types them nullable
+only because the *other* four queries LEFT JOIN. `applySort`'s `compareBy(nullsFirst(), ::dateAdded)`
+became a plain `compareBy` — the null ordering was for a case this read cannot produce.
+
+**`MangaWithDetails` is untouched, deliberately.** `HistoryDao.observeLibraryHistory` embeds it with
+`prefix = "manga_"`, so narrowing it in place would have silently narrowed a second query. The new rows
+are flat classes rather than `@Embedded MangaEntity` + extras for the same reason in reverse: an embed
+puts every column back in the projection by construction, so naming the eleven columns is what makes a
+future widening show up in a diff. In `MangaRepositoryImp` the two `List<X>.toDomainList()` helpers erase
+to one JVM signature, so the library's is `toLibraryMangaList`.
+
+**No new test, and that is the honest answer.** The property this item buys — the grid *cannot reach* a
+description — is enforced by the type, and neither `:core:data` nor `:core:domain` has Room
+instrumentation that could count a query's columns. What did happen to the suite: `GetLibraryTest` and
+`LibraryViewModelTest` build nine-field `LibraryManga`s instead of full manga, `UpdateLibraryTest`'s fake
+serves `LibraryUpdateTarget`s (its world still holds whole manga, because the chapter sync underneath it
+needs them) and its eight scheduling cases from 1.2 assert exactly what they did, and
+`MangaRepositoryImpTest`'s library cases moved onto `LibraryMangaRow`. Its "an identical by-source
+re-emission is not passed on" case was **deleted**: the observed read it covered no longer exists, and a
+one-shot has nothing to dedupe. 378 tests across the three modules, all green; both platforms build.
+
+**Makes 3.4 the natural next item** — `ORDER BY manga.title` on a narrowed row is a cheaper sort but
+still an unindexed one, and `getLibraryUpdateTargets` dropped its `ORDER BY` outright (the caller
+regroups by source immediately).
 
 **Problem:** `MangaDao.observeLibrary()` (`MangaDao.kt:62-91`) does `SELECT manga.*`. The library
 grid (`LibraryGrid.kt:71-81`) uses only `id`, `title`, `cover.url`, `cover.headers`,
@@ -536,9 +599,12 @@ same full join table, each re-grouped in Kotlin on every change. Share one flow.
 
 ### 3.4 Index `manga(title)`
 
-`observeLibrary()` and `observeMangaBySource()` both `ORDER BY manga.title` with no index — a
-full sort on every emission. Minor at 200 titles, real at 2000+. Folds naturally into whichever
-migration comes next.
+`observeLibrary()` does `ORDER BY manga.title` with no index — a full sort on every emission.
+Minor at 200 titles, real at 2000+. Folds naturally into whichever migration comes next.
+
+*(Updated after 3.2: this used to name `observeMangaBySource()` too. That query is gone — its one
+caller wanted ids — and `getLibraryUpdateTargets()` deliberately has no `ORDER BY`, so `observeLibrary`
+is now the only unindexed sort. 3.2 made each emission cheaper to sort, not cheaper to order.)
 
 ### 3.5 Fix the `LibraryViewModel.latestCategories` data race — **DONE (with 3.1)**
 

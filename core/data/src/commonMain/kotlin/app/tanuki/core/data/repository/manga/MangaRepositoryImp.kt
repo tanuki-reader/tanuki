@@ -5,12 +5,14 @@ import app.tanuki.core.data.repository.observeInBatches
 import app.tanuki.core.data.repository.readInBatches
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
@@ -30,7 +32,7 @@ import kotlin.uuid.Uuid
  * fields). [upsertManga] also reconciles the manga's [app.tanuki.core.data.repository.library.LibraryEntryEntity]
  * from its favorite state, delegating to [MangaDao].
  *
- * **Every observed read is deduped before it is mapped.** The four read queries all derive
+ * **Every observed read is deduped before it is mapped.** The three observed reads all derive
  * `last_read`, `unread_count` and `downloaded_count` by joining or sub-querying `history`, `chapters`,
  * `reading_progress` and `chapter_downloads`, so Room invalidates them on a write to any of six
  * tables — and most of those writes cannot change the result. `ChapterDownloadDao.setProgress` is the
@@ -41,13 +43,17 @@ import kotlin.uuid.Uuid
  * `distinctUntilChanged` sits **before** the mapper rather than after it so a duplicate costs only the
  * comparison: the per-row [Manga]/[app.tanuki.core.domain.common.model.Text]/`MangaCover` allocation,
  * the filter/search/sort passes in `ObserveLibrary`, and the recomposition behind them are all skipped.
- * The entities are `data class`es of scalars, so the generated `equals` is structural, and the compare
+ * The rows are `data class`es of scalars, so the generated `equals` is structural, and the compare
  * runs inside [DispatcherProvider.io] like the query itself. Don't remove it as redundant — Room's
- * invalidation is per-table, not per-result.
+ * invalidation is per-table, not per-result. Narrowing the library's row to [LibraryMangaRow] made that
+ * comparison cheaper as well as rarer: a duplicate emission no longer compares a description per title.
  *
  * [observeMangaByIds] is the one that needs this most, despite reading the fewest rows: it backs a
  * process-lived subscription rather than a screen, so it is the read most likely to be live while a
  * download is running.
+ *
+ * [getLibraryUpdateTargets] and [getMangaIdsBySource] are one-shots and need none of this: their queries
+ * derive nothing, so there is nothing for an unrelated write to invalidate.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -75,19 +81,20 @@ class MangaRepositoryImp(
             .map(List<MangaWithDetails>::toDomainList)
             .flowOn(dispatcherProvider.io)
 
-    override fun observeLibrary(): Flow<List<Manga>> =
+    override fun observeLibrary(): Flow<List<LibraryManga>> =
         mangaDao
             .observeLibrary()
             .distinctUntilChanged()
-            .map(List<MangaWithDetails>::toDomainList)
+            .map(List<LibraryMangaRow>::toLibraryMangaList)
             .flowOn(dispatcherProvider.io)
 
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> =
-        mangaDao
-            .observeMangaBySource(sourceId)
-            .distinctUntilChanged()
-            .map(List<MangaWithDetails>::toDomainList)
-            .flowOn(dispatcherProvider.io)
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> =
+        withContext(dispatcherProvider.io) {
+            mangaDao.getLibraryUpdateTargets().map(LibraryUpdateTargetRow::toDomain)
+        }
+
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> =
+        mangaDao.getMangaIdsBySource(sourceId)
 
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? =
         mangaDao.findMangaIdBySourceAndKey(sourceId, sourceMangaKey)
@@ -156,5 +163,9 @@ class MangaRepositoryImp(
 }
 
 private fun List<MangaWithDetails>.toDomainList() = map(MangaWithDetails::toDomain)
+
+// Named apart from `toDomainList` rather than overloading it: the two erase to the same JVM
+// signature, so a shared name is a platform declaration clash.
+private fun List<LibraryMangaRow>.toLibraryMangaList() = map(LibraryMangaRow::toDomain)
 
 private fun MangaWithDetails?.toDomain() = this?.toDomain()

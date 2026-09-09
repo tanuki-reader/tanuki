@@ -6,12 +6,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.core.domain.common.model.Text
-import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.uuidV7
-import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus.PUBLISHING_FINISHED
-import app.tanuki.core.domain.manga.model.ReadingMode.RIGHT_TO_LEFT
 import app.tanuki.core.domain.manga.model.ReadingStatus.READING
 import app.tanuki.features.library.composable.components.LibraryGrid
 import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
@@ -46,28 +44,23 @@ fun LibraryView(
     )
 }
 
-private fun generateMangaList(seed: Int): List<Manga> =
+private fun generateMangaList(seed: Int): List<LibraryManga> =
     List(seed) { i ->
-        Manga(
+        LibraryManga(
             id = uuidV7(),
-            source = uuidV7(),
             title = Text("Manga $i"),
-            author = null,
-            description = null,
             cover =
                 MangaCover(
                     mangaId = uuidV7(),
                     url = null,
                     lastModified = Clock.System.now()
                 ),
-            url = Url("https://example.com/manga/$i"),
-            isDownloaded = i % 2 == 0,
             unreadCount = (i.toUShort() + 1u).coerceAtMost(10u),
-            dateAdded = null,
+            isDownloaded = i % 2 == 0,
+            dateAdded = Clock.System.now(),
             lastRead = null,
-            readingMode = RIGHT_TO_LEFT,
-            publishStatus = PUBLISHING_FINISHED,
-            readingStatus = READING
+            readingStatus = READING,
+            publishStatus = PUBLISHING_FINISHED
         )
     }
 

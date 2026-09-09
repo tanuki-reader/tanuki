@@ -5,12 +5,12 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.library.model.CategoryMatchMode.All
 import app.tanuki.core.domain.library.model.CategoryMatchMode.Any
 import app.tanuki.core.domain.library.model.LibraryFilter
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.library.model.LibrarySort
 import app.tanuki.core.domain.library.model.LibrarySort.Direction.Descending
 import app.tanuki.core.domain.library.model.LibrarySort.Mode.Alphabetical
 import app.tanuki.core.domain.library.model.LibrarySort.Mode.DateAdded
 import app.tanuki.core.domain.library.model.LibrarySort.Mode.LastRead
-import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus.COMPLETED
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import dev.zacsweers.metro.AppScope
@@ -46,13 +46,14 @@ interface ObserveLibrary {
      * @param sort A [Flow] of how to order the result; re-emits re-order the view in memory.
      * @param filter A [Flow] of which manga to include; re-emits re-filter the view in memory.
      * @return A [Flow] of the favorite manga matching the latest [filter] and [searchQuery], ordered by
-     *   the latest [sort].
+     *   the latest [sort]. [LibraryManga], not whole manga: every field it carries is one this use case
+     *   or the grid downstream actually reads, and the three list copies below are made per keystroke.
      */
     operator fun invoke(
         searchQuery: Flow<String>,
         sort: Flow<LibrarySort>,
         filter: Flow<LibraryFilter>
-    ): Flow<List<Manga>>
+    ): Flow<List<LibraryManga>>
 
     @Inject
     @ContributesBinding(AppScope::class)
@@ -65,7 +66,7 @@ interface ObserveLibrary {
             searchQuery: Flow<String>,
             sort: Flow<LibrarySort>,
             filter: Flow<LibraryFilter>
-        ): Flow<List<Manga>> =
+        ): Flow<List<LibraryManga>> =
             combine(
                 mangaRepository.observeLibrary(),
                 categoryRepository.observeLibraryCategories(),
@@ -79,10 +80,10 @@ interface ObserveLibrary {
                     .applySort(sort)
             }.flowOn(dispatchers.default)
 
-        private fun List<Manga>.applyFilter(
+        private fun List<LibraryManga>.applyFilter(
             filter: LibraryFilter,
             memberships: Map<Uuid, Set<Uuid>>
-        ): List<Manga> =
+        ): List<LibraryManga> =
             filter { manga ->
                 (filter.readingStatus == null || manga.readingStatus == filter.readingStatus) &&
                     filter.publicationCompleted.matches(manga.publishStatus == COMPLETED) &&
@@ -90,7 +91,7 @@ interface ObserveLibrary {
                     manga.matchesCategories(filter, memberships)
             }
 
-        private fun Manga.matchesCategories(
+        private fun LibraryManga.matchesCategories(
             filter: LibraryFilter,
             memberships: Map<Uuid, Set<Uuid>>
         ): Boolean {
@@ -102,18 +103,20 @@ interface ObserveLibrary {
             }
         }
 
-        private fun List<Manga>.applySort(sort: LibrarySort): List<Manga> {
-            val comparator: Comparator<Manga> =
+        private fun List<LibraryManga>.applySort(sort: LibrarySort): List<LibraryManga> {
+            val comparator: Comparator<LibraryManga> =
                 when (sort.mode) {
                     Alphabetical -> compareBy { it.title.value.lowercase() }
-                    DateAdded -> compareBy(nullsFirst(), Manga::dateAdded)
-                    LastRead -> compareBy(nullsFirst(), Manga::lastRead)
+                    // `dateAdded` is non-null on a library row — the membership is what puts it there —
+                    // so only `lastRead` ("never read") needs a null ordering.
+                    DateAdded -> compareBy(LibraryManga::dateAdded)
+                    LastRead -> compareBy(nullsFirst(), LibraryManga::lastRead)
                 }
             val sorted = sortedWith(comparator)
             return if (sort.direction == Descending) sorted.asReversed() else sorted
         }
 
-        private fun List<Manga>.applySearch(query: String): List<Manga> {
+        private fun List<LibraryManga>.applySearch(query: String): List<LibraryManga> {
             val q = query.trim()
             if (q.isEmpty()) return this
             return filter { it.title.value.contains(q, ignoreCase = true) }

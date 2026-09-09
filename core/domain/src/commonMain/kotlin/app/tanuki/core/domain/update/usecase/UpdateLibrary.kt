@@ -5,10 +5,10 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
-import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.manga.service.fetchWindow
 import app.tanuki.core.domain.settings.repository.SettingsRepository
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import app.tanuki.core.domain.update.usecase.LibraryUpdateResult.Completed
 import app.tanuki.core.domain.update.usecase.LibraryUpdateResult.Skipped
 import app.tanuki.core.domain.update.usecase.UpdateLibrary.Trigger
@@ -152,7 +152,9 @@ sealed interface UpdateLibrary {
         private suspend fun run(trigger: Trigger): LibraryUpdateResult {
             // A one-shot snapshot of the library: a run refreshes the series that were there when it
             // started, and a title added midway is covered by the sync its own detail screen does.
-            val library = mangaRepository.observeLibrary().first()
+            // Read as [LibraryUpdateTarget]s rather than as manga — a run reads a schedule, a source and
+            // a title, so it pays for none of the unread/downloaded counts the library grid needs.
+            val library = mangaRepository.getLibraryUpdateTargets()
 
             // One day-window for the whole run, so a run that straddles midnight doesn't measure its
             // first half against a different day than its second.
@@ -167,7 +169,7 @@ sealed interface UpdateLibrary {
                     val sources = Semaphore(MAX_CONCURRENT_SOURCES)
                     coroutineScope {
                         due
-                            .groupBy(Manga::source)
+                            .groupBy(LibraryUpdateTarget::source)
                             .map { (_, series) -> async { sources.withPermit { series.map { refresh(it) } } } }
                             .awaitAll()
                             .flatten()
@@ -201,7 +203,7 @@ sealed interface UpdateLibrary {
          * "Due" is measured against the *end* of the window: a check falling anywhere today happens
          * today, rather than being pushed a day out because the run started in the morning.
          */
-        private fun Manga.isDue(window: ClosedRange<Instant>): Boolean =
+        private fun LibraryUpdateTarget.isDue(window: ClosedRange<Instant>): Boolean =
             nextUpdateAt == null || nextUpdateAt <= window.endInclusive
 
         /**
@@ -211,10 +213,10 @@ sealed interface UpdateLibrary {
          *
          * @return How many chapters it gained, or `null` if it could not be refreshed at all.
          */
-        private suspend fun refresh(manga: Manga): Int? =
+        private suspend fun refresh(manga: LibraryUpdateTarget): Int? =
             try {
                 // `force`: this run does its own scheduling — the interval check in [isDue], the
-                // per-series one in [Manga.isDue], and a manual trigger that bypasses both — so the
+                // per-series one in [LibraryUpdateTarget.isDue], and a manual trigger that bypasses both — so the
                 // sync's own staleness gate must not second-guess it.
                 syncSourceChapters(manga.id, force = true).size
             } catch (cancellation: CancellationException) {

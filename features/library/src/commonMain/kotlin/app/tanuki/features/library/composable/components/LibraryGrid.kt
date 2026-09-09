@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
-import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.library.model.LibraryManga
 import kotlin.uuid.Uuid
 
 /** Minimum cover width; the adaptive grid fits as many whole columns as this allows. */
@@ -28,7 +28,7 @@ private val COVER_MIN_WIDTH = 114.dp
 @Composable
 internal fun LibraryGrid(
     modifier: Modifier = Modifier,
-    items: List<Manga>,
+    items: List<LibraryManga>,
     countLabel: String,
     emptyMessage: String,
     onMangaClick: (Uuid) -> Unit

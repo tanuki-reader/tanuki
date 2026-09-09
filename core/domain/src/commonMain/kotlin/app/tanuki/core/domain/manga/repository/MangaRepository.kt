@@ -1,11 +1,13 @@
 package app.tanuki.core.domain.manga.repository
 
 import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -62,19 +64,35 @@ interface MangaRepository {
     fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>>
 
     /**
-     * Observes the user's library.
+     * Observes the user's library, as [LibraryManga] rather than whole [Manga]s.
      *
-     * @return A [Flow] of the library, re-emitting on any change.
+     * The narrow row is the point, not an optimisation detail: this read stays live for as long as the
+     * Library tab is warm and is invalidated by writes to six tables, so anything it carries is re-read
+     * and re-allocated per title on each of them. [LibraryManga] holds what the grid draws and what
+     * `ObserveLibrary` filters, searches and sorts by; a screen wanting more than that wants
+     * [observeManga].
+     *
+     * @return A [Flow] of the library, re-emitting on any change that alters it.
      */
-    fun observeLibrary(): Flow<List<Manga>>
+    fun observeLibrary(): Flow<List<LibraryManga>>
 
     /**
-     * Observes all locally stored manga belonging to a given source.
+     * The library as an update run reads it — see [LibraryUpdateTarget].
+     *
+     * Read once rather than observed, and narrower still than [observeLibrary]: a run needs a schedule,
+     * a source to group by and a title to log, so it pays for none of the grid's derived counts.
+     *
+     * @return Every series in the library, in unspecified order.
+     */
+    suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget>
+
+    /**
+     * The local ids of every manga stored under a given source.
      *
      * @param sourceId Local id of the source.
-     * @return A [Flow] of that source's manga.
+     * @return That source's manga ids, in unspecified order.
      */
-    fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>>
+    suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid>
 
     /**
      * The local id of the manga keyed [sourceMangaKey] within source [sourceId], or `null` if it isn't

@@ -4,6 +4,7 @@ import app.tanuki.core.data.repository.library.LibraryEntryEntity
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -38,12 +39,12 @@ class MangaRepositoryImpTest {
     fun `an identical library re-emission is not passed on`() =
         runTest {
             val dispatcher = UnconfinedTestDispatcher(testScheduler)
-            val row = mangaRow("Berserk")
+            val row = libraryRow("Berserk")
             val dao = RecordingMangaDao()
 
             val emissions = mutableListOf<List<String>>()
             backgroundScope.launch(dispatcher) {
-                repository(dao, dispatcher).observeLibrary().collect { emissions += it.map(::titleOf) }
+                repository(dao, dispatcher).observeLibrary().collect { emissions += it.map(::libraryTitleOf) }
             }
             advanceUntilIdle()
 
@@ -62,12 +63,12 @@ class MangaRepositoryImpTest {
     fun `a genuine library change is passed on`() =
         runTest {
             val dispatcher = UnconfinedTestDispatcher(testScheduler)
-            val row = mangaRow("Berserk")
+            val row = libraryRow("Berserk")
             val dao = RecordingMangaDao()
 
             val emissions = mutableListOf<List<String>>()
             backgroundScope.launch(dispatcher) {
-                repository(dao, dispatcher).observeLibrary().collect { emissions += it.map(::titleOf) }
+                repository(dao, dispatcher).observeLibrary().collect { emissions += it.map(::libraryTitleOf) }
             }
             advanceUntilIdle()
 
@@ -79,7 +80,7 @@ class MangaRepositoryImpTest {
             advanceUntilIdle()
             assertEquals(2, emissions.size)
 
-            dao.library.emit(listOf(row, mangaRow("Akira")))
+            dao.library.emit(listOf(row, libraryRow("Akira")))
             advanceUntilIdle()
             assertEquals(listOf("Berserk", "Akira"), emissions.last())
         }
@@ -112,28 +113,6 @@ class MangaRepositoryImpTest {
         }
 
     @Test
-    fun `an identical by-source re-emission is not passed on`() =
-        runTest {
-            val dispatcher = UnconfinedTestDispatcher(testScheduler)
-            val row = mangaRow("Berserk")
-            val dao = RecordingMangaDao()
-
-            val emissions = mutableListOf<List<String>>()
-            backgroundScope.launch(dispatcher) {
-                repository(dao, dispatcher)
-                    .observeMangaBySource(row.manga.source)
-                    .collect { emissions += it.map(::titleOf) }
-            }
-            advanceUntilIdle()
-
-            dao.bySource.emit(listOf(row))
-            dao.bySource.emit(listOf(row.copy()))
-            advanceUntilIdle()
-
-            assertEquals(1, emissions.size)
-        }
-
-    @Test
     fun `an identical by-ids re-emission is not passed on`() =
         runTest {
             val dispatcher = UnconfinedTestDispatcher(testScheduler)
@@ -161,7 +140,7 @@ class MangaRepositoryImpTest {
     fun `deduping does not resubscribe the query`() =
         runTest {
             val dispatcher = UnconfinedTestDispatcher(testScheduler)
-            val row = mangaRow("Berserk")
+            val row = libraryRow("Berserk")
             val dao = RecordingMangaDao()
 
             backgroundScope.launch(dispatcher) {
@@ -238,6 +217,30 @@ class MangaRepositoryImpTest {
 
 private fun titleOf(manga: Manga): String = manga.title.value
 
+private fun libraryTitleOf(manga: LibraryManga): String = manga.title.value
+
+/**
+ * The library grid's row. Carries no description — the projection cannot reach one — which is why the
+ * dedupe it is fed to now compares eleven scalars instead of a page of prose per title.
+ */
+private fun libraryRow(
+    title: String,
+    id: Uuid = Uuid.random()
+): LibraryMangaRow =
+    LibraryMangaRow(
+        id = id,
+        title = title,
+        coverUrl = "https://example.com/$title.jpg",
+        coverHeaders = null,
+        coverLastModified = Instant.DISTANT_PAST,
+        publishStatus = PublishStatus.ONGOING,
+        lastRead = null,
+        dateAdded = Instant.DISTANT_PAST,
+        readingStatus = ReadingStatus.READING,
+        unreadCount = 12,
+        downloadedCount = 3,
+    )
+
 private fun mangaRow(
     title: String,
     id: Uuid = Uuid.random()
@@ -270,22 +273,24 @@ private fun mangaRow(
 
 /**
  * A [MangaDao] whose observed reads are driven by hand and whose library subscriptions are counted.
- * Only the four read flows are implemented — everything else is a write path these tests never take.
+ * Only the three observed reads are implemented — everything else is a write path, or a one-shot with
+ * nothing to dedupe, that these tests never take.
  */
 private class RecordingMangaDao : MangaDao {
-    val library = MutableSharedFlow<List<MangaWithDetails>>()
+    val library = MutableSharedFlow<List<LibraryMangaRow>>()
     val manga = MutableSharedFlow<MangaWithDetails?>()
-    val bySource = MutableSharedFlow<List<MangaWithDetails>>()
     val byIds = MutableSharedFlow<List<MangaWithDetails>>()
 
     var librarySubscriptions: Int = 0
         private set
 
-    override fun observeLibrary(): Flow<List<MangaWithDetails>> = library.onStart { librarySubscriptions++ }
+    override fun observeLibrary(): Flow<List<LibraryMangaRow>> = library.onStart { librarySubscriptions++ }
 
     override fun observeManga(mangaId: Uuid): Flow<MangaWithDetails?> = manga
 
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<MangaWithDetails>> = bySource
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTargetRow> = error("unused")
+
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> = error("unused")
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<MangaWithDetails> = error("unused")
 

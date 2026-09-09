@@ -25,6 +25,12 @@ import kotlin.uuid.Uuid
  * never a partial match of another), so the badge counts only the chapters the detail screen shows —
  * the same filter the chapter list and the reader apply. A chapter with a `NULL` scanlator is never
  * hidden.
+ *
+ * That projection is for the reads that hand back a whole [app.tanuki.core.domain.manga.model.Manga]:
+ * [observeManga], [getMangaByIds], [observeMangaByIds]. The three list reads whose callers use a handful
+ * of fields each — [observeLibrary], [getLibraryUpdateTargets], [getMangaIdsBySource] — name their
+ * columns instead and map to their own narrow row. Widening one of those is then a visible edit rather
+ * than a free consequence of `manga.*`.
  */
 @Dao
 interface MangaDao {
@@ -140,10 +146,27 @@ interface MangaDao {
     )
     fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<MangaWithDetails>>
 
-    /** The user's library: every manga with a `library` row, titled for stable display ordering. */
+    /**
+     * The user's library: every manga with a `library` row, titled for stable display ordering.
+     *
+     * Projects [LibraryMangaRow], not [MangaWithDetails] — the six `manga` columns the grid draws and
+     * sorts by rather than `manga.*`. This read is invalidated by writes to six tables and is live for as
+     * long as the tab is warm, so every column it names is re-read, re-boxed and re-compared on each of
+     * those writes, per title; `description` in particular is unbounded and drawn nowhere on this screen.
+     * `filtered_scanlators` is still *referenced*, inside `unread_count`, and still not projected: the
+     * badge wants the filter's result, not the filter.
+     */
     @Query(
         """
-        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+        SELECT manga.id AS id,
+               manga.title AS title,
+               manga.cover_url AS cover_url,
+               manga.cover_headers AS cover_headers,
+               manga.cover_last_modified AS cover_last_modified,
+               manga.publish_status AS publish_status,
+               MAX(history.read_at) AS last_read,
+               library.date_added AS date_added,
+               library.reading_status AS reading_status,
                (
                    SELECT COUNT(*)
                    FROM chapters
@@ -170,40 +193,39 @@ interface MangaDao {
         ORDER BY manga.title
         """,
     )
-    fun observeLibrary(): Flow<List<MangaWithDetails>>
+    fun observeLibrary(): Flow<List<LibraryMangaRow>>
 
-    /** All manga belonging to the source identified by its local [Uuid]. */
+    /**
+     * Every library series as a library update run needs it — see [LibraryUpdateTargetRow].
+     *
+     * Deliberately **not** [observeLibrary] sampled once. A run wants an id, a source to group by, a
+     * title to log and a schedule to compare; none of the grid's derived columns are read, so none are
+     * computed: no `history` join, no `unread_count`, no `downloaded_count`, and no `ORDER BY` either,
+     * since the caller regroups by source immediately. On a large library that is one flat scan in place
+     * of a correlated count per title.
+     */
     @Query(
         """
-        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
-               (
-                   SELECT COUNT(*)
-                   FROM chapters
-                   LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
-                   WHERE chapters.manga_id = manga.id
-                     AND COALESCE(reading_progress.already_read, 0) = 0
-                     AND (
-                         chapters.scanlator IS NULL
-                         OR manga.filtered_scanlators IS NULL
-                         OR instr(char(10) || manga.filtered_scanlators || char(10),
-                                  char(10) || chapters.scanlator || char(10)) = 0
-                     )
-               ) AS unread_count,
-               (
-                   SELECT COUNT(*)
-                   FROM chapter_downloads
-                   WHERE chapter_downloads.manga_id = manga.id
-                     AND chapter_downloads.state = 'Downloaded'
-               ) AS downloaded_count
-        FROM manga
-        LEFT JOIN history ON history.manga_id = manga.id
-        LEFT JOIN library ON library.id = manga.id
-        WHERE manga.source = :sourceId
-        GROUP BY manga.id
-        ORDER BY manga.title
+        SELECT manga.id AS id,
+               manga.source AS source,
+               manga.title AS title,
+               manga.next_update_at AS next_update_at
+        FROM library
+        JOIN manga ON manga.id = library.id
         """,
     )
-    fun observeMangaBySource(sourceId: Uuid): Flow<List<MangaWithDetails>>
+    suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTargetRow>
+
+    /**
+     * The ids of every manga cached under the source identified by its local [Uuid].
+     *
+     * Ids only, and read once rather than observed: its caller is measuring a source's download footprint
+     * and needs a set to test membership against. The full projection this used to share with
+     * [observeManga] built a domain object per row — three joins and two correlated sub-queries — for a
+     * caller that then kept nothing but the primary key.
+     */
+    @Query("SELECT id FROM manga WHERE source = :sourceId")
+    suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid>
 
     /**
      * The local id of the manga keyed [sourceMangaKey] within source [sourceId], or `null` if none is

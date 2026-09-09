@@ -3,6 +3,7 @@ package app.tanuki.core.domain.manga.usecase
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.uuidV7
+import app.tanuki.core.domain.library.model.LibraryManga
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -16,6 +17,7 @@ import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
+import app.tanuki.core.domain.update.model.LibraryUpdateTarget
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -200,8 +202,10 @@ private class FakeMangaRepository(
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> = error("unused")
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> = error("unused")
-    override fun observeLibrary(): Flow<List<Manga>> = flowOf(emptyList())
-    override fun observeMangaBySource(sourceId: Uuid): Flow<List<Manga>> = flowOf(emptyList())
+    override fun observeLibrary(): Flow<List<LibraryManga>> = flowOf(emptyList())
+    override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")
+
+    override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> = emptyList()
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
 

@@ -4,13 +4,11 @@ import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.model.SourceDownloadUsage
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.download.service.ChapterDownloadStore
-import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.source.repository.SourceRepository
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
-import kotlinx.coroutines.flow.first
 import kotlin.uuid.Uuid
 
 /**
@@ -21,7 +19,7 @@ import kotlin.uuid.Uuid
  *
  * A [ChapterDownload] records a chapter and its series, never a source, and it should stay that way: the
  * source is a property of the *series*, so storing it on every chapter record would be a denormalization
- * that a series moving between sources could silently falsify. [MangaRepository.observeMangaBySource] is
+ * that a series moving between sources could silently falsify. [MangaRepository.getMangaIdsBySource] is
  * the join that already exists, and this is the only screen that asks the question.
  *
  * Note the two kinds of source id in play: [SourceRepository.getSourceByNativeId] turns the string a
@@ -80,5 +78,5 @@ internal suspend fun mangaIdsOf(
     mangaRepository: MangaRepository,
 ): Set<Uuid> {
     val source = sourceRepository.getSourceByNativeId(sourceId) ?: return emptySet()
-    return mangaRepository.observeMangaBySource(source.id).first().mapTo(mutableSetOf(), Manga::id)
+    return mangaRepository.getMangaIdsBySource(source.id).toSet()
 }
