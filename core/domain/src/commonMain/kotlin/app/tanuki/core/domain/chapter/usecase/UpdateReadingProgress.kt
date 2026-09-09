@@ -29,7 +29,7 @@ import kotlin.uuid.Uuid
  *    "continue reading" (Home) and the History list (Activity). History is one row per chapter, so
  *    re-reading just refreshes its `readAt` — the write is upsert-idempotent like the progress write.
  */
-sealed interface UpdateReadingProgress {
+interface UpdateReadingProgress {
     /**
      * @param chapterId Local id of the chapter being read.
      * @param lastPageRead Zero-based index of the page now visible.

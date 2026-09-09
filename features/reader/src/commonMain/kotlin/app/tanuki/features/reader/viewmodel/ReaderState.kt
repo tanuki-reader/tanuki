@@ -1,5 +1,6 @@
 package app.tanuki.features.reader.viewmodel
 
+import androidx.compose.runtime.Immutable
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.chapter.model.ReaderPage
 import app.tanuki.core.domain.manga.model.ReadingMode
@@ -31,7 +32,8 @@ sealed interface ReaderState {
      *
      * @property items The window's pages and the transition slides between them, in reading order.
      * @property initialItemIndex Where the pager/list should park on first composition (the resume page,
-     *   offset by any leading transition). Read once; later window shifts are driven by scroll commands.
+     *   offset by any leading transition). Read once: later window shifts re-index [items] under the
+     *   viewport, and both layouts hold their place through that by item [ReaderItem.key], not by index.
      * @property readingMode How pages are laid out (paged L→R / R→L / single-vertical, or a strip).
      * @property chromeVisible Whether the top/bottom reader chrome is shown; toggled by tapping.
      * @property currentChapterId Local id of the chapter the visible page belongs to — changes as the
@@ -43,6 +45,7 @@ sealed interface ReaderState {
      * @property hasPreviousChapter Whether a lower-numbered sibling chapter exists.
      * @property hasNextChapter Whether a higher-numbered sibling chapter exists.
      */
+    @Immutable
     data class Content(
         val items: List<ReaderItem>,
         val initialItemIndex: Int,
@@ -66,6 +69,7 @@ sealed interface ReaderState {
  * @property number Recognized chapter number, or `null` when the source didn't number it.
  * @property name The chapter's source title, or `null` (the slide falls back to "Chapter N").
  */
+@Immutable
 data class ChapterRef(
     val id: Uuid,
     val number: ChapterNumber?,
@@ -78,7 +82,14 @@ data class ChapterRef(
  * lets the same pager/list carry them, so crossing into the next chapter feels like reading one more
  * page. [key] is stable per slot for lazy-list reuse and for re-anchoring the viewport when the window
  * slides.
+ *
+ * `@Immutable` throughout, including on [ReaderState.Content] which holds a `List` of these. That is a
+ * promise the compiler does not verify, and the code keeps it: the list comes from `ReaderViewModel`'s
+ * `buildItems`, which owns it and never mutates it after handing it over, and every field below is an
+ * immutable scalar or a data class of them. Without the promise Compose infers `List<ReaderItem>` — and
+ * so `Content` — as **unstable**, and nothing in the reader's page tree can ever skip a recomposition.
  */
+@Immutable
 sealed interface ReaderItem {
     val key: String
 
@@ -132,9 +143,15 @@ sealed interface ReaderCommand {
     val index: Int
 
     /**
-     * Keep the viewport on the same logical page after the item list grew above it (an adjacent chapter's
-     * pages were inserted). Paged layouts must apply this (a pager doesn't anchor by key); the webtoon
-     * `LazyColumn` anchors by item key on its own and ignores it.
+     * Keep the viewport on the same logical page after the item list was re-indexed above it — an adjacent
+     * chapter's pages inserted, or the chapter two behind evicted.
+     *
+     * Mostly belt-and-braces: both layouts are keyed by [ReaderItem.key] and restore their own position
+     * during measure. But Compose builds its key→index map only over a window of roughly a hundred items
+     * around the last known position, and outside it the lookup silently keeps the stale index — so a
+     * shift larger than that (a long webtoon chapter leaving the window) would jump. This index is
+     * computed against the freshly emitted list and is subject to no such bound. Paged layouts apply it;
+     * the strip ignores it, since re-issuing a scroll it has already made itself would fight the user.
      */
     data class Reanchor(override val index: Int) : ReaderCommand
 

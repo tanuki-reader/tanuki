@@ -40,7 +40,7 @@ import kotlin.uuid.Uuid
  * (a chapter a source genuinely serves no pages for) and must stay distinguishable from "we could not
  * ask".
  */
-sealed interface GetReaderPages {
+interface GetReaderPages {
     /**
      * @param chapterId Local id of the chapter to read.
      * @throws IllegalStateException when a *remote* chapter cannot be resolved to its source (see

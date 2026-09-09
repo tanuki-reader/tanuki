@@ -57,6 +57,8 @@ internal fun ReaderContent(
     // Held here rather than inside the strip so that warming a page teaches its proportions even before the
     // strip composes that item, and so switching reading mode doesn't throw the measurements away.
     val ratios = rememberPageAspectRatios()
+    // Bound it to the window: a chapter evicted from [content.items] can't be measured from here again.
+    LaunchedEffect(content.items) { ratios.retain(content.items.mapTo(mutableSetOf()) { it.key }) }
 
     Box(Modifier.fillMaxSize()) {
         if (paged) {
@@ -64,7 +66,9 @@ internal fun ReaderContent(
             LaunchedEffect(pagerState) {
                 snapshotFlow { pagerState.currentPage }.collect(onItemFocused)
             }
-            // A pager doesn't anchor by key, so it honors both re-anchors and explicit jumps.
+            // The pager anchors by key during measure (see [PagedReader]), so a re-anchor is usually a
+            // scroll to where it already is — harmless, and the guard against a shift too large for
+            // Compose's key→index window. Explicit jumps always have to be applied.
             LaunchedEffect(pagerState, commands) {
                 commands.collect { command -> pagerState.scrollToPage(command.index) }
             }
@@ -81,8 +85,8 @@ internal fun ReaderContent(
             LaunchedEffect(listState) {
                 snapshotFlow { listState.firstVisibleItemIndex }.collect(onItemFocused)
             }
-            // The strip keeps its visible item anchored by key when the list grows above it, so a
-            // re-anchor is a no-op here; only explicit jumps need to be applied.
+            // The strip keeps its visible item anchored by key when the list changes above it — for
+            // removals as well as inserts — so a re-anchor is a no-op here; only jumps need applying.
             LaunchedEffect(listState, commands) {
                 commands.collect { command ->
                     if (command is ReaderCommand.Jump) listState.scrollToItem(command.index)
@@ -98,7 +102,14 @@ internal fun ReaderContent(
         }
 
         ReaderChrome(
-            content = content,
+            visible = content.chromeVisible,
+            chapterNumber = content.chapterNumber,
+            chapterName = content.chapterName,
+            currentPage = content.currentPage,
+            pageCount = content.currentPageCount,
+            readingMode = content.readingMode,
+            hasPreviousChapter = content.hasPreviousChapter,
+            hasNextChapter = content.hasNextChapter,
             onBack = onBack,
             onPreviousChapter = onPreviousChapter,
             onNextChapter = onNextChapter,

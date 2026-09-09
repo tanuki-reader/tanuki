@@ -14,7 +14,7 @@ import kotlin.uuid.Uuid
  * A thin pass-through over [ChapterRepository.observeChapters]; feature ViewModels depend on this
  * interface (not the repository) so ordering/derivation rules can grow here without touching the UI.
  */
-sealed interface ObserveChapters {
+interface ObserveChapters {
     operator fun invoke(mangaId: Uuid): Flow<List<Chapter>>
 
     @Inject

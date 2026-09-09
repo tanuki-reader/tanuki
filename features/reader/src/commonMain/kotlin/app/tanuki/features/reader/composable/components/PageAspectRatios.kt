@@ -7,7 +7,8 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 
 /**
- * Remembers the true width:height of every page the reader has resolved, for as long as the reader is open.
+ * Remembers the true width:height of every page the reader has resolved, for as long as that page is in
+ * the reader's window.
  *
  * The long strip sizes each item from its page's aspect ratio, but a page's real proportions are only known
  * once the image has been decoded (or prefetched). Without a memory of them, every item that has not
@@ -24,6 +25,10 @@ import androidx.compose.runtime.remember
  *
  * Each page gets its own state, so recording one page's ratio only recomposes that page's item. Confined
  * to the main dispatcher: recorded from `LaunchedEffect` bodies, which resume there.
+ *
+ * Bounded by [retain], which the reader calls with the keys of the items currently on the list. Without
+ * it this grows by one entry per page ever seen — small each, but O(pages read) over a session that can
+ * run to hundreds of chapters.
  */
 @Stable
 internal class PageAspectRatios {
@@ -44,6 +49,17 @@ internal class PageAspectRatios {
         height: Float
     ) {
         if (width > 0f && height > 0f) slot(key).floatValue = width / height
+    }
+
+    /**
+     * Forgets every page outside [keys] — the reader's window slid and those items are gone.
+     *
+     * Safe against [of] inserting on read: the only caller passes the live item keys, and a key can only
+     * enter this map from an item that was in the list. A page that comes back is re-measured on its next
+     * decode, which is exactly what happens the first time it is seen.
+     */
+    fun retain(keys: Set<String>) {
+        ratios.keys.retainAll(keys)
     }
 }
 

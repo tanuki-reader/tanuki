@@ -35,6 +35,9 @@ private const val PAGE_PREFETCH_BEHIND = 2
  * page that just came into range. A failed warm is forgotten again, so a page lost to a dropped connection
  * can be retried the next time focus passes it; a *successful* warm is never re-enqueued, and if it is later
  * evicted from the memory cache it simply loads normally (from disk) when its item composes.
+ *
+ * [warmed] is trimmed to the live item list on every focus change, so it stays bounded as the reader's
+ * chapter window slides rather than accumulating one entry per page ever read.
  */
 @Composable
 internal fun PagePrefetch(
@@ -49,6 +52,13 @@ internal fun PagePrefetch(
     // so everything becomes worth enqueuing again. Confined to the main dispatcher — mutated from the effect
     // below and from Coil's listeners, both of which run there.
     val warmed = remember(imageLoader, decodeSize) { mutableSetOf<String>() }
+
+    // Pages that left the item list can never be enqueued from here again, so remembering them only grows
+    // the set. Keyed on [items] alone, not on the focus: this is a window-scoped trim, and the reader hands
+    // the same list instance back on a page turn, so it runs when the window slides rather than per turn.
+    LaunchedEffect(items) {
+        warmed.retainAll(items.mapTo(HashSet(items.size)) { it.key })
+    }
 
     LaunchedEffect(focusedIndex, items, decodeSize) {
         val forward = items.pagesFrom(focusedIndex + 1, step = 1, limit = PAGE_PREFETCH_AHEAD)

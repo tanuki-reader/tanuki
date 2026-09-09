@@ -30,13 +30,24 @@ import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.features.reader.composable.components.PageScrubber
 import app.tanuki.features.reader.composable.components.chapterTitle
-import app.tanuki.features.reader.viewmodel.ReaderState.Content
-import kotlin.uuid.Uuid
 
-/** Immersive top/bottom chrome, shown when [Content.chromeVisible] and hidden on tap. */
+/**
+ * Immersive top/bottom chrome, shown when [visible] and hidden on tap.
+ *
+ * Takes the scalars it renders rather than the whole [Content] on purpose: the chrome is a function of
+ * the *current page*, not of the item list, and a `Content` parameter would recompose it every time a
+ * chapter loaded into the reader's window for no visible change.
+ */
 @Composable
 internal fun BoxScope.ReaderChrome(
-    content: Content,
+    visible: Boolean,
+    chapterNumber: ChapterNumber?,
+    chapterName: String?,
+    currentPage: Int,
+    pageCount: Int,
+    readingMode: ReadingMode,
+    hasPreviousChapter: Boolean,
+    hasNextChapter: Boolean,
     onBack: () -> Unit,
     onPreviousChapter: () -> Unit,
     onNextChapter: () -> Unit,
@@ -47,7 +58,7 @@ internal fun BoxScope.ReaderChrome(
     // Top bar: back + current chapter title.
     // TODO: add a three-dot menu for more options. change reading mode from reader.
     AnimatedVisibility(
-        visible = content.chromeVisible,
+        visible = visible,
         enter = fadeIn() + slideInVertically { -it },
         exit = fadeOut() + slideOutVertically { -it },
         modifier = Modifier.align(Alignment.TopCenter)
@@ -67,7 +78,7 @@ internal fun BoxScope.ReaderChrome(
                 icon = { tint -> ChevronRightIcon(tint = tint, modifier = Modifier.rotate(180f)) }
             )
             Text(
-                text = chapterTitle(content.chapterNumber, content.chapterName),
+                text = chapterTitle(chapterNumber, chapterName),
                 style = TanukiTheme.typography.title,
                 color = Color.White
             )
@@ -76,7 +87,7 @@ internal fun BoxScope.ReaderChrome(
 
     // Bottom bar: page count over a [prev chapter · scrubber · next chapter] row.
     AnimatedVisibility(
-        visible = content.chromeVisible,
+        visible = visible,
         enter = fadeIn() + slideInVertically { it },
         exit = fadeOut() + slideOutVertically { it },
         modifier = Modifier.align(Alignment.BottomCenter)
@@ -90,11 +101,11 @@ internal fun BoxScope.ReaderChrome(
                     .padding(horizontal = TanukiTheme.spacing.sm, vertical = TanukiTheme.spacing.xs)
         ) {
             PageScrubber(
-                currentPage = content.currentPage,
-                pageCount = content.currentPageCount,
-                reversed = content.readingMode == ReadingMode.RIGHT_TO_LEFT,
-                hasPreviousChapter = content.hasPreviousChapter,
-                hasNextChapter = content.hasNextChapter,
+                currentPage = currentPage,
+                pageCount = pageCount,
+                reversed = readingMode == ReadingMode.RIGHT_TO_LEFT,
+                hasPreviousChapter = hasPreviousChapter,
+                hasNextChapter = hasNextChapter,
                 onPreviousChapter = onPreviousChapter,
                 onNextChapter = onNextChapter,
                 onScrubToPage = onScrubToPage
@@ -108,20 +119,14 @@ internal fun BoxScope.ReaderChrome(
 private fun ReaderChromePreview() {
     Box(modifier = Modifier.fillMaxSize()) {
         ReaderChrome(
-            content =
-                Content(
-                    chapterName = "Chapter Name",
-                    currentPage = 1,
-                    currentPageCount = 10,
-                    hasPreviousChapter = true,
-                    hasNextChapter = true,
-                    readingMode = ReadingMode.RIGHT_TO_LEFT,
-                    chromeVisible = true,
-                    initialItemIndex = 0,
-                    items = emptyList(),
-                    currentChapterId = Uuid.random(),
-                    chapterNumber = ChapterNumber(1)
-                ),
+            visible = true,
+            chapterNumber = ChapterNumber(1),
+            chapterName = "Chapter Name",
+            currentPage = 1,
+            pageCount = 10,
+            readingMode = ReadingMode.RIGHT_TO_LEFT,
+            hasPreviousChapter = true,
+            hasNextChapter = true,
             onBack = {},
             onPreviousChapter = {},
             onNextChapter = {},

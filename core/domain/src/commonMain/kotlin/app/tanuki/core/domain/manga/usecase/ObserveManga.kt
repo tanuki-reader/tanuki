@@ -8,7 +8,7 @@ import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.Uuid
 
-sealed interface ObserveManga {
+interface ObserveManga {
     operator fun invoke(mangaId: Uuid): Flow<Manga?>
 
     @Inject
