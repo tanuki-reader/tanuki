@@ -50,6 +50,8 @@ class HistoryRepositoryImp(
     override suspend fun deleteHistoryForManga(mangaId: Uuid) = historyDao.deleteForManga(mangaId)
 
     override suspend fun clearHistory() = historyDao.clear()
+
+    override suspend fun pruneHistory(before: Instant): Int = historyDao.pruneHistoryBefore(before)
 }
 
 private fun List<HistoryEntity>.toDomain() = map(HistoryEntity::toDomain)

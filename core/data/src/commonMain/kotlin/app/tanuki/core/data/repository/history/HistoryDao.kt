@@ -42,6 +42,47 @@ interface HistoryDao {
     suspend fun clear()
 
     /**
+     * Retention sweep: delete history older than [before], **except** each series' most recent row.
+     *
+     * Two rules, and the second one is the load-bearing half. History is never pruned by anything else,
+     * so without this the table grows for the life of the install — one row per distinct chapter ever
+     * read — and the two all-time readers walk all of it on every chapter the reader opens.
+     *
+     * **Why a series' newest row is never deleted, whatever its age.** Two queries read the *whole*,
+     * date-unfiltered history to answer "when did this series last get read":
+     *
+     * - [app.tanuki.core.data.repository.manga.MangaDao] derives `last_read` as `MAX(history.read_at)`
+     *   in every one of its projections, including the library grid's — so a series whose rows all aged
+     *   out would sort as if it had never been read.
+     * - [observeLibraryHistory]'s subquery groups the same unfiltered table to build Home's
+     *   continue-reading shortlist — so a series whose rows all aged out would vanish from Home.
+     *
+     * Keeping the max row makes both exact rather than approximately preserved, and costs at most one
+     * row per series ever read.
+     *
+     * The rule is expressed as *older than this series' own newest* rather than by id, which keeps the
+     * correlated subquery to a single `MAX` and avoids the bare-column rule [observeLibraryHistory]
+     * depends on. A tie for a series' max keeps both rows; harmless. Both predicates are index-backed
+     * (`index_history_read_at`, `index_history_manga_id`), so this needs no migration.
+     *
+     * @param before Rows at or after this instant are always kept. See
+     *   `app.tanuki.core.domain.history.model.historyRetentionCutoff` for how it is derived.
+     * @return How many rows were deleted — 0 on the overwhelmingly common launch, which is what makes
+     *   running this every start free: Room invalidates from per-row triggers, so a DELETE that matches
+     *   nothing re-runs no query.
+     */
+    @Query(
+        """
+        DELETE FROM history
+        WHERE read_at < :before
+          AND read_at < (
+              SELECT MAX(h2.read_at) FROM history AS h2 WHERE h2.manga_id = history.manga_id
+          )
+        """,
+    )
+    suspend fun pruneHistoryBefore(before: Instant): Int
+
+    /**
      * The Home screen's "continue reading" shortlist: the library series the user has read, one row per
      * **series** carrying its most recent read, most-recently-read first, capped at [limit].
      *

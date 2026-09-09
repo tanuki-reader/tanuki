@@ -6,6 +6,41 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-09 — History is pruned by age, but a series' last read is never deleted
+
+**Decision:** `PruneHistory` runs once at launch and deletes history older than
+`historyRetentionCutoff()` — the first instant of the year before last — **except each series' most
+recent row, whatever its age**. Retention rather than a `LIMIT` in the callers, because
+`ObserveReadingStats` genuinely reads the whole table.
+
+**Why the exemption exists, which is the non-obvious half.** Two queries read the whole, *date-unfiltered*
+history to answer "when did this series last get read": `MangaDao` derives `last_read` as
+`MAX(history.read_at)` in all four of its projections, and `HistoryDao.observeLibraryHistory` groups the
+same unfiltered table for Home's continue-reading shortlist. A plain age cutoff would not have made an old
+series less detailed — it would have made it look **unread** and dropped it off Home. Keeping the max row
+makes both exact, costs at most one row per series ever read, and keeps `ReadingStats.seriesCount` exact
+forever. The rule is expressed in SQL as *older than this series' own newest*; doing it above the database
+would mean loading the whole table, which is the cost the sweep exists to remove.
+
+**The window is derived, not chosen.** Every period-scoped query binds a lower bound and the oldest is
+`TimePeriod.YEAR.previousStartInstant()` — Jan 1 of last year, `GetMostRead`'s year-over-year baseline.
+Anchoring a further calendar year back puts the cutoff at or below it on every date, leap years and
+Dec 31 included, so no period-scoped query can lose a row it would have read. A flat twelve months would
+have sat *above* that baseline for most of the year: not a coarser Year view, a wrong one.
+
+**Ungated on purpose.** Room invalidates from per-row triggers, so a DELETE that matches nothing re-runs
+no query — one indexed scan per launch, against a `last_history_prune` preference that would have to be
+maintained. It is not hung off the write path for the reason `UpdateReadingProgress` already records
+about its own sweep: that path runs on every page turn.
+
+**What it costs, accepted:** `ReadingStats.totalChapters` and the distribution proportions now describe
+the retained window rather than all time, under a UI cue that still reads "All time". Left as is —
+`seriesCount` is exact, `dayStreak` stops at the first gap so only a >2-year streak could be truncated,
+and a dynamic "since 2024" label is worse copy in two languages for a case no install reaches for two
+years. Revisit if a "reading since" figure is ever surfaced.
+
+---
+
 ## 2026-09-07 — Downloads are reconciled against the disk, and each side is authoritative for one thing
 
 **Decision:** `VerifyDownloads` runs once at launch, before the queue is picked up, and settles a drift

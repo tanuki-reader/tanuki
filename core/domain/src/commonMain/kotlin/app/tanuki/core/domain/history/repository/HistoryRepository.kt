@@ -26,4 +26,16 @@ interface HistoryRepository {
     suspend fun deleteHistoryForManga(mangaId: Uuid)
 
     suspend fun clearHistory()
+
+    /**
+     * Retention sweep: delete history older than [before], **except** each series' most recent read,
+     * which is kept whatever its age.
+     *
+     * That exemption is not a nicety — a series' newest row is what `last_read` and Home's
+     * continue-reading shortlist are both derived from, so dropping it would make an old series look
+     * unread rather than merely un-detailed.
+     *
+     * @return How many rows were deleted; 0 when there was nothing old enough, which is the normal case.
+     */
+    suspend fun pruneHistory(before: Instant): Int
 }

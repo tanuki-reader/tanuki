@@ -353,7 +353,78 @@ Chapters" list can show a stale title or a chapter that's since been read.
 **Fix:** either correct the doc, or (better, and near-free once 2.1 lands) make the resolver
 depend on the batch query as a real `Flow` so the claim becomes true.
 
-### 2.3 Bound the history table
+### 2.3 Bound the history table — **DONE**
+
+Shipped as **one SQL predicate, one pure function and one launch-time sweep**: `PruneHistory`
+(`core/domain/.../history/usecase/`) runs from its own `LaunchedEffect` in `App.kt` and calls
+`HistoryDao.pruneHistoryBefore`, which deletes rows older than a cutoff **except each series' most
+recent read**. No schema change, no migration — the two indices it needs (`index_history_read_at`,
+`index_history_manga_id`) already exist. Retention, not `LIMIT`, exactly as this item argued.
+
+**The exemption is the whole design, and it comes from two couplings this item didn't name.** Two
+queries read the *whole, date-unfiltered* history to answer "when did this series last get read":
+`MangaDao` derives `last_read` as `MAX(history.read_at)` in all four of its projections — including
+`observeLibrary`, which backs sort-by-last-read — and `observeLibraryHistory`'s subquery groups the same
+unfiltered table to build Home's continue-reading shortlist (its KDoc already called that un-filtering
+load-bearing). A plain age cutoff would therefore not have made an old series *less detailed*; it would
+have made it look **unread**, and dropped it off Home. Keeping the max row makes both exact rather than
+approximately preserved, costs at most one row per series ever read, and as a bonus keeps
+`ReadingStats.seriesCount` exact forever. It is phrased as *older than this series' own newest* rather
+than by id, which keeps the correlated subquery to a single `MAX` and avoids the bare-column rule
+`observeLibraryHistory` depends on.
+
+**The window is derived, not chosen — which is what makes the sweep provably lossless.** Every
+period-scoped query binds a lower bound, and the oldest any of them can ask for is
+`TimePeriod.YEAR.previousStartInstant()` — Jan 1 of *last* year, the baseline `GetMostRead` compares this
+year against. `historyRetentionCutoff` (`history/model/HistoryRetention.kt`) anchors a further calendar
+year back, so it sits at or below that bound on every date of every year, leap years and Dec 31 included:
+`GetMostRead`, `GetReadingActivity` and `GetHistory` **cannot** lose a row they would have read. In
+practice that keeps 24–36 months. A flat twelve months was rejected because it sits *above* the YEAR
+baseline for most of the year — that would not have made the Year view coarser, it would have made its
+trend arrows wrong. It is computed as a calendar date through `atStartOfDayIn`, not by subtracting a
+`Duration`, for the reason 1.2 already recorded about DST.
+
+**Ungated, on every launch, and that is cheaper than a gate.** Room invalidates from per-row triggers, so
+a DELETE matching nothing fires none and re-runs no query — until an install is two calendar years old
+this costs one indexed scan and invalidates nothing. A `last_history_prune` preference in the shape of
+`last_library_update` would have been state to maintain in exchange for that. It is deliberately **not**
+hung off `upsertHistory`: `UpdateReadingProgress` already records why for its own sweep — that path runs
+on every page turn, and a database walk between pages is exactly what must not happen.
+
+**`GetAllHistory` was deleted rather than bounded.** It was the third `DISTANT_PAST` reader this item
+names and it was dead — a `sealed interface` whose `Default` carried no `@Inject` and no
+`@ContributesBinding`, with zero references outside its own file.
+
+**Accepted cost, since it is user-visible.** `features/activity/.../values/strings.xml`'s
+`activity_all_time` ("All time" / "Todo o período") cues the distribution donuts, and `totalChapters` and
+the donut proportions now describe the retained window rather than all time. Deliberately **not**
+reworded: `seriesCount` stays exact, `dayStreak` walks back from today and stops at the first gap so only
+a streak longer than the window could be truncated, and the honest alternative is a dynamic "since 2024"
+label — worse copy, in two languages, for a case no install reaches for two years. `ObserveReadingStats`'
+KDoc now divides its four aggregates into the ones retention touches and the ones it doesn't, rather than
+claiming all-time for all of them.
+
+**How the load-bearing half was actually verified, since no Kotlin test can reach it.** The
+keep-each-series'-latest rule lives in the SQL predicate, and `:core:data` still has no Room test harness
+(no `room-testing`, no instrumented source set — the same reason all eleven migrations ship untested). So
+the exact generated statement was run against a SQLite fixture covering the cases that matter: an old
+non-newest row, an old newest row, a single-row series entirely below the cutoff, a tie for a series' max,
+and a row exactly *at* the cutoff. Three of nine rows deleted, all five series still present, and
+`MAX(read_at)` per series **unchanged for every one of them** — which is the property `last_read` and
+Home's shortlist both depend on.
+
+Covered by 9 new tests: `HistoryRetentionTest` (5 — the cutoff's date and zone, that the calendar year is
+the zone's and not UTC's, that two calendar years is the narrowest the window gets, and the load-bearing
+sweep across Jan 1 / mid-year / Dec 31 / a leap day in two zones asserting the cutoff never rises above
+`YEAR.previousStartInstant()`) and `PruneHistoryTest` (4 — the derived cutoff is what reaches the
+repository, the count is returned, it is logged, and a zero result logs *nothing*). 380 tests across
+`:core:domain` + `:core:data`, all green; Android builds.
+
+**Not done here:** `observeLibraryHistory` still groups the whole table before its `LIMIT` — retention
+shrinks that grouping but does not remove it, and the note under "Explicitly *not* problems" has been
+updated to say so rather than keep deferring it here. And `ObserveReadHistory` still materializes every
+retained row for the Activity History tab; a `LIMIT` there is the remaining half of this item's original
+"either/or", now genuinely optional.
 
 **Problem:** `HistoryDao.observeHistorySince(since)` is called with `DISTANT_PAST` at every call
 site — an unbounded `SELECT * FROM history`. Nothing ever prunes `history`; `HistoryDao` has
@@ -941,7 +1012,10 @@ Worth recording so they don't get re-audited:
   leftmost column of a composite. No missing-index warnings expected.
 - **`HistoryDao.observeLibraryHistory`** (`:91-109`) pushes filter, one-per-series collapse,
   ordering, cap and joins all into SQL. Home's continue-reading is **not** an N+1. (Its `LIMIT 15`
-  applies after grouping the whole table, so it does scale with history size — item 2.3 covers that.)
+  applies after grouping the whole table, so it does scale with history size. **Item 2.3 bounded that
+  table but did not remove the grouping** — and cannot, since the subquery's un-filtering by date is what
+  makes each series carry its *all-time* last read. So this is now "grouping a bounded table", which is a
+  smaller version of the same shape rather than a closed item.)
 - **`ObserveLibrary`'s 5-arity combine** is deliberate and correct: knobs are `Flow`s so the Room
   subscription happens once and search/sort/filter are re-derived in memory.
 - **No `Activity`/`Context` leaks.** `AndroidBindings.kt:17` binds `Context` = `Application`, and

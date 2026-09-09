@@ -83,6 +83,17 @@ fun App(appGraph: AppGraph) {
         }
     }
 
+    // Keep the history table bounded. Nothing else in the app ever removes a history row on age, and
+    // both readers that take no period walk every row of it on each chapter the reader opens.
+    //
+    // Its own effect, and ungated: a DELETE matching nothing fires no Room trigger, so on every launch
+    // until an install is two calendar years old this costs one indexed scan and invalidates no query.
+    // A series' most recent read is always kept, whatever its age — see PruneHistory for why that is
+    // load-bearing rather than polite.
+    LaunchedEffect(appGraph) {
+        appGraph.applicationScope.launch { appGraph.pruneHistory() }
+    }
+
     // Hand the platform scheduler the user's interval, and re-hand it whenever they change it. Runs for
     // the app's lifetime — it's a subscription, not a one-shot.
     LaunchedEffect(appGraph) {

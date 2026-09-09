@@ -5,6 +5,7 @@ import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.usecase.RunDownloadQueue
 import app.tanuki.core.domain.download.usecase.VerifyDownloads
+import app.tanuki.core.domain.history.usecase.PruneHistory
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.update.usecase.KeepLibraryUpdateScheduled
@@ -86,6 +87,13 @@ interface AppGraph : ViewModelGraph {
      * what is actually on the device.
      */
     val verifyDownloads: VerifyDownloads
+
+    /**
+     * Keeps the history table bounded, at launch. Exposed for the same reason as [verifyDownloads]: it
+     * is a once-per-process sweep with no screen behind it — the screens that *read* history have no
+     * business deciding how much of it is kept.
+     */
+    val pruneHistory: PruneHistory
 
     /**
      * Gets the download queue moving. Exposed on the graph because the launch-time resume in [App] has

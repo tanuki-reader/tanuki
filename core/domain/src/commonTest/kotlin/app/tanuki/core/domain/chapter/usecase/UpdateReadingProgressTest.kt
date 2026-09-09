@@ -225,4 +225,6 @@ private class RecordingHistoryRepo : HistoryRepository {
     override suspend fun deleteHistory(history: ChapterHistory) = error("unused")
     override suspend fun deleteHistoryForManga(mangaId: Uuid) = error("unused")
     override suspend fun clearHistory() = error("unused")
+
+    override suspend fun pruneHistory(before: kotlin.time.Instant): Int = error("unused")
 }

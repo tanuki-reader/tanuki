@@ -26,13 +26,28 @@ import kotlin.time.Instant.Companion.DISTANT_PAST
 import kotlin.uuid.Uuid
 
 /**
- * Use case: the user's all-time reading aggregates ([ReadingStats]) — headline totals, the day streak,
- * and the per-series distribution. Deliberately unscoped by period (the overview describes the whole
- * history), complementing the period-scoped [GetReadingActivity] and [GetMostRead].
+ * Use case: the user's reading aggregates ([ReadingStats]) — headline totals, the day streak, and the
+ * per-series distribution. Deliberately unscoped by period (the overview describes the history as a
+ * whole), complementing the period-scoped [GetReadingActivity] and [GetMostRead].
  *
  * Series are resolved in a single batch read (as [GetMostRead]/[ObserveReadHistory] do), so a long
  * history stays cheap. Series that no longer resolve (pruned manga) are dropped from the distribution but
  * still counted in [ReadingStats.totalChapters].
+ *
+ * ### What "unscoped" means now that history is pruned
+ *
+ * This reads from `DISTANT_PAST`, but [PruneHistory] bounds what is *there* to
+ * [historyRetentionCutoff][app.tanuki.core.domain.history.model.historyRetentionCutoff] — at least two
+ * calendar years — keeping each series' most recent read whatever its age. So the four aggregates divide:
+ *
+ * - [ReadingStats.seriesCount] is **exact, all-time**, and stays so: the retention rule never removes a
+ *   series' last row, so a series read once and never again is still counted years later.
+ * - [ReadingStats.dayStreak] is unaffected in practice — it walks backwards from *today* and stops at the
+ *   first gap, so only a streak longer than the retention window could be truncated by it.
+ * - [ReadingStats.totalChapters] and the [ReadingStats.distribution] / [ReadingStats.categoryShares]
+ *   proportions count rows, so they describe the retained window rather than all time. The Activity
+ *   screen's "all time" cue is deliberately left as it is; see the item 2.3 write-up in
+ *   `docs/backlog-efficiency.md` for why re-labelling it would be worse copy than the imprecision.
  *
  * @see ReadingStats
  */
