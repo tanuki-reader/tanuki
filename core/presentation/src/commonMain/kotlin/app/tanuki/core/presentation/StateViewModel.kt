@@ -10,14 +10,22 @@ import kotlinx.coroutines.flow.StateFlow
  * screen-local knobs, shared under [asState] so it is collected only while the screen is watching.
  *
  * This is the second tier [TanukiViewModel] predicted rather than a type parameter on that class: the
- * ViewModels that cannot express their state as a flow (the reader, source browse) keep their own
- * `MutableStateFlow` on the base and are not forced through a shape that doesn't fit them.
+ * ViewModels [asState] does not fit (the reader, source browse) keep their own `MutableStateFlow` on the
+ * base and are not forced through a shape that doesn't suit them. Note the reader's state *is* derived —
+ * what excludes it is this class's dispatcher, ordering and lifetime contract, not its state shape; see
+ * [TanukiViewModel] for the three reasons in full.
  *
  * **What extending this buys beyond the two lines it saves:** [uiState] has no setter and no backing
  * field a subclass can see, so `uiState.value = …` stops compiling. The pattern this class exists to
  * replace — a pipeline pushed into a mutable field from `launchIn(viewModelScope)`, which runs for the
  * ViewModel's whole lifetime whether or not any UI is subscribed — becomes unrepresentable rather than
  * merely discouraged. A ViewModel still declaring its own state field is therefore saying something.
+ *
+ * **Why the sharing strategy is not a parameter.** Every subclass today is contributed to `AppScope`, so
+ * every one of them is exactly the always-on case this class was written for: a pipeline that would
+ * otherwise hold a Room subscription tree for the life of the process, including while the user is deep
+ * in another screen. A `SharingStarted` knob would let a caller opt back out of the only guarantee the
+ * class makes, so a screen that needs a different lifetime wants the base class, not a parameter here.
  *
  * @param initialState What [uiState] reads before the pipeline has produced anything, and while it is
  *   stopped with nothing yet emitted — normally the screen's `Loading`.

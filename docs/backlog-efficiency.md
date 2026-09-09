@@ -379,8 +379,10 @@ and `MangaViewModel` moved onto it. The three single-value settings ViewModels (
 **Why a base class rather than ten local edits.** The two saved lines are not the point: `uiState` on
 `StateViewModel` has no setter and no backing field a subclass can see, so **`uiState.value = …` stops
 compiling**. The pattern this item exists to delete becomes unrepresentable rather than discouraged, and
-a ViewModel still declaring its own `MutableStateFlow` is now *saying* something — that its state
-genuinely isn't derived. `by lazy` is what makes it work at all: `state` is abstract, so it is not
+a ViewModel still declaring its own `MutableStateFlow` is now *saying* something — at the time, that its
+state genuinely isn't derived. (That marker was refined on 2026-09-09: it now means *either* that, *or*
+that `asState`'s dispatcher/ordering/lifetime contract doesn't fit — see the note at the end of this
+item.) `by lazy` is what makes it work at all: `state` is abstract, so it is not
 initialized while the base constructor runs and cannot be read from there. Deferring to first access is
 also when the pipeline *should* be built.
 
@@ -436,6 +438,14 @@ side effects that must run *after* the state is published, and a second warm pip
 `SourceBrowseViewModel` (eight imperative writes and no derived pipeline at all — a cursor-driven paging
 machine). Both are route-scoped, so neither is part of the always-on cost this item was about; each is a
 rewrite rather than a migration and deserves its own diff.
+
+> **Superseded for the reader (2026-09-09).** Its three out-of-pipeline writes are gone — `Bootstrap`
+> made `Loading`/`Error` derived, so the pipeline's `onEach` is the only writer of `uiState` (see the
+> reader entry under "Explicitly *not* problems"). It still doesn't extend `StateViewModel`, but the
+> reason is now `asState`'s contract rather than its state shape: the `flowOn(default)` hop versus the
+> re-anchor bookkeeping, commands that must be computed after publication, and `WhileSubscribed`
+> reseeding a stateful `scan` on a screen that never leaves the foreground. `SourceBrowseViewModel`'s
+> half of this note stands unchanged.
 
 **Problem:** `TanukiViewModel.asState` (`core/presentation/.../TanukiViewModel.kt:89-95`)
 correctly uses `SharingStarted.WhileSubscribed(5_000L)` — but **almost nothing uses it for main
@@ -543,7 +553,83 @@ unsynchronized cross-thread read. Fold it into the state or make it a `StateFlow
 
 ## Phase 4 — Reader memory
 
-### 4.1 Evict `ReaderViewModel.pagesCache`
+### 4.1 Evict `ReaderViewModel.pagesCache` — **DONE**
+
+Shipped as `ReaderWindow` (`features/reader/.../viewmodel/ReaderWindow.kt`), a pure value holding
+`(index, pages, loading)` that replaces three of the ViewModel's five window flows, plus a third pipeline
+in `init` that evicts. Radius 1, so the window really is previous · current · next.
+
+**Why one flow, and it is not the reason you would guess.** The dangerous desync is *cache smaller than
+the index implies*: evicting against a stale index can drop the chapter the viewport is standing in, and
+`buildItems` returns `emptyList()`, which `ReaderContent` renders as an empty state **mid-read**. The
+other direction — an index that has moved but a cache not yet trimmed — is a valid, contiguous, slightly
+larger list, which is literally today's steady state and harmless. Holding both in one value makes only
+the first unrepresentable, and that is the whole argument for the container.
+
+**The correction that shaped everything else: `currentIndex` moves mid-gesture, not on settle.** A pager's
+`currentPage` flips once a drag passes the snap halfway point, and a strip's `firstVisibleItemIndex`
+changes throughout a fling — both go straight to `onItemFocused` through a `snapshotFlow`. So `movedTo`
+and `evicted` are **separate transitions** and eviction is debounced (`EVICT_QUIET_MS = 750`) on a quiet
+index. Evicting on the move would pull a chapter's items out from above a viewport with a finger still on
+it, and the `Reanchor` that followed would take the scroll mutex and hard-cancel the settle. Debouncing
+also answers the thrash question for free: crossing a boundary back and forth inside the quiet period
+never reaches the eviction pipeline, so it never drops what it is about to need again. That is why the
+radius is a strict ±1 and **not** an LRU cap — under sequential reading "±1" and "keep the 3 nearest" are
+the same set, and a recency cap cannot guarantee the contiguity `buildItems` requires (jump 3 → 40 → 4 and
+the disconnected entries are silently ignored, so they are pure waste).
+
+**`buildItems` needed no change.** Its outward `lo`/`hi` walk depends on the held set being *contiguous*,
+and intersecting a contiguous set with an interval containing the index is still contiguous. The invariant
+that died is the *other* one its KDoc claimed — "the list only grows, which keeps a forward crossing free
+of any re-indexing." A forward crossing now removes the chapter behind, so indices shift down.
+
+**Which surfaced a bug that had been there all along: the pagers were never given a `key`.** Compose's
+`PagerState` restores its page by key during measure through exactly the mechanism `LazyListState` uses
+(`matchPageWithKey` → `findIndexByKey`) — but only when the pager is handed a `key` lambda, and
+`PagedReader` handed none, so it held a bare index. Passing `key = { items[it].key }` makes both layouts
+re-anchor themselves with no command and no cancelled settle, which is what makes evicting above the
+viewport affordable at all. `ReaderCommand.Reanchor` survives as the fallback: Compose builds its
+key→index map only over ~100 items around the last known position (`NearestItemsExtraItemCount`), and
+outside that window the lookup silently keeps the stale index — so removing a prefix longer than that (a
+long webtoon chapter) would still jump. The ViewModel's index is subject to no such bound. That ceiling is
+pre-existing; eviction only makes the path routine.
+
+**The one real dead end, found by re-checking every reader of the cache.** With the window `{i-1, i, i+1}`,
+`buildItems` puts the leading boundary at `from = siblings[i-2]`. Reaching that slide asks for `i-2`, whose
+result `withPages` then drops as out-of-window: the slide never gains pages and paging back dead-ends
+**permanently**, since nothing re-triggers that fetch. Normally unreachable — you have to focus `i-1`'s
+pages first, which moves the index — but `snapshotFlow` conflates and a fling can skip every intermediate
+value. Fixed structurally rather than defensively: `onTransitionFocused` now resolves an `anchor` index
+from the boundary's two sides *before* loading (both sides held ⇒ interior, clamp; otherwise the held side
+is where we came from), so the load target is always `anchor ± 1`. The mark-read guard fell out of it as
+`fromIndex == anchor`, the same predicate with no flow read. `resolvePendingJump` gained a sibling,
+`abandonUnreachableJump`: a jump whose target left the window would otherwise sit armed and fire whenever
+that chapter was next fetched, scrolling the reader out from under a user who had moved on.
+
+**Correction to this item's premise, which changes what "done" means.** `ReaderPage` is a `Url` plus a
+header map (or a path string), so forty chapters of `pagesCache` is well under a megabyte — the bytes were
+never there. What costs is everything *derived* from it, all of which this item also named: `buildItems`
+allocating one `ReaderItem` per page of every held chapter on **every** window-input change, the `Content`
+retaining that list, the two side tables of 4.2 keyed off its item keys, and the `LazyColumn`'s per-item
+bookkeeping. So the win is a bounded item list and bounded side tables plus the allocation churn behind
+them — **not** reclaimed bitmaps, which are Coil's and already LRU-capped. Sentry `TANUKI-2` is therefore
+*not* claimed closed by this; the eviction pipeline logs the retained chapter count so the on-device check
+below is observable, and it should be re-measured.
+
+**Covered by the first tests in `:features:reader`** — 21 `ReaderViewModelTest` cases and 9
+`ReaderWindowTest` ones. Eight of the 21 were confirmed failing against the old implementation before the
+fix was kept; the other thirteen are the pre-eviction contract (resume page, retry, warming, transition
+spinners, debounced progress, mark-read at the trailing but not the leading slide, the scrubber) and were
+written *first* and stayed green through the refactor — a 599-line ViewModel with five interacting flows
+is not something to rewrite blind. Standing that source set up needed the `sealed` keyword dropped from
+`GetReaderPages`, `UpdateReadingProgress`, `ObserveChapters` and `ObserveManga`, exactly as 3.1 did for
+the library's ten.
+
+**One thing the fakes had to model rather than simplify:** `FakeGetReaderPages` always suspends at least
+once. A fake that answered inline let `load()` publish its result *before* the content pipeline had emitted
+its first `Loading`, which then overwrote it — something no real fetch can do, since the use case's
+`withContext(io)` genuinely dispatches. That is a test artefact, not a ViewModel bug, and pinning it in the
+fake's KDoc is cheaper than a defensive guard in production code.
 
 **Problem:** the KDoc at `ReaderViewModel.kt:123` says *"Held only for the window
 (prev/curr/next); others are evicted."* **They are not.** Every write to `pagesCache` is either
@@ -568,7 +654,19 @@ done. Budget real time and lean on the reader tests.
 **Confirmed in production:** Sentry issue `TANUKI-2` is a `WatchdogTermination` — the OS killed
 the app for RAM on a real device. This is the most likely cause.
 
-### 4.2 Bound the two unbounded reader side-tables
+### 4.2 Bound the two unbounded reader side-tables — **DONE**
+
+`PageAspectRatios` gained `retain(keys)` and `PagePrefetch` trims `warmed` to the live item list at the top
+of its existing effect. Both are now bounded by `Content.items`, which is what 4.1 made bounded — so the
+assertion that actually pins them is 4.1's "the item list stays bounded while reading through the whole
+series", not anything in the composables. `:features:reader` has no Compose test infrastructure and this
+doesn't pretend otherwise.
+
+`of()` keeps inserting on read (`getOrPut`). That read-is-a-write is deliberate — the per-key
+`MutableFloatState` is what lets a prefetch warm that lands *after* an item composed re-measure it — and
+`retain` is safe against it because the only caller passes the live item keys, and a key can only enter the
+map from an item that was in the list. A page that comes back is re-warmed and re-measured, which costs a
+cache probe rather than a download.
 
 - `PageAspectRatios` (`composable/components/PageAspectRatios.kt:30`) — an unbounded
   `mutableMapOf<String, MutableFloatState>`, one entry per page ever seen, documented as living
@@ -727,6 +825,49 @@ Worth recording so they don't get re-audited:
   before every chapter *and* every page, plus `NetworkType.UNMETERED` on the Android worker.
 - **The reader's decode sizing is correct** and is the most important thing in that subsystem —
   see the note under Phase 4.
+- **The reader's item list and its spine were reworked (2026-09-09), after 4.1.** Three efficiency
+  defects and one reactivity gap, all fixed together because they turned out to be the same shape:
+  `buildItems` ran on **every** page turn *and* chrome toggle (one `combine` couldn't tell them apart);
+  nothing in the reader was Compose-skippable, because `ReaderState.Content` holds a `List` and so was
+  inferred **unstable**; `siblings.indexOfFirst` was an O(total chapters) scan per page turn on an
+  uncapped list; and the chapter spine was snapshotted, so a background `UpdateLibrary` landing a chapter
+  mid-read was invisible. The keystone was **re-keying `ReaderWindow` from a positional index to the
+  current chapter's id** — a position is meaningful only against one spine, and the spine is now live, so
+  an id needs no remapping *and* deletes the hot-path scan outright (a focused page carries its own
+  `chapterId`). `Frame` pairs the window with the list built from it and hands the *previous instance*
+  forward when a rebuild comes out equal, so a chapter crossing doesn't hand the UI a new reference for
+  an unchanged list. `@Immutable` on `Content`/`ReaderItem`/`ChapterRef` is what lets Compose act on that;
+  `ReaderChrome` now takes scalars rather than the whole `Content`. `Bootstrap` (Resolving | Failed |
+  Ready) replaced the nullable session so `Loading`/`Error` are derived and the pipeline is the only
+  writer of `uiState`, and the progress debounce became a flow instead of a hand-cancelled `Job`.
+  Covered by 38 tests (29 + 9), the load-bearing ones asserting **identity** (`assertSame`) not equality —
+  an equal-but-fresh list passes `assertEquals` while still costing the recomposition the work exists to
+  avoid. **Two things deliberately left:** an open reader now holds two live Room subscriptions, and the
+  manga one is the six-table projection re-running on our own progress writes only to be discarded by the
+  spine gate — a narrow "reading mode + scanlator filter" read would fix that. And a progress write is
+  still lost if the reader closes inside the 400 ms debounce; flushing from `onCleared` needs a scope
+  outliving the ViewModel, which would make the reader the first feature to inject the application scope.
+- **The dispatchers are right, including the two that look wrong.** Audited after Phase 4 landed.
+  `ReaderViewModel`'s three pipelines are collected on Main with no `flowOn`, and must stay that way:
+  `reanchorIfNeeded` / `resolvePendingJump` / `abandonUnreachableJump` mutate plain `var`s that
+  `onItemFocused` also writes from the UI thread, so `dispatcher.default` would recreate item 3.5's
+  race — and the command contract ("every command references the list already in `uiState`") is an
+  ordering guarantee that only holds on one thread. The upstream repository flows are `flowOn(io)`
+  already, so only the emission crosses back, and Phase 4 is what made the per-emission `buildItems`
+  allocation on Main bounded. `persistNow` likewise calls `updateReadingProgress` without an `io { }`
+  and doesn't need one.
+- **Every layer below a ViewModel dispatches for itself** — Room through
+  `DatabaseBuilder.buildDatabase`'s `setQueryCoroutineContext(dispatcherProvider.io)`, DataStore through
+  its own scope, `FileSystemChapterDownloadStore` and `WasmSourceLoader` through explicit `withContext`.
+  So `TanukiViewModel.io` is a boundary guarantee, not what keeps the main thread free, and `tryIo`'s
+  real value is its logging and its cancellation rule. The rule for the layer below — **wrap only for
+  work the repository does itself** (list→domain mapping, batching, encoding), never for a plain DAO
+  delegation — is now recorded in `TanukiViewModel`'s KDoc and CLAUDE.md, where the opposite claim used
+  to be. `:core:data` follows it in the majority (26 of 61 suspend functions wrap) but not uniformly:
+  `SettingsRepositoryImp` wraps all seven setters around an already-IO-safe `dataStore.edit`,
+  `DownloadRepositoryImp.setProgress` wraps a one-liner while `nextQueued` maps to domain unwrapped.
+  Those are **redundancy, not bugs** — a `withContext` to the context you are already in does not
+  dispatch. Normalising all 61 is its own piece of work; deliberately not done here.
 
 ---
 
@@ -744,7 +885,8 @@ Note the task names: neither `:core:domain` nor `:core:data` declares `withHostT
 `commonTest` runs on the iOS simulator target only and there is no `testAndroidHostTest` task for
 either. The modules that do have one are `:core:source`, `:core:navigation`, `:core:presentation` and
 `:shared`. `:features:library`, `:features:home` and `:features:activity` have `commonTest` source sets
-as of 3.1 — iOS-simulator only, same as `:core:domain` — and the other feature modules still have none. Kotlin/Native also rejects a backtick
+as of 3.1, and `:features:reader` as of 4.1 — iOS-simulator only, same as `:core:domain` — and the other
+feature modules still have none. Kotlin/Native also rejects a backtick
 test name containing a comma, and a `private` top-level fake collides with an identically-named one in
 another file of the same package.
 
@@ -763,8 +905,13 @@ everything.
 allocation tracker. Open a chapter (writes history) and count how many `manga` queries fire —
 before 2.1 it should be one per distinct series in the entire history.
 
-**Phase 4 check:** read 20+ chapters continuously and watch heap growth. `pagesCache.size` should
-stay at 3, not climb to 20.
+**Phase 4 check:** read 20+ chapters continuously and watch heap growth. The eviction pipeline logs
+`Reader window holds N chapters` — N should sit at 3 indefinitely. The parts no unit test reaches, all
+gesture-level: paged, swipe *slowly* across a boundary and hold at ~60% (no snap, and eviction fires only
+after you let go and stop — this is the failure the naive move-and-evict design produces); webtoon, *fling*
+across a boundary (no jump when the prefix is removed, and the leading slide of the newly-current chapter
+still loads its predecessor); either layout, cross a boundary and immediately hit the previous-chapter
+button (the jump lands).
 
 **Phase 5.2 check:** the decisive test is a source whose CDN sends a short `max-age`. Load a
 library screen, force-kill, relaunch offline — covers should still render from disk.

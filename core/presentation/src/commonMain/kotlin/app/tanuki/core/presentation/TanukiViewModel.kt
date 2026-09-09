@@ -31,7 +31,9 @@ import kotlin.coroutines.cancellation.CancellationException
  *  - **The two services every ViewModel needs**, [dispatcher] and [logger], as constructor parameters
  *    subclasses forward — Metro resolves them from the graph the same way it did per-ViewModel before.
  *  - **The idioms built on them:** [asState] for a screen state derived straight from a domain flow, and
- *    [io]/[tryIo] for the "hop to IO, log what failed" pattern the writing paths repeat.
+ *    [io]/[tryIo] for the "log what failed, let cancellation through" pattern the writing paths repeat.
+ *    Note the *hop* in those two is a boundary guarantee rather than the thing keeping the main thread
+ *    free — see [io] for which layer actually owns it.
  *
  * What it deliberately does *not* own is `uiState` — not because no ViewModel should share one, but
  * because they do not all share the *same* one. A type parameter on this class would impose a screen
@@ -39,11 +41,24 @@ import kotlin.coroutines.cancellation.CancellationException
  * `categories`, …), and on [app.tanuki.core.presentation.StateViewModel]'s own generic signature.
  *
  * So the shape is a **second tier**: [StateViewModel] extends this and owns a `uiState` derived through
- * [asState], which is what every screen whose state is a projection of domain flows should extend. The
- * two that cannot — the reader and source browse, whose state is driven imperatively by a paging cursor
- * and by fetches in flight rather than by any flow — extend *this* class and declare their own
- * `MutableStateFlow` through Kotlin's explicit backing field. That declaration is now a marker: it says
- * this screen's state genuinely isn't derived, rather than being the default everything reached for.
+ * [asState], which is what every screen whose state is a projection of domain flows should extend. Two
+ * screens extend *this* class instead and declare their own `MutableStateFlow` through Kotlin's explicit
+ * backing field, for two different reasons:
+ *
+ *  - **Source browse** genuinely has no derived state: a cursor-driven paging machine, eight imperative
+ *    writes, nothing to project from.
+ *  - **The reader's state *is* derived** — every one of its three states comes out of one pipeline, and
+ *    that pipeline's `onEach` is the only writer of its `uiState`. What doesn't fit is [asState] itself,
+ *    in three ways. It maps on [DispatcherProvider.default], and the reader's re-anchor bookkeeping is
+ *    mutated from both the pipeline and the main thread, so the hop would make those an unsynchronised
+ *    pair. Its scroll commands must be computed *after* the state is published, and a subclass's `state`
+ *    flow sits upstream of `stateIn`, where nothing has published yet. And `WhileSubscribed` would stop
+ *    and reseed a stateful `scan` it depends on, for a route-scoped screen that is visible for its whole
+ *    life and so saves nothing by stopping.
+ *
+ * So the marker a declared state field carries is: *either* this screen's state isn't derived, *or*
+ * [asState]'s dispatcher/ordering/lifetime contract doesn't fit it. Not the first alone, and never
+ * "reached for by default".
  *
  * The same reasoning keeps screen-specific one-shot effects local (e.g. `ReaderViewModel.commands`).
  *
@@ -94,8 +109,20 @@ abstract class TanukiViewModel(
             )
 
     /**
-     * Runs [block] on [DispatcherProvider.io]. For the repositories' suspend writes, which — unlike their
-     * Flows — don't dispatch for themselves.
+     * Runs [block] on [DispatcherProvider.io].
+     *
+     * **This is a boundary guarantee, not what keeps the main thread free** — every layer a ViewModel
+     * calls into already dispatches for itself: Room, through the `setQueryCoroutineContext(io)` its
+     * builder applies (`DatabaseBuilder.buildDatabase`, so "suspending DAO calls never block the caller's
+     * thread"); DataStore, through its own scope; `FileSystemChapterDownloadStore` and `WasmSourceLoader`,
+     * through explicit `withContext`. Kept anyway because a `withContext` to the context you are already
+     * in does not dispatch, so it costs nothing, and because nothing guarantees the next callee will.
+     *
+     * The corollary, for the layer below: **a repository wraps in `withContext(io)` only for work it does
+     * itself** — mapping a row list to domain, batching, encoding — never for a plain DAO delegation,
+     * which Room has already moved off the caller's thread. Compare `MangaRepositoryImp.getMangaByIds`
+     * (`readInBatches` + `toDomainList()` over hundreds of rows, so it wraps) with `setReadingMode` (a
+     * one-line delegation, so it doesn't).
      */
     protected suspend fun <T> io(block: suspend CoroutineScope.() -> T): T = withContext(dispatcher.io, block)
 
@@ -103,7 +130,11 @@ abstract class TanukiViewModel(
      * [io] for a call that is allowed to fail: logs the failure against [tag] with [what] as the message
      * and hands back the [Result] so the caller decides what the screen shows.
      *
-     * Cancellation is re-thrown rather than reported — see [runCatchingCancellable].
+     * The dispatch is the lesser half (see [io]); what this is really for is the pair of rules around it —
+     * one place that logs what failed, and cancellation re-thrown rather than reported, so a load dropped
+     * by a closing screen or a superseded search unwinds silently instead of painting an error over state
+     * that has already moved on. A bare `runCatching` around a suspend call gets the second one wrong; use
+     * [runCatchingCancellable] where the hop isn't wanted.
      */
     protected suspend fun <T> tryIo(
         what: String,

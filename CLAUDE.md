@@ -120,7 +120,16 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
   - `dispatcher` and `logger`, taken as constructor parameters the subclass forwards to `super`.
   - `tag` — defaults to the class's `simpleName`; used by the logging helpers.
   - `Flow<T>.asState(initial)` for a `StateFlow` derived straight from a domain flow, and
-    `io { }` / `tryIo("what failed") { }` for suspend work that must hop to the IO dispatcher.
+    `io { }` / `tryIo("what failed") { }` for suspend work at the ViewModel boundary. **`tryIo` is
+    mostly not about the hop** — every layer below already dispatches for itself (Room via
+    `setQueryCoroutineContext(io)`, DataStore, `FileSystemChapterDownloadStore`, `WasmSourceLoader`) —
+    it is about logging what failed *and* re-throwing cancellation. Where the hop isn't wanted, use
+    `runCatchingCancellable { }`; a bare `runCatching` around a suspend call swallows
+    `CancellationException` and reports an abandoned load as a failure.
+  - **Where the IO hop lives, once:** the layer that knows whether the work blocks owns it. A repository
+    wraps in `withContext(io)` only for work *it* does — mapping a row list to domain, batching,
+    encoding — never for a plain DAO delegation. (`:core:data` has redundant wrappers predating this
+    rule; they're harmless, since `withContext` to the context you're already in doesn't dispatch.)
 - **A screen whose state is *derived* extends `StateViewModel<S>`** (`:core:presentation`), the second
   tier on top of `TanukiViewModel`. Give it `initialState` through `super` and implement
   `override val state: Flow<S>`; the base owns `uiState`, sharing it through `asState` so the pipeline
@@ -129,10 +138,15 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
   refresh in flight) is an **input** `MutableStateFlow` folded into the pipeline, never something written
   over its output: `uiState` has no setter, so `uiState.value = …` will not compile.
 
-  The two screens whose state genuinely isn't derived — the reader and source browse, driven by a paging
-  cursor and by fetches in flight — extend `TanukiViewModel` directly and declare their own state with
-  Kotlin's explicit backing field (`val uiState: StateFlow<S>` / `field = MutableStateFlow(Loading)`).
-  That declaration is a marker; reach for it only when a pipeline honestly can't express the screen.
+  Two screens extend `TanukiViewModel` directly and declare their own state with Kotlin's explicit
+  backing field (`val uiState: StateFlow<S>` / `field = MutableStateFlow(Loading)`), for two different
+  reasons: **source browse** has no derived state at all (a cursor-driven paging machine), while **the
+  reader's state is derived** — what doesn't fit it is `asState` itself, whose `flowOn(default)` would
+  race the reader's re-anchor bookkeeping, whose `stateIn` publishes too late for scroll commands
+  computed against the list just emitted, and whose `WhileSubscribed` would reseed a stateful `scan` for
+  a route-scoped screen that never leaves the foreground. So the marker means *either* "not derived"
+  *or* "`asState`'s contract doesn't fit" — reach for it only on one of those two grounds, and don't add
+  a `SharingStarted` knob to `StateViewModel` to dodge the third (see its KDoc for why).
   Don't put a type parameter on `TanukiViewModel` itself — it serves both kinds, plus the settings
   ViewModels that expose a single domain value under its own name rather than a screen state.
   Screen-specific one-shot effects stay local too (`ReaderViewModel.commands`).
