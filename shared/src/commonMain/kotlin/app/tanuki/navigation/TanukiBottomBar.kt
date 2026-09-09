@@ -31,7 +31,7 @@ import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
 /** Height of the icon+label content band, excluding the system safe-area inset added below it. */
-private val BottomBarContentHeight = 72.dp
+private val BottomBarContentHeight = 62.dp
 
 /**
  * The app's bottom navigation bar — the one place the [TopLevelDestination] tabs are rendered, driven by
