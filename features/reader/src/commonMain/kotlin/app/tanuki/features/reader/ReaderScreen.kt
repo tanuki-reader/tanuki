@@ -55,6 +55,7 @@ private fun ReaderScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val prefetchBudget by viewModel.prefetchBudget.collectAsStateWithLifecycle()
 
     Box(modifier.fillMaxSize().background(Color.Black)) {
         when (val current = state) {
@@ -70,6 +71,7 @@ private fun ReaderScreen(
                 ReaderContent(
                     content = current,
                     commands = viewModel.commands,
+                    prefetchBudget = prefetchBudget,
                     onItemFocused = viewModel::onItemFocused,
                     onToggleChrome = viewModel::onToggleChrome,
                     onBack = viewModel::onBack,

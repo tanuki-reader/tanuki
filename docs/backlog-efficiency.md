@@ -820,7 +820,69 @@ source that changes cover art behind a stable URL can never be refreshed.
 **Fix:** either append `lastModified` to the request's `memoryCacheKey`/`diskCacheKey`, or delete
 the field and the reasoning around it. Pick one — the current state is the worst of both.
 
-### 5.4 Make `PagePrefetch` connection-aware
+### 5.4 Make `PagePrefetch` connection-aware — **DONE**
+
+Shipped as three pieces: `PagePrefetchBudget` (`features/reader/.../viewmodel/`) — `Full` at 5 ahead / 2
+behind, `Frugal` at 2 / 0 — derived in `ReaderViewModel` and published as a `StateFlow` **beside**
+`uiState`; `PageWarmer` (`.../composable/components/`), which owns the bookkeeping `PagePrefetch` used to
+keep in a bare `MutableSet`; and a `PagePrefetch` that takes the budget as its window limits, cancels
+warms that have left the window, and cancels everything on `onDispose`.
+
+**Why the budget is not a field on `ReaderState.Content`.** `Content`'s *identity* is load-bearing — the
+`Frame` machinery from the 2026-09-09 reader rework hands the previous instance forward when a rebuild
+comes out equal, precisely so an unchanged item list doesn't cost a recomposition. Putting a network
+value in there would make walking into a lift rebuild the page list. It rides beside `uiState` for the
+same reason `commands` does. It uses `asState` even though the reader deliberately doesn't extend
+`StateViewModel`: every objection in that class's KDoc (the `default` hop racing the re-anchor `var`s,
+commands computed after publication, `WhileSubscribed` reseeding `frames`' `scan`) is about the *main*
+pipeline, and none of them touch a two-arm flow nothing else reads. It is seeded from the synchronous
+`status`/`isMetered` field reads — which is what those exist for — so a reader opened on a hotspot never
+warms seven pages for the frame it takes the flow to catch up.
+
+**No use case, deliberately.** `ObserveDownloadHold` is the shape being reused (`combine` →
+`distinctUntilChanged`), not the layer: it lives in `:core:domain` because *two* consumers had to read
+one answer, and here there is exactly one. `2/0` versus `5/2` is reader-presentation policy, and
+`:core:domain` has no business holding it.
+
+**`OFFLINE` folds into `Frugal` rather than earning a third budget.** A downloaded chapter is read from
+disk, so warming still pays off with no network at all; a warm of a *source* page is refused by
+`KtorPageFetcher` before a socket opens, then forgotten so it retries when the link comes back. Closing
+the window offline would have broken the one case where prefetching is free.
+
+**The reversal.** `PagePrefetch`'s KDoc used to argue *for* the detached warm — "scrolling quickly
+re-targets the window without cancelling downloads that are already half done." That is exactly the waste
+this item names, so the argument is gone rather than worked around. What it costs is real and small: a
+cancelled warm forfeits the proportions it would have taught `PageAspectRatios`, which is free, because
+the page is out of the window so nothing is measuring it and it is measured on its next decode like any
+page seen for the first time.
+
+**The trap in the naive version, and the reason `cancelOutside` takes a set rather than a range.** The
+warm window is `focusedIndex ± n` — it does not contain `focusedIndex`. So advancing one page moves the
+page the user is *looking at* out of the warm set, and a cancel-what-left-the-window rule would cancel
+the download of the page currently on screen, on every single page turn. The retained set is the window
+keys **plus the key at `focusedIndex`**. `retain` cancels too, on the weaker ground that an item off the
+list cannot be shown without loading it again from scratch.
+
+**`PageWarmer` holds two sets, not one, and that is the whole design.** *Warmed* answers "don't enqueue
+this again" (unchanged from before: focus moves one item at a time, so re-running the window would hand
+the loader the same requests over and over). *In flight* answers "this can still be stopped", and is
+strictly smaller — it empties as warms land. A key leaves both together, so a page that was cancelled or
+failed is warmable again while one that succeeded never is. It is free of Coil **and** Compose types —
+`WarmHandle` (`fun interface { fun cancel() }`) is the only seam, and `PagePrefetch` adapts Coil's
+`Disposable` to it at the call site. That is not tidiness: `:features:reader` has no Compose test
+infrastructure, so a cancellation rule living in the effect body would have been untestable.
+
+Covered by a new `PageWarmerTest` (7 cases: enqueue-once, cancel outside the window, a cancelled page
+warms again, a settled one does neither, a failed one retries, an item off the list is forgotten *and*
+cancelled, `cancelAll`) and 5 new `ReaderViewModelTest` cases (the budget is right **before** anything
+collects it, `Full` on an unmetered link, metered and `LOW_SPEED` and `OFFLINE` each narrow it, and
+leaving a hotspot widens it again). A third `FakeConnectionObserver` — the ones in `:core:source` and
+`:core:domain` are `internal` to their own test source sets, which is the established answer here. 50
+tests in `:features:reader`, all green; both targets build.
+
+**Not done here:** the window is a function of the *connection*, not of how fast pages are actually
+arriving — a slow source on a fast link still gets `Full`. And `5.6`'s sibling audit of the long-lived
+caches is untouched.
 
 **Problem:** `PagePrefetch` warms a 7-page window (`PAGE_PREFETCH_AHEAD = 5`,
 `PAGE_PREFETCH_BEHIND = 2`) across chapter boundaries, and **never consults `ConnectionObserver`.**

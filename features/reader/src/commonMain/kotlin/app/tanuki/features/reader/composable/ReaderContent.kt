@@ -18,6 +18,7 @@ import app.tanuki.features.reader.composable.components.rememberPageAspectRatios
 import app.tanuki.features.reader.composable.components.WebtoonReader
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_no_pages
+import app.tanuki.features.reader.viewmodel.PagePrefetchBudget
 import app.tanuki.features.reader.viewmodel.ReaderCommand
 import app.tanuki.features.reader.viewmodel.ReaderState
 import kotlinx.coroutines.flow.Flow
@@ -30,6 +31,9 @@ import org.jetbrains.compose.resources.stringResource
  *
  * - **report:** the settled item index is pushed to [onItemFocused]; the ViewModel derives the chapter,
  *   persists progress, and preloads the next chapter as boundary approach.
+ * How far ahead pages are warmed is the ViewModel's call too ([prefetchBudget]), since it is the half of
+ * the reader that can see the connection.
+ *
  * - **command:** the ViewModel drives the viewport back via [commands] — a [ReaderCommand.Reanchor] to
  *   hold position when the loaded range grows above the current page (paged layouts only; the strip
  *   anchors by item key), and a [ReaderCommand.Jump] for the scrubber and prev/next-chapter buttons.
@@ -38,6 +42,7 @@ import org.jetbrains.compose.resources.stringResource
 internal fun ReaderContent(
     content: ReaderState.Content,
     commands: Flow<ReaderCommand>,
+    prefetchBudget: PagePrefetchBudget,
     onItemFocused: (Int) -> Unit,
     onToggleChrome: () -> Unit,
     onBack: () -> Unit,
@@ -72,7 +77,7 @@ internal fun ReaderContent(
             LaunchedEffect(pagerState, commands) {
                 commands.collect { command -> pagerState.scrollToPage(command.index) }
             }
-            PagePrefetch(content.items, pagerState.currentPage, ratios)
+            PagePrefetch(content.items, pagerState.currentPage, prefetchBudget, ratios)
             PagedReader(
                 items = content.items,
                 pagerState = pagerState,
@@ -92,7 +97,7 @@ internal fun ReaderContent(
                     if (command is ReaderCommand.Jump) listState.scrollToItem(command.index)
                 }
             }
-            PagePrefetch(content.items, listState.firstVisibleItemIndex, ratios)
+            PagePrefetch(content.items, listState.firstVisibleItemIndex, prefetchBudget, ratios)
             WebtoonReader(
                 items = content.items,
                 listState = listState,

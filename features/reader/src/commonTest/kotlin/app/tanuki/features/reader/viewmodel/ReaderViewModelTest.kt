@@ -10,6 +10,8 @@ import app.tanuki.core.domain.chapter.usecase.ObserveChapters
 import app.tanuki.core.domain.chapter.usecase.UpdateReadingProgress
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.common.service.ConnectionObserver
+import app.tanuki.core.domain.common.service.ConnectionObserver.ConnectionStatus
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.Logger
@@ -31,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
@@ -593,6 +596,78 @@ class ReaderViewModelTest {
     /** Focuses the first page of [chapterId], the way the viewport reports crossing a boundary. */
     private fun ReaderViewModel.crossInto(chapterId: Uuid) = onItemFocused(indexOfFirstPage(chapterId))
 
+    // ---- The prefetch budget --------------------------------------------------------------------
+
+    @Test
+    fun `the budget is read from the connection before anything collects it`() = runTest {
+        val world = World()
+        world.connection.set(metered = true)
+
+        val viewModel = world.viewModel()
+
+        // No runCurrent, no collector: a reader that opened on a hotspot must not warm seven pages for
+        // the frame it takes the flow to catch up.
+        assertEquals(PagePrefetchBudget.Frugal, viewModel.prefetchBudget.value)
+    }
+
+    @Test
+    fun `an unmetered online link warms the full window`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = launch { viewModel.prefetchBudget.collect { } }
+        runCurrent()
+
+        assertEquals(PagePrefetchBudget.Full, viewModel.prefetchBudget.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `moving onto a metered link narrows the window and leaving it widens it again`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = launch { viewModel.prefetchBudget.collect { } }
+        runCurrent()
+
+        world.connection.set(metered = true)
+        runCurrent()
+        assertEquals(PagePrefetchBudget.Frugal, viewModel.prefetchBudget.value)
+
+        world.connection.set(metered = false)
+        runCurrent()
+        assertEquals(PagePrefetchBudget.Full, viewModel.prefetchBudget.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `a slow link narrows the window even when it is not metered`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = launch { viewModel.prefetchBudget.collect { } }
+        runCurrent()
+
+        world.connection.set(status = ConnectionStatus.LOW_SPEED)
+        runCurrent()
+
+        assertEquals(PagePrefetchBudget.Frugal, viewModel.prefetchBudget.value)
+        job.cancel()
+    }
+
+    @Test
+    fun `going offline narrows the window rather than closing it`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = launch { viewModel.prefetchBudget.collect { } }
+        runCurrent()
+
+        world.connection.set(status = ConnectionStatus.OFFLINE)
+        runCurrent()
+
+        // A downloaded chapter is read from disk, so there is still something worth warming.
+        assertEquals(PagePrefetchBudget.Frugal, viewModel.prefetchBudget.value)
+        assertTrue(viewModel.prefetchBudget.value.ahead > 0)
+        job.cancel()
+    }
+
     private fun ReaderViewModel.indexOfFirstPage(chapterId: Uuid): Int =
         content().items.indexOfFirst { it is PageItem && it.chapterId == chapterId && it.pageNumber == 0 }
 
@@ -671,6 +746,8 @@ class ReaderViewModelTest {
 
         val manga = MutableStateFlow<Manga?>(manga(mangaId))
 
+        val connection = FakeConnectionObserver()
+
         /** Drops [id] from the spine, as a library update pruning a delisted chapter would. */
         fun removeChapter(id: Uuid) = chapters.update { list -> list.filterNot { it.id == id } }
 
@@ -697,6 +774,7 @@ class ReaderViewModelTest {
                 updateReadingProgress = progress,
                 observeChapters = FakeObserveChapters(chapters),
                 observeManga = FakeObserveManga(mangaFlow()),
+                connectionObserver = connection,
                 dispatcher = ImmediateDispatchers,
                 logger = SilentLogger
             )
@@ -768,6 +846,34 @@ private class FakeObserveManga(
     private val manga: Flow<Manga?>
 ) : ObserveManga {
     override fun invoke(mangaId: Uuid): Flow<Manga?> = manga
+}
+
+/**
+ * A [ConnectionObserver] the test moves between networks. Defaults to an unmetered [ConnectionStatus.ONLINE]
+ * link so a case that isn't about connectivity doesn't have to say so.
+ *
+ * A third copy of a fake that already exists in `:core:source` and `:core:domain`: both are `internal` to
+ * their own test source sets, which is the established answer in this repo.
+ */
+private class FakeConnectionObserver : ConnectionObserver {
+    private val state = MutableStateFlow(ConnectionStatus.ONLINE)
+    private val meteredState = MutableStateFlow(false)
+
+    override val connectivity: Flow<ConnectionStatus> = state.asStateFlow()
+
+    override val status: ConnectionStatus get() = state.value
+
+    override val metered: Flow<Boolean> = meteredState.asStateFlow()
+
+    override val isMetered: Boolean get() = meteredState.value
+
+    fun set(
+        status: ConnectionStatus = state.value,
+        metered: Boolean = meteredState.value
+    ) {
+        state.value = status
+        meteredState.value = metered
+    }
 }
 
 private object ImmediateDispatchers : DispatcherProvider {

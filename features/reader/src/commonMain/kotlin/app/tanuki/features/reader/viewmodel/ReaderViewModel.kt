@@ -7,6 +7,8 @@ import app.tanuki.core.domain.chapter.model.isHiddenBy
 import app.tanuki.core.domain.chapter.usecase.GetReaderPages
 import app.tanuki.core.domain.chapter.usecase.ObserveChapters
 import app.tanuki.core.domain.chapter.usecase.UpdateReadingProgress
+import app.tanuki.core.domain.common.service.ConnectionObserver
+import app.tanuki.core.domain.common.service.ConnectionObserver.ConnectionStatus
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.debug
@@ -131,6 +133,7 @@ class ReaderViewModel(
     private val updateReadingProgress: UpdateReadingProgress,
     private val observeChapters: ObserveChapters,
     private val observeManga: ObserveManga,
+    connectionObserver: ConnectionObserver,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : TanukiViewModel(dispatcher, logger) {
@@ -140,6 +143,27 @@ class ReaderViewModel(
     /** Imperative scrolls the UI must apply (re-anchor after a window shift, or an explicit jump). */
     private val _commands = Channel<ReaderCommand>(Channel.BUFFERED)
     val commands: Flow<ReaderCommand> = _commands.receiveAsFlow()
+
+    /**
+     * How far ahead and behind the UI may warm page images, as the connection currently allows.
+     *
+     * Published beside [uiState] rather than folded into [Content], on the same reasoning that keeps
+     * [commands] separate: [Content]'s identity is what lets the reader skip recomposing an unchanged item
+     * list, and a network change has nothing to say about that list. The two arms are combined here rather
+     * than in a use case because there is exactly one consumer and the numbers are the reader's policy —
+     * `ObserveDownloadHold` is the shape being reused, not the layer.
+     *
+     * `metered` and `LOW_SPEED` are separate axes (a 5G link is expensive and fast), so either narrows the
+     * window. `OFFLINE` narrows it too rather than closing it: a downloaded chapter is read from disk and
+     * still worth warming, and a warm of a source page is refused by the fetcher before a socket opens.
+     *
+     * Seeded from the synchronous status reads, so the first composition already has the right window
+     * instead of a frame of `Full` on a hotspot.
+     */
+    val prefetchBudget: StateFlow<PagePrefetchBudget> =
+        combine(connectionObserver.connectivity, connectionObserver.metered, ::budgetFor)
+            .distinctUntilChanged()
+            .asState(budgetFor(connectionObserver.status, connectionObserver.isMetered))
 
     /**
      * How far the reader has got resolving what it needs, and the gate every pipeline hangs off. Each of
@@ -856,3 +880,12 @@ class ReaderViewModel(
         const val EVICT_QUIET_MS = 750L
     }
 }
+/**
+ * The warm window a link of this shape earns. Top-level and pure so the same rule seeds
+ * [ReaderViewModel.prefetchBudget] and drives it, rather than being written twice.
+ */
+private fun budgetFor(
+    status: ConnectionStatus,
+    metered: Boolean
+): PagePrefetchBudget =
+    if (metered || status != ConnectionStatus.ONLINE) PagePrefetchBudget.Frugal else PagePrefetchBudget.Full
