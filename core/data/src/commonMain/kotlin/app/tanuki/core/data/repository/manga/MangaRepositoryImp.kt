@@ -121,8 +121,7 @@ class MangaRepositoryImp(
         coverUrl = cover.url?.value,
         // The header codec lives here with the other column codecs, so the domain never sees the
         // storage encoding.
-        coverHeaders = encodeHeaders(cover.headers),
-        coverLastModified = cover.lastModified
+        coverHeaders = encodeHeaders(cover.headers)
     )
 
     override suspend fun setCoverHeaders(mangaId: Uuid, headers: Map<String, String>) =

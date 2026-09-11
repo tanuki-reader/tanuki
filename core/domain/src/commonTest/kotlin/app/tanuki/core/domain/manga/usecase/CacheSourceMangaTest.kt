@@ -120,7 +120,6 @@ class CacheSourceMangaTest {
                 MangaCover(
                     mangaId = id,
                     url = Url("https://cdn.example/op.jpg"),
-                    lastModified = Instant.fromEpochMilliseconds(1_000),
                     headers = headers,
                 ),
             sourceMangaKey = Text("op"),

@@ -192,7 +192,7 @@ private fun manga(id: Uuid = Uuid.random()): Manga =
         title = Text("Berserk"),
         author = null,
         description = null,
-        cover = MangaCover(mangaId = id, url = null, lastModified = Instant.DISTANT_PAST),
+        cover = MangaCover(mangaId = id, url = null),
         url = Url("https://example.com/berserk"),
         dateAdded = null,
         readingMode = ReadingMode.RIGHT_TO_LEFT,

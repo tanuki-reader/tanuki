@@ -173,7 +173,6 @@ class MangaRepositoryImpTest {
                     MangaCover(
                         mangaId = id,
                         url = Url("https://cdn.example/berserk.jpg"),
-                        lastModified = Instant.fromEpochMilliseconds(7_000),
                         headers = mapOf("Referer" to "https://example.com/")
                     )
             )
@@ -189,8 +188,7 @@ class MangaRepositoryImpTest {
                     null,
                     PublishStatus.ONGOING,
                     "https://cdn.example/berserk.jpg",
-                    "Referer: https://example.com/",
-                    Instant.fromEpochMilliseconds(7_000)
+                    "Referer: https://example.com/"
                 ),
                 dao.sourceDetails
             )
@@ -232,7 +230,6 @@ private fun libraryRow(
         title = title,
         coverUrl = "https://example.com/$title.jpg",
         coverHeaders = null,
-        coverLastModified = Instant.DISTANT_PAST,
         publishStatus = PublishStatus.ONGOING,
         lastRead = null,
         dateAdded = Instant.DISTANT_PAST,
@@ -257,7 +254,6 @@ private fun mangaRow(
                 description = "A long description that would be re-wrapped in Text on every emission",
                 coverUrl = "https://example.com/$title.jpg",
                 coverHeaders = null,
-                coverLastModified = Instant.DISTANT_PAST,
                 sourceMangaKey = title.lowercase(),
                 url = "https://example.com/$title",
                 readingMode = ReadingMode.RIGHT_TO_LEFT,
@@ -331,11 +327,9 @@ private class RecordingMangaDao : MangaDao {
         description: String?,
         publishStatus: PublishStatus,
         coverUrl: String?,
-        coverHeaders: String?,
-        coverLastModified: Instant
+        coverHeaders: String?
     ) {
-        sourceDetails =
-            listOf(mangaId, title, author, description, publishStatus, coverUrl, coverHeaders, coverLastModified)
+        sourceDetails = listOf(mangaId, title, author, description, publishStatus, coverUrl, coverHeaders)
     }
 
     override suspend fun updateCoverHeaders(

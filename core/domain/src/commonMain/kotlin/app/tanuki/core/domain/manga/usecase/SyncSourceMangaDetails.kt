@@ -2,7 +2,6 @@ package app.tanuki.core.domain.manga.usecase
 
 import app.tanuki.core.domain.common.model.toTextOrNull
 import app.tanuki.core.domain.manga.model.Manga
-import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.repository.SourceRepository
@@ -91,20 +90,16 @@ sealed interface SyncSourceMangaDetails {
                 author = details.author.toTextOrNull() ?: manga.author,
                 description = details.description.toTextOrNull() ?: manga.description,
                 publishStatus = details.status,
-                // Only re-stamp the cover when the URL actually changed — lastModified is the image
-                // loader's cache key, so bumping it on every open would refetch an unchanged cover.
+                // The two cover branches differ in how they treat headers, which is the whole reason
+                // the branch exists. New art is a clean slate: whatever the source says it needs now is
+                // what it needs, including nothing. An unchanged URL instead keeps the headers already
+                // stored when the source returns none — the same blank-field rule as the fields above,
+                // and the one that stops a detail endpoint that omits them from blanking a cover whose
+                // CDN checks the `Referer`.
                 cover =
                     if (details.coverUrl != null && details.coverUrl != manga.cover.url) {
-                        MangaCover(
-                            mangaId = manga.id,
-                            url = details.coverUrl,
-                            lastModified = Clock.System.now(),
-                            headers = details.coverHeaders
-                        )
+                        manga.cover.copy(url = details.coverUrl, headers = details.coverHeaders)
                     } else {
-                        // The URL is unchanged, but the headers it needs may have been added by a
-                        // source update — adopt those without re-stamping lastModified, which would
-                        // needlessly evict a cover the loader already has.
                         manga.cover.copy(headers = details.coverHeaders.ifEmpty { manga.cover.headers })
                     }
             )

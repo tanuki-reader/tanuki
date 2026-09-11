@@ -677,6 +677,22 @@ Minor at 200 titles, real at 2000+. Folds naturally into whichever migration com
 caller wanted ids — and `getLibraryUpdateTargets()` deliberately has no `ORDER BY`, so `observeLibrary`
 is now the only unindexed sort. 3.2 made each emission cheaper to sort, not cheaper to order.)
 
+> **Correction, measured while picking up 5.3 (2026-09-11) — do not ship this item as written.** Adding
+> `index_manga_title` changes **nothing**. Checked with `EXPLAIN QUERY PLAN` against a fixture built
+> from the checked-in `11.json`: with and without the index the plan is byte-identical, still
+> `SCAN manga USING INDEX sqlite_autoindex_manga_1` followed by `USE TEMP B-TREE FOR ORDER BY`. The
+> cause is `GROUP BY manga.id` — SQLite drives from the primary-key index to satisfy the grouping, and
+> one index cannot serve both the grouping and the ordering. The index is only picked up if the
+> `LEFT JOIN history` + `GROUP BY` is first replaced by a correlated
+> `(SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id)`, which removes the `GROUP BY`
+> outright; then the temp B-tree disappears.
+>
+> Even then the payoff is close to nil: at 2000 titles with 20 chapters each, all four combinations
+> measured **6.8–7.5 ms**, within noise of each other. Sorting 2000 short strings is not the cost of
+> this query — the two correlated sub-queries are. So this item is really "remove the `GROUP BY`", its
+> value is the plan rather than the clock, and 5.3's v12 migration deliberately did **not** fold in an
+> index that nothing would have used.
+
 ### 3.5 Fix the `LibraryViewModel.latestCategories` data race — **DONE (with 3.1)**
 
 Closed by the Library refactor in 3.1 rather than fixed on its own: the `var` is deleted, not
@@ -877,7 +893,52 @@ Covers really are immutable (their URLs embed a file hash), so this is safe for 
 it's safe for the same reason. If a source is ever found that mutates content behind a stable
 URL, that's what 5.3 is for.
 
-### 5.3 Wire or delete `MangaCover.lastModified`
+### 5.3 Wire or delete `MangaCover.lastModified` — **DONE (deleted)**
+
+Deleted: the field, the `manga.cover_last_modified` column (`Migration11To12`, schema v12), the
+re-stamp branch, and the reasoning in the seven files that defended it.
+
+**What decided it, and it is not the argument this item made.** The item framed this as a coin-flip
+between two coherent options. It is not one, because **the bump is provably redundant**: there is
+exactly one write that re-stamps it (`SyncSourceMangaDetails`), and it fires only when the cover *URL*
+changed — a change that already gives Coil a new key. `CacheSourceManga.refreshCoverHeaders`
+documented that it deliberately does not bump; `CacheSourceManga` otherwise only mints a value for a
+brand-new row. So no code path anywhere could bump it while the URL stayed the same, and wiring it into
+`memoryCacheKey`/`diskCacheKey` would have invalidated nothing the URL had not invalidated first.
+
+**The second reason is what makes wiring actively wrong.** The browse grid renders covers from
+`MangaListing` (`SourceGrid`), the pre-persistence shape — no local row, so no version to key on. A
+version-keyed cover would therefore get one key in browse and a different one in the library, and every
+cover would be downloaded and stored twice. That is the exact inverse of the one-decode-size /
+one-cache-entry rule this document calls the most important thing in the reader.
+
+**What it costs, stated plainly:** the app can no longer refresh art that changes behind a stable URL.
+No source is known to do that (cover URLs embed a file hash), and the honest fix if one is ever found is
+a key transform on the request in `TanukiImageLoader` — where a note now records this decision so it is
+not re-invented — rather than a column nothing consults. It also closes the question 3.2 deliberately
+left open on `LibraryManga`: the cover stays a whole `MangaCover` because its *headers* travel with it,
+and both remaining fields are ones the grid draws with. One column leaves `observeLibrary`'s per-row
+projection and `HistoryDao.observeLibraryHistory`'s embedded one.
+
+**The branch in `SyncSourceMangaDetails` survived the deletion, and had to.** It looked like cache-key
+bookkeeping and is really about *headers*, with a deliberate asymmetry: a changed URL is a clean slate
+and takes whatever the source says the new art needs, **including nothing**, while an unchanged URL
+keeps the headers already stored when the source returns none (the same blank-field rule as the other
+fields). Collapsing it to one `copy` would have silently made new art inherit the old cover's `Referer`.
+All three cases are now pinned by test, where the two deleted cache-key tests used to sit — the
+`SyncSourceMangaDetailsTest` fixture gained headers so they have something to preserve.
+
+**Migration:** a plain `ALTER TABLE manga DROP COLUMN`, not the 12-step rebuild `Migration3To4` needed —
+the column is in no index, constraint, view or trigger, which is all SQLite asks, and both platforms run
+the bundled `androidx.sqlite` driver so the statement is identical on each. **No migration test**, in
+keeping with the other eleven (no `room-testing`, no instrumented source set for `:core:data`). What was
+done instead, against a SQLite fixture built from the checked-in `11.json`: the generated `12.json`
+differs from `11.json` in exactly one field and in **no** index, foreign key or primary key on any
+table; and a v11 database with the migration applied is structurally identical — `table_info`,
+`index_list`, `foreign_key_list`, every table — to a fresh v12 install. That is the property Room's
+identity check would otherwise only discover at runtime on a real upgrade.
+
+381 tests across `:core:domain` + `:core:data` and 66 across the four feature suites, all green; both targets build. The collapse the branch note warns about was confirmed caught: rewriting it as a single `copy` fails `a changed cover url does not inherit the old headers` and nothing else.
 
 **Problem:** `MangaCover.lastModified` is documented as *"cache-busting version — bump to
 invalidate a cached cover"* (`MangaCover.kt:20`), and both `SyncSourceMangaDetails` and

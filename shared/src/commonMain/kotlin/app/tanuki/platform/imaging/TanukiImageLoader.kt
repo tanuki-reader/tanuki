@@ -18,6 +18,15 @@ import okio.Path
  * generously and nothing needs revalidation: a cover fetched once is served from RAM within a session
  * and from disk across launches, and only genuine cache misses ever reach the source again.
  *
+ * That immutability is also why **a cover is keyed on its URL alone** — `coverImageRequest` sets no
+ * `memoryCacheKey` or `diskCacheKey`, so new art means a new key by construction. `MangaCover` carried a
+ * cache-busting version column until schema v12 in case that assumption ever broke; it was deleted
+ * rather than wired up, because it was only ever re-stamped when the URL had already changed, and
+ * because the browse grid renders covers from a source listing with no local row to read a version from
+ * — so keying on one would have cached the same image twice, once for browse and once for the library.
+ * If a source is ever found that does mutate art behind a stable URL, the fix belongs here, as a key
+ * transform on the request, not as a column no request consults.
+ *
  *  - **Memory cache** — [MEMORY_CACHE_PERCENT] of app RAM; makes scrolling back up a grid instant.
  *  - **Disk cache** — up to [DISK_CACHE_MAX_BYTES] under a per-platform cache dir ([coverCacheDirectory]);
  *    survives process death and app restarts, LRU-evicted once the budget is exceeded.

@@ -142,8 +142,8 @@ interface MangaRepository {
      * @param author Author credit, or `null` for none.
      * @param description Synopsis, or `null` for none.
      * @param publishStatus Publication status as the source now reports it.
-     * @param cover The cover to store. Its `lastModified` is written as given — the caller decides
-     *   whether the art actually changed, since that value is the image loader's cache key.
+     * @param cover The cover to store — its URL and the headers that URL has to be fetched with, both
+     *   written as given.
      */
     suspend fun setSourceDetails(
         mangaId: Uuid,

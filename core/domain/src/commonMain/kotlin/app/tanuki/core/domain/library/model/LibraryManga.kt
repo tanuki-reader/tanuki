@@ -21,10 +21,12 @@ import kotlin.uuid.Uuid
  * the type rather than in a comment is what makes that non-recurrable: nothing on this screen *can* reach
  * a description. The full model stays where it is genuinely wanted — the detail screen.
  *
- * [cover] stays a whole [MangaCover] rather than a flattened url/header pair: its headers are documented
- * as travelling with it precisely because a cover renders from the database in half a dozen places with
- * no source in scope, and keeping `lastModified` here leaves the cache-busting question open rather than
- * deciding it by omission.
+ * [cover] stays a whole [MangaCover] rather than a flattened url/header pair, and by now that is its
+ * whole content: its headers are documented as travelling with it precisely because a cover renders from
+ * the database in half a dozen places with no source in scope to re-ask. When this type was introduced
+ * the cover also carried a cache-busting `lastModified`, left here to keep that question open rather
+ * than decide it by omission; schema v12 closed it by deleting the field, so the two remaining columns
+ * are both ones the grid draws with.
  *
  * @property unreadCount chapters with no progress, already excluding the manga's hidden scanlation
  *   groups — the count the badge shows, which is why `filteredScanlators` itself is not here. The filter

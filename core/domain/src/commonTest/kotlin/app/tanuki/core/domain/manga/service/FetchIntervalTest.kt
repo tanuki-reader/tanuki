@@ -294,7 +294,7 @@ class FetchIntervalTest {
         title = Text("Blue Lock"),
         author = null,
         description = null,
-        cover = MangaCover(mangaId = MANGA, url = null, lastModified = day(0)),
+        cover = MangaCover(mangaId = MANGA, url = null),
         sourceMangaKey = Text("blue-lock"),
         url = Url("https://mangadex.org/title/blue-lock"),
         dateAdded = day(0),

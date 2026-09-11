@@ -461,7 +461,7 @@ class SyncSourceChaptersTest {
                 title = Text("One Piece"),
                 author = Text("Eiichiro Oda"),
                 description = null,
-                cover = MangaCover(mangaId = uuidV7(), url = null, lastModified = Clock.System.now()),
+                cover = MangaCover(mangaId = uuidV7(), url = null),
                 sourceMangaKey = Text("op-id"),
                 url = Url("https://mangadex.org/title/op-id"),
                 dateAdded = null,

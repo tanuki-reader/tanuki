@@ -50,11 +50,7 @@ private fun generateMangaList(seed: Int): List<LibraryManga> =
             id = uuidV7(),
             title = Text("Manga $i"),
             cover =
-                MangaCover(
-                    mangaId = uuidV7(),
-                    url = null,
-                    lastModified = Clock.System.now()
-                ),
+                MangaCover(mangaId = uuidV7(), url = null),
             unreadCount = (i.toUShort() + 1u).coerceAtMost(10u),
             isDownloaded = i % 2 == 0,
             dateAdded = Clock.System.now(),

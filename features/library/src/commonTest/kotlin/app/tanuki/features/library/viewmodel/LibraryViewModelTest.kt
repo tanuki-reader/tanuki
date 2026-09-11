@@ -236,7 +236,7 @@ private fun manga(
     LibraryManga(
         id = id,
         title = Text(title),
-        cover = MangaCover(mangaId = id, url = null, lastModified = Instant.DISTANT_PAST),
+        cover = MangaCover(mangaId = id, url = null),
         unreadCount = 0u,
         isDownloaded = false,
         dateAdded = Instant.DISTANT_PAST,

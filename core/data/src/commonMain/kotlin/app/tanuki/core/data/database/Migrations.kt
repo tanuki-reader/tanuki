@@ -23,6 +23,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration8To9,
         Migration9To10,
         Migration10To11,
+        Migration11To12,
     )
 
 /**
@@ -271,10 +272,10 @@ internal object Migration9To10 : Migration(9, 10) {
  * `next_update_at` and `fetch_interval`.
  *
  * Before these there was no record anywhere of *when* a series was last polled, so opening a series
- * re-asked its source every time. (`cover_last_modified` is not that record: it is the image loader's
- * cache key, and a details sync deliberately avoids bumping it.) The first two feed the staleness gate
- * in the sync use cases; the last two are the schedule a per-series library update will keep, and are
- * added now so that lands without a second migration.
+ * re-asked its source every time. (The only other time-ish column on the table then was
+ * `cover_last_modified`, which was not that record and was dropped outright by [Migration11To12].) The
+ * first two feed the staleness gate in the sync use cases; the last two are the schedule a per-series
+ * library update will keep, and are added now so that lands without a second migration.
  *
  * All nullable with nothing to backfill: no existing row has ever been stamped, and `NULL` is exactly
  * the value that means "never polled" — which every gate reads as "poll now". So the first open of any
@@ -289,5 +290,30 @@ internal object Migration10To11 : Migration(10, 11) {
         connection.execSQL("ALTER TABLE manga ADD COLUMN details_fetched_at INTEGER")
         connection.execSQL("ALTER TABLE manga ADD COLUMN next_update_at INTEGER")
         connection.execSQL("ALTER TABLE manga ADD COLUMN fetch_interval INTEGER")
+    }
+}
+
+/**
+ * Drops `manga.cover_last_modified` — a cache-busting version for a cover that nothing ever keyed on.
+ *
+ * The column was documented from v1 as "the image loader's cache key", and two use cases reasoned
+ * carefully about when *not* to bump it. But it never reached an image request: covers are fetched
+ * through `coverImageRequest`, which passes a URL and headers and sets neither `memoryCacheKey` nor
+ * `diskCacheKey`, so Coil keyed a cover on its URL alone. The one write that re-stamped it fired only
+ * when the cover URL had *already* changed — so even wired up it could not have invalidated anything
+ * the URL did not invalidate first.
+ *
+ * Deleting rather than wiring it is the decision recorded on `MangaCover`: the browse grid renders
+ * covers straight from a source listing, which has no local row and so no version to key on, so a
+ * version-keyed cover would be cached once for browse and again for the library.
+ *
+ * A plain `DROP COLUMN` rather than the 12-step rebuild [Migration3To4] needed: the column is in no
+ * index, constraint, view or trigger, which is all SQLite asks. Both platforms run the bundled
+ * `androidx.sqlite` driver (see `DatabaseBuilder`), so the statement is available and identical on each.
+ * Nothing is lost that any query read.
+ */
+internal object Migration11To12 : Migration(11, 12) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE manga DROP COLUMN cover_last_modified")
     }
 }

@@ -35,11 +35,12 @@ import kotlin.uuid.Uuid
  * Tests [SyncSourceMangaDetails] against in-memory fakes.
  *
  * Two things are being pinned down. First, that a refresh is *additive*: a source that answers with a
- * blank field must never erase what is already stored, and a cover whose URL has not changed must keep
- * its `lastModified`, because that value is the image loader's cache key and re-stamping it would evict
- * an image that is still correct. Second, that the refresh is **gated and targeted** — it asks the
- * source at most once a day, it writes only the columns it owns rather than a whole row, and a failed
- * request leaves the stamp untouched so the next open retries.
+ * blank field must never erase what is already stored. The cover is where that rule has a deliberate
+ * exception, so all three of its cases are covered — an unchanged URL keeps the headers it already has,
+ * while a *changed* URL is a clean slate and takes whatever the source says the new art needs, up to and
+ * including nothing. Second, that the refresh is **gated and targeted** — it asks the source at most
+ * once a day, it writes only the columns it owns rather than a whole row, and a failed request leaves
+ * the stamp untouched so the next open retries.
  */
 class SyncSourceMangaDetailsTest {
     @Test
@@ -85,31 +86,53 @@ class SyncSourceMangaDetailsTest {
         }
 
     @Test
-    fun `an unchanged cover url keeps its cache key`() =
+    fun `an unchanged cover url keeps the headers it already has`() =
         runTest {
             val repository = DetailsMangaRepository(MANGA)
+            // The detail endpoint says nothing about headers — the blank-field rule applies.
             val sync = sync(repository, details = DETAILS.copy(coverUrl = MANGA.cover.url))
 
             sync(MANGA.id)
 
             assertEquals(
-                MANGA.cover.lastModified,
-                repository.sourceDetails.single().cover.lastModified,
-                "re-stamping would evict a cover the loader already holds, for no change in the art"
+                MANGA.cover.headers,
+                repository.sourceDetails.single().cover.headers,
+                "dropping them blanks every cover on a source whose CDN checks the Referer"
             )
         }
 
     @Test
-    fun `a changed cover url re-stamps the cache key`() =
+    fun `a changed cover url takes the headers the new art needs`() =
+        runTest {
+            val repository = DetailsMangaRepository(MANGA)
+            val sync =
+                sync(
+                    repository,
+                    details =
+                        DETAILS.copy(
+                            coverUrl = Url("https://cdn.example/new.jpg"),
+                            coverHeaders = mapOf("Referer" to "https://cdn.example/")
+                        )
+                )
+
+            sync(MANGA.id)
+
+            val cover = repository.sourceDetails.single().cover
+            assertEquals("https://cdn.example/new.jpg", cover.url?.value)
+            assertEquals(mapOf("Referer" to "https://cdn.example/"), cover.headers)
+        }
+
+    @Test
+    fun `a changed cover url does not inherit the old headers`() =
         runTest {
             val repository = DetailsMangaRepository(MANGA)
             val sync = sync(repository, details = DETAILS.copy(coverUrl = Url("https://cdn.example/new.jpg")))
 
             sync(MANGA.id)
 
-            val cover = repository.sourceDetails.single().cover
-            assertEquals("https://cdn.example/new.jpg", cover.url?.value)
-            assertTrue(cover.lastModified > MANGA.cover.lastModified, "new art needs a new cache key")
+            // The asymmetry with the case above: new art is a clean slate, so "the source named no
+            // headers" means this cover needs none — not that the previous cover's should be kept.
+            assertEquals(emptyMap(), repository.sourceDetails.single().cover.headers)
         }
 
     @Test
@@ -256,7 +279,7 @@ class SyncSourceMangaDetailsTest {
                     MangaCover(
                         mangaId = uuidV7(),
                         url = Url("https://cdn.example/op.jpg"),
-                        lastModified = Instant.fromEpochMilliseconds(1_000)
+                        headers = mapOf("Referer" to "https://mangadex.org/")
                     ),
                 sourceMangaKey = Text("op-id"),
                 url = Url("https://mangadex.org/title/op-id"),

@@ -162,7 +162,6 @@ interface MangaDao {
                manga.title AS title,
                manga.cover_url AS cover_url,
                manga.cover_headers AS cover_headers,
-               manga.cover_last_modified AS cover_last_modified,
                manga.publish_status AS publish_status,
                MAX(history.read_at) AS last_read,
                library.date_added AS date_added,
@@ -290,8 +289,7 @@ interface MangaDao {
             description = :description,
             publish_status = :publishStatus,
             cover_url = :coverUrl,
-            cover_headers = :coverHeaders,
-            cover_last_modified = :coverLastModified
+            cover_headers = :coverHeaders
         WHERE id = :mangaId
         """,
     )
@@ -303,13 +301,12 @@ interface MangaDao {
         publishStatus: PublishStatus,
         coverUrl: String?,
         coverHeaders: String?,
-        coverLastModified: Instant,
     )
 
     /**
      * Writes only the cover's request headers, for the browse-time refresh that adopts headers a source
-     * gained after a row was cached. Targeted for the same reason as [updateSourceDetails]; deliberately
-     * leaves `cover_last_modified` alone, since the art has not changed, only how it must be requested.
+     * gained after a row was cached. Targeted for the same reason as [updateSourceDetails]: browse can be
+     * caching a listing while the detail screen syncs the same series, and a wider write would revert it.
      */
     @Query("UPDATE manga SET cover_headers = :encoded WHERE id = :mangaId")
     suspend fun updateCoverHeaders(

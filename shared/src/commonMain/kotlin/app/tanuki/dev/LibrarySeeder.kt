@@ -221,7 +221,7 @@ class LibrarySeeder(
             title = Text(title),
             author = Text(author),
             description = Text(description),
-            cover = MangaCover(mangaId = id, url = null, lastModified = now),
+            cover = MangaCover(mangaId = id, url = null),
             url = Url("https://example.com/manga/${title.lowercase().replace(' ', '-')}"),
             dateAdded = now,
             readingMode = readingMode,

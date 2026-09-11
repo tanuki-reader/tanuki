@@ -13,7 +13,6 @@ import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.first
-import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 /**
@@ -80,7 +79,6 @@ sealed interface CacheSourceManga {
                         MangaCover(
                             mangaId = id,
                             url = listing.coverUrl,
-                            lastModified = Clock.System.now(),
                             headers = listing.coverHeaders,
                         ),
                     sourceMangaKey = listing.sourceMangaKey.toTextOrNull(),
@@ -104,8 +102,7 @@ sealed interface CacheSourceManga {
          * early and only opening the series triggers a details sync.
          *
          * Writes only on an actual difference, so the overwhelmingly common case (no headers, before and
-         * after) is a read and nothing else. [MangaCover.lastModified] is deliberately not bumped — it is
-         * the image loader's cache key, and the art hasn't changed, only how it must be requested.
+         * after) is a read and nothing else.
          *
          * The write is targeted at the one column rather than a whole-row upsert of the snapshot just
          * read: browse can be caching a listing while the detail screen syncs the same series, and a

@@ -253,7 +253,7 @@ internal class DownloadWorld(
             title = Text("Berserk"),
             author = null,
             description = null,
-            cover = MangaCover(mangaId = uuidV7(), url = null, lastModified = Clock.System.now()),
+            cover = MangaCover(mangaId = uuidV7(), url = null),
             sourceMangaKey = Text("berserk"),
             url = Url("https://mangadex.org/title/berserk"),
             dateAdded = Instant.fromEpochMilliseconds(1_000),
