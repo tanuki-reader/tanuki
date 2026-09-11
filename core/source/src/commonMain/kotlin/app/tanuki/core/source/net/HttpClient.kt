@@ -11,6 +11,8 @@ import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.plugins.HttpRequestRetry
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.compression.ContentEncoding
+import io.ktor.client.plugins.compression.UnsupportedContentEncodingException
 import io.ktor.http.HttpMethod
 import kotlinx.coroutines.CancellationException
 
@@ -58,8 +60,16 @@ expect fun platformSourceHttpClient(
  *  - **The cookie jar innermost**, unchanged — see [sourceCookiePlugin] for why that is the position it
  *    has to have.
  *
- * The user-agent plugin is exempt from that reasoning: it hooks the request pipeline rather than `Send`,
- * so it always runs first regardless (see [sourceUserAgentPlugin]).
+ * The user-agent and content-encoding plugins are exempt from that reasoning: they hook the request and
+ * receive pipelines rather than `Send`, so where they sit in this list is irrelevant to the ladder (see
+ * [sourceUserAgentPlugin] and [installSourceEncoding] — the latter has an ordering rule of its own, but
+ * only against the plugin installed beside it).
+ *
+ * One consequence of that worth stating rather than re-deriving: Ktor runs the **receive** pipeline from
+ * inside `HttpSendPipeline.Receive`, i.e. *within* the `Send` chain, so decoding happens **per physical
+ * attempt** — a Cloudflare challenge body and every retried response are each decoded and thrown away.
+ * That is free here only because nothing in the ladder reads a body: [isCloudflareChallenge] decides from
+ * headers alone, and the retry predicate from status and headers.
  */
 fun HttpClientConfig<*>.installSourcePlugins(
     solver: CloudflareChallengeSolver,
@@ -71,6 +81,7 @@ fun HttpClientConfig<*>.installSourcePlugins(
     expectSuccess = false
     installSourceTimeouts()
     installSourceRetries()
+    installSourceEncoding()
     install(sourceUserAgentPlugin(userAgent))
     install(cloudflarePlugin(solver, cookieStore, logger))
     install(sourceCookiePlugin(cookieJar))
@@ -105,6 +116,41 @@ private fun HttpClientConfig<*>.installSourceTimeouts() {
 }
 
 /**
+ * Makes content encoding **explicit and uniform**, where before it was an accident of the engine.
+ *
+ * Neither engine was under app control: OkHttp and NSURLSession each add `Accept-Encoding: gzip` of
+ * their own accord and decode the response, so compression worked without anyone asking for it — and
+ * stopped working the moment a source set the header itself, which is the bug
+ * [sourceAcceptEncodingPlugin] exists to close. The strip has to be installed **before**
+ * [ContentEncoding], which defers to an `Accept-Encoding` that is already present; see that plugin for
+ * the full argument.
+ *
+ * ### What is advertised, and the trade in it
+ * `gzip,deflate,identity` — the whole set Ktor 3.5 can decode. There is **no brotli decoder in the Ktor
+ * client at all** (`ktor-utils` ships gzip, deflate and identity and nothing else), so `br` cannot be
+ * claimed honestly, and neither can `zstd`. Including `identity` is deliberate: without it a server that
+ * answers an explicit `Content-Encoding: identity` would raise
+ * [UnsupportedContentEncodingException] over a body that needed no decoding at all.
+ *
+ * The cost is that no browser sends this exact header, and the app otherwise works hard to look like one
+ * (see [DEFAULT_SOURCE_USER_AGENT]). That is accepted: `Accept-Encoding` is a far weaker bot signal than
+ * the UA, and the alternative trades a body we can always read for a header that merely looks better.
+ *
+ * ### Why the mode is left alone
+ * [io.ktor.client.plugins.compression.ContentEncodingConfig.mode] defaults to `DecompressResponse` and
+ * must stay there. `All` would also compress **outgoing** bodies, and a guest's `POST` body is the
+ * source's business — re-encoding it is not ours to do.
+ */
+private fun HttpClientConfig<*>.installSourceEncoding() {
+    install(sourceAcceptEncodingPlugin())
+    install(ContentEncoding) {
+        gzip()
+        deflate()
+        identity()
+    }
+}
+
+/**
  * Retries transient faults for every source request — API calls, reader pages and covers alike. Before
  * this, the only retry anywhere was the hand-rolled loop inside
  * [app.tanuki.core.domain.download.usecase.DownloadManager]; everything else gave up on the first dropped
@@ -122,7 +168,10 @@ private fun HttpClientConfig<*>.installSourceTimeouts() {
  *    `.NeedsVerification`.
  *
  * The retryable status set mirrors `KtorPageFetcher`'s own classification, so "transient" means the same
- * thing at both layers.
+ * thing at both layers. The one non-status exemption is [UnsupportedContentEncodingException]: a host
+ * that answered in an encoding we did not ask for (see [installSourceEncoding]) will answer the same way
+ * on the second ask, so retrying it buys three attempts at a guaranteed failure — the same argument
+ * [isTransient] already makes for a `404`.
  */
 private fun HttpClientConfig<*>.installSourceRetries() {
     install(HttpRequestRetry) {
@@ -132,7 +181,9 @@ private fun HttpClientConfig<*>.installSourceRetries() {
                 response.status.value.isTransient()
         }
         retryOnExceptionIf(maxRetries = MAX_RETRIES) { request, cause ->
-            request.method.isReplayable() && cause !is CancellationException
+            request.method.isReplayable() &&
+                cause !is CancellationException &&
+                cause !is UnsupportedContentEncodingException
         }
         exponentialDelay(
             baseDelayMs = RETRY_BASE_DELAY_MS,

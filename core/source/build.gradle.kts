@@ -178,6 +178,7 @@ kotlin {
             implementation(projects.core.domain)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.encoding)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.okio)
         }

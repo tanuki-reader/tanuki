@@ -1032,7 +1032,73 @@ the `Disposable` returned by `enqueue` so warms outside the current window can b
 already combines `downloadsPaused` + `downloadOnWifiOnly` + `connectionObserver.metered` into a
 clean hold signal. Reuse the shape.
 
-### 5.5 Explicit `ContentEncoding`
+### 5.5 Explicit `ContentEncoding` — **DONE**
+
+Shipped as two plugins installed together in `installSourceEncoding`: Ktor's `ContentEncoding`
+(`io.ktor:ktor-client-encoding`, new to the catalog) advertising `gzip,deflate,identity`, and ahead of it a
+four-line `sourceAcceptEncodingPlugin` that **strips any inbound `Accept-Encoding`** so the app's value is
+the only one that ever reaches the wire. Encoding is now host-owned, in the same sense and for the same
+reasons `User-Agent` already was.
+
+**The strip is the item, and the plugin alone would not have delivered it.** Ktor's `onRequest` hook opens
+with `if (request.headers.contains(AcceptEncoding)) return` — it *defers* to a header that is already
+there. So installing `ContentEncoding` by itself would have left the one case this item is about — a wasm
+guest setting its own `Accept-Encoding` through `KtorSourceHost`, which appends a guest's headers verbatim
+— behaving exactly as before. Putting the strip in the client rather than in the host also covers the
+second guest-header path for free: `KtorPageFetcher` applies a page's source-supplied headers the same way.
+Ordering between the two is therefore load-bearing in the one direction the KDoc now states: installed
+*after* `ContentEncoding`, the strip would delete the header that plugin had just added and every request
+would go out advertising nothing.
+
+**Two findings from Ktor 3.5.1's own sources rewrote what this item could claim.**
+
+1. **There is no brotli decoder in the Ktor client at all** — `ktor-utils` ships `GZipEncoder`,
+   `DeflateEncoder` and `IdentityEncoder` and nothing else, and no `brotli()` exists on the config. The
+   item's "neither gets brotli" is therefore still true afterwards, and the honest header is the three we
+   can decode. `identity` is in the list on purpose: without it a server answering an explicit
+   `Content-Encoding: identity` would raise `UnsupportedContentEncodingException` over a body that needed
+   nothing done to it.
+2. **On Darwin the plugin never decodes.** `ContentEncoding.darwin.kt` is a flat
+   `internal actual fun shouldDecode(response) = false` — *"Darwin handles content encoding
+   automatically"* — where the JVM actual decodes whenever `Content-Encoding` is present. So on iOS this is
+   a **header-only** change and NSURLSession still does the work. That is what makes the strip the load-
+   bearing half on that platform: the app's value is the only one NSURLSession is ever asked to honour.
+
+**The fingerprint cost, stated plainly.** No browser sends `gzip,deflate,identity`, and the app otherwise
+works hard to look like one (`DEFAULT_SOURCE_USER_AGENT` is a real Chrome string, because Cloudflare
+decides largely on the UA). `gzip,deflate` would read closer to a browser. It was rejected: `Accept-Encoding`
+is a far weaker bot signal than the UA, and the trade is a body we can always read against a header that
+merely looks better. Worth revisiting only if a source is ever found to challenge on it.
+
+**One retry rule fell out of it.** `UnsupportedContentEncodingException` is now exempt from
+`retryOnExceptionIf` — a host that answered in an encoding we did not ask for answers the same way on the
+second ask, so retrying buys three attempts at a guaranteed failure. Same argument `isTransient()` already
+makes for a `404`.
+
+**A non-obvious mechanic, recorded in `installSourcePlugins`' KDoc rather than left to be re-derived:** Ktor
+runs the **receive** pipeline from inside `HttpSendPipeline.Receive`, i.e. *within* the `Send` chain, so
+decoding happens **per physical attempt** — a Cloudflare challenge body and every retried response are each
+decoded and thrown away. Free here only because nothing in the ladder reads a body: `isCloudflareChallenge()`
+decides from headers alone, and the retry predicate from status and headers.
+
+**Tests are split by platform, because the behaviour is.** `commonTest` runs on both the Android host and
+the iOS simulator, so a decode assertion there would pass on one and fail on the other while the app is
+correct on both. `SourceContentEncodingTest` (5 cases, `commonTest`) therefore pins only the request side —
+the exact advertised value, a caller's `br` replaced rather than appended, the same in the wrong case, and
+the header surviving both a retry and a Cloudflare replay (neither re-runs the request pipeline).
+`SourceContentEncodingDecodeTest` (2 cases) is the **first file in `:core:source`'s `androidHostTest`**
+source set: a real gzip round trip, plus an assertion that `Content-Encoding`/`Content-Length` do *not*
+survive the decode — which matters because `KtorSourceHost` forwards response headers to the guest verbatim,
+and leaving `Content-Encoding: gzip` on an expanded body would be an outright lie. All seven were confirmed
+failing before the change was kept: removing only the strip fails two, removing the whole install fails all
+seven. 122 tests on the Android host and 120 on the iOS simulator, green; Android builds.
+
+**Not covered, and deliberately:** the iOS decode itself. Ktor asserts NSURLSession decompresses regardless
+of who set `Accept-Encoding`, and `MockEngine` cannot prove it — no unit test in this repo reaches the real
+Darwin engine. It is a by-hand check against a gzip-serving source from the simulator, and a failure would
+be unmistakable rather than subtle (the guest would be handed gzip bytes and its parse would fail outright).
+Also untouched: nothing decodes `br` or `zstd`, and a source has no way to ask for an *undecoded* body — no
+source wants one, and the wire format hands back raw bytes either way.
 
 **Problem:** gzip currently works **by accident** — OkHttp and NSURLSession add
 `Accept-Encoding: gzip` transparently. Neither gets brotli, neither is under app control, and any
@@ -1221,7 +1287,10 @@ Per item, before moving to the next:
 Note the task names: neither `:core:domain` nor `:core:data` declares `withHostTest {}`, so their
 `commonTest` runs on the iOS simulator target only and there is no `testAndroidHostTest` task for
 either. The modules that do have one are `:core:source`, `:core:navigation`, `:core:presentation` and
-`:shared`. `:features:library`, `:features:home` and `:features:activity` have `commonTest` source sets
+`:shared`. Only `:shared` and — as of 5.5 — `:core:source` actually have an `androidHostTest` *source set*;
+put a test there only when the behaviour really is JVM-specific (5.5's is: Ktor decodes content encoding on
+the JVM and leaves it to NSURLSession on Darwin), since `commonTest` runs on both targets and a
+platform-specific assertion there fails on one of them. `:features:library`, `:features:home` and `:features:activity` have `commonTest` source sets
 as of 3.1, and `:features:reader` as of 4.1 — iOS-simulator only, same as `:core:domain` — and the other
 feature modules still have none. Kotlin/Native also rejects a backtick
 test name containing a comma, and a `private` top-level fake collides with an identically-named one in
