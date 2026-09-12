@@ -25,9 +25,18 @@ import kotlin.uuid.Uuid
  * deletes are both frequent, and — more to the point — the on-disk directory is `<mangaId>/<chapterId>`,
  * so every file operation needs the series id and none of them should need a join to get it.
  *
- * The three indexes each pay for a query the UI runs constantly: `manga_id` for a chapter list's
- * per-row states, `state` for the downloaded counts behind the library badge, and `queued_at` for the
- * queue's order.
+ * The three indexes each pay for a query the UI runs constantly: `(manga_id, state)` for a chapter
+ * list's per-row states **and** for the per-series downloaded count behind the library badge, `state`
+ * for the queue engine's state scans, and `queued_at` for the queue's order.
+ *
+ * The first is deliberately a composite and not the bare `manga_id` it used to be. The library grid's
+ * `downloaded_count` sub-query filters `manga_id = ? AND state = 'Downloaded'`, and with two
+ * single-column indexes to choose from SQLite picked `state` — so it scanned *every downloaded row in
+ * the database, once per library title*, on a query that re-runs whenever `chapter_downloads` is
+ * written, i.e. once per downloaded page. Widening `manga_id` makes that a covering index probe and
+ * costs nothing: `manga_id` is not an FK child column here (the only foreign key is [chapterId], which
+ * is also the primary key), so the narrow index had no constraint duty, and every `WHERE manga_id = ?`
+ * read still matches on the leftmost prefix.
  *
  * The cascade takes rows and **never files** — see
  * [app.tanuki.core.domain.download.service.ChapterDownloadStore] for the disk side and why the two are
@@ -43,7 +52,7 @@ import kotlin.uuid.Uuid
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("manga_id"), Index("state"), Index("queued_at")],
+    indices = [Index(value = ["manga_id", "state"]), Index("state"), Index("queued_at")],
 )
 data class ChapterDownloadEntity(
     @PrimaryKey @ColumnInfo(name = "chapter_id") val chapterId: Uuid,

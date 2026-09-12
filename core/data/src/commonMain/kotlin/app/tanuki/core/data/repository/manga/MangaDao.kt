@@ -15,16 +15,22 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
- * Room DAO for [MangaEntity] and its 1:1 [LibraryEntryEntity]. Reads LEFT JOIN `library` and
- * `history` so a single [MangaWithDetails] projection carries membership (`date_added` /
- * `reading_status`) and the derived `last_read`; `GROUP BY manga.id` collapses the per-chapter
- * history rows. `unread_count` is a correlated subquery over `chapters` / `reading_progress` (a
- * chapter counts as unread when it has no progress row or `already_read = 0`), kept out of the
- * `GROUP BY` so it never fans out the history join. It also excludes chapters whose `scanlator` is in
- * the manga's newline-encoded `filtered_scanlators` (matched delimited by `char(10)` so a group name is
- * never a partial match of another), so the badge counts only the chapters the detail screen shows —
- * the same filter the chapter list and the reader apply. A chapter with a `NULL` scanlator is never
- * hidden.
+ * Room DAO for [MangaEntity] and its 1:1 [LibraryEntryEntity]. Reads LEFT JOIN `library`, so a single
+ * [MangaWithDetails] projection carries membership (`date_added` / `reading_status`), and derive
+ * `last_read` as a correlated `MAX(read_at)` over `history`.
+ *
+ * That derivation used to be a `LEFT JOIN history` collapsed by `GROUP BY manga.id`, which fanned the
+ * result out to one row per history row — sixty for a series read for sixty chapters — only to group it
+ * back down, and forced every emission through a temporary B-tree for the `ORDER BY`. The correlated
+ * form is one indexed probe per manga (`index_history_manga_id`), returns `NULL` for a never-read series
+ * exactly as the outer join did, and leaves no aggregate in the statement at all.
+ *
+ * `unread_count` is a correlated subquery over `chapters` / `reading_progress` (a chapter counts as
+ * unread when it has no progress row or `already_read = 0`). It also excludes chapters whose
+ * `scanlator` is in the manga's newline-encoded `filtered_scanlators` (matched delimited by `char(10)`
+ * so a group name is never a partial match of another), so the badge counts only the chapters the
+ * detail screen shows — the same filter the chapter list and the reader apply. A chapter with a
+ * `NULL` scanlator is never hidden.
  *
  * That projection is for the reads that hand back a whole [app.tanuki.core.domain.manga.model.Manga]:
  * [observeManga], [getMangaByIds], [observeMangaByIds]. The three list reads whose callers use a handful
@@ -36,7 +42,9 @@ import kotlin.uuid.Uuid
 interface MangaDao {
     @Query(
         """
-        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+        SELECT manga.*,
+               (SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id) AS last_read,
+               library.date_added, library.reading_status,
                (
                    SELECT COUNT(*)
                    FROM chapters
@@ -57,10 +65,8 @@ interface MangaDao {
                      AND chapter_downloads.state = 'Downloaded'
                ) AS downloaded_count
         FROM manga
-        LEFT JOIN history ON history.manga_id = manga.id
         LEFT JOIN library ON library.id = manga.id
         WHERE manga.id = :mangaId
-        GROUP BY manga.id
         """,
     )
     fun observeManga(mangaId: Uuid): Flow<MangaWithDetails?>
@@ -76,7 +82,9 @@ interface MangaDao {
      */
     @Query(
         """
-        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+        SELECT manga.*,
+               (SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id) AS last_read,
+               library.date_added, library.reading_status,
                (
                    SELECT COUNT(*)
                    FROM chapters
@@ -97,10 +105,8 @@ interface MangaDao {
                      AND chapter_downloads.state = 'Downloaded'
                ) AS downloaded_count
         FROM manga
-        LEFT JOIN history ON history.manga_id = manga.id
         LEFT JOIN library ON library.id = manga.id
         WHERE manga.id IN (:mangaIds)
-        GROUP BY manga.id
         """,
     )
     suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<MangaWithDetails>
@@ -117,7 +123,9 @@ interface MangaDao {
      */
     @Query(
         """
-        SELECT manga.*, MAX(history.read_at) AS last_read, library.date_added, library.reading_status,
+        SELECT manga.*,
+               (SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id) AS last_read,
+               library.date_added, library.reading_status,
                (
                    SELECT COUNT(*)
                    FROM chapters
@@ -138,10 +146,8 @@ interface MangaDao {
                      AND chapter_downloads.state = 'Downloaded'
                ) AS downloaded_count
         FROM manga
-        LEFT JOIN history ON history.manga_id = manga.id
         LEFT JOIN library ON library.id = manga.id
         WHERE manga.id IN (:mangaIds)
-        GROUP BY manga.id
         """,
     )
     fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<MangaWithDetails>>
@@ -155,6 +161,11 @@ interface MangaDao {
      * those writes, per title; `description` in particular is unbounded and drawn nowhere on this screen.
      * `filtered_scanlators` is still *referenced*, inside `unread_count`, and still not projected: the
      * badge wants the filter's result, not the filter.
+     *
+     * `downloaded_count` reads through `index_chapter_downloads_manga_id_state`. That composite exists
+     * for this sub-query (see `Migration12To13`): against the two single-column indexes it replaced,
+     * SQLite filtered on `state` and scanned every downloaded row in the database once per title — on a
+     * query that re-runs for every downloaded page.
      */
     @Query(
         """
@@ -163,7 +174,7 @@ interface MangaDao {
                manga.cover_url AS cover_url,
                manga.cover_headers AS cover_headers,
                manga.publish_status AS publish_status,
-               MAX(history.read_at) AS last_read,
+               (SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id) AS last_read,
                library.date_added AS date_added,
                library.reading_status AS reading_status,
                (
@@ -187,8 +198,6 @@ interface MangaDao {
                ) AS downloaded_count
         FROM library
         JOIN manga ON manga.id = library.id
-        LEFT JOIN history ON history.manga_id = manga.id
-        GROUP BY manga.id
         ORDER BY manga.title
         """,
     )

@@ -51,9 +51,9 @@ interface HistoryDao {
      * **Why a series' newest row is never deleted, whatever its age.** Two queries read the *whole*,
      * date-unfiltered history to answer "when did this series last get read":
      *
-     * - [app.tanuki.core.data.repository.manga.MangaDao] derives `last_read` as `MAX(history.read_at)`
-     *   in every one of its projections, including the library grid's — so a series whose rows all aged
-     *   out would sort as if it had never been read.
+     * - [app.tanuki.core.data.repository.manga.MangaDao] derives `last_read` as a correlated
+     *   `MAX(read_at)` over this table in every one of its projections, including the library grid's —
+     *   so a series whose rows all aged out would sort as if it had never been read.
      * - [observeLibraryHistory]'s subquery groups the same unfiltered table to build Home's
      *   continue-reading shortlist — so a series whose rows all aged out would vanish from Home.
      *
@@ -100,7 +100,7 @@ interface HistoryDao {
      *   scope; add a second one and the guarantee is gone.
      * - **`h.read_at AS manga_last_read` is exact, not an approximation.** The subquery's `history` is
      *   unfiltered by date, so the group's max *is* the series' all-time last read — the same value
-     *   [app.tanuki.core.data.repository.manga.MangaDao] derives with its own `MAX(history.read_at)`.
+     *   [app.tanuki.core.data.repository.manga.MangaDao] derives with its own correlated `MAX(read_at)`.
      * - **`library` is joined twice on purpose:** inside the subquery so membership filters *before* the
      *   grouping, and outside only to read `date_added` / `reading_status` for the projection.
      *

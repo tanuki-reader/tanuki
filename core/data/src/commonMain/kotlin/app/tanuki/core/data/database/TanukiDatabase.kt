@@ -43,7 +43,7 @@ import app.tanuki.core.data.repository.update.ChapterUpdateEntity
         CategoryEntity::class,
         MangaCategoryEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

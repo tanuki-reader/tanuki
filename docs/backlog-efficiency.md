@@ -668,30 +668,66 @@ Same treatment for `CategoryDao.observeMangaCategories()`, which is additionally
 **twice** by `CategoryRepositoryImp` (`:30` and `:42`) — two independent subscriptions over the
 same full join table, each re-grouped in Kotlin on every change. Share one flow.
 
-### 3.4 Index `manga(title)`
+### 3.4 The library query's index and its `GROUP BY` — **DONE (not as written)**
 
-`observeLibrary()` does `ORDER BY manga.title` with no index — a full sort on every emission.
+Shipped as **one index widening and one rewrite, and the deliberate non-shipping of the index this item
+was named after**. `chapter_downloads`' `manga_id` index became the composite `(manga_id, state)`
+(`Migration12To13`, schema v13), and `MangaDao`'s four `last_read` reads dropped `LEFT JOIN history` +
+`GROUP BY manga.id` for a correlated `(SELECT MAX(read_at) FROM history WHERE history.manga_id =
+manga.id)`. No `index_manga_title`.
+
+**What the clock is actually spent on, which is not what either version of this item said.**
+`observeLibrary`'s `downloaded_count` sub-query filters `manga_id = ? AND state = 'Downloaded'`, and
+with two single-column indexes to choose from SQLite picked **`state`** — so it scanned every downloaded
+row in the database **once per library title**, on a query Room invalidates from six tables including
+`chapter_downloads`, whose `setProgress` fires once per downloaded *page*. 3.3's dedupe absorbs the
+emission; it cannot absorb the query. So the library grid was doing O(library × downloads) work for the
+duration of every download. Measured against a fixture built from the checked-in `12.json`, best of five:
+
+| | 300 titles / 1500 downloaded chapters | 2000 titles / 4000 downloaded |
+|---|---|---|
+| before | 26.4 ms | 402 ms |
+| after | 4.8 ms | 17 ms |
+
+The irony worth recording: `ChapterDownloadEntity`'s KDoc said the `state` index existed "for the
+downloaded counts behind the library badge". It was the index that made the badge slow — and the badge's
+real reader, `observeCountsInState`, is a different query that still wants it, so `state` stays.
+
+**A widening, not an addition, which is what makes it free.** `manga_id` is no FK child column here (the
+only foreign key is `chapter_id`, which is also the primary key), so the narrow index carried no
+constraint duty, and every `WHERE manga_id = ?` read still matches on the leftmost prefix — pinned by
+query plan for `observeForManga` and `deleteForManga`. The queue's three state-only reads keep `state`.
+Write cost is unchanged: `setProgress` writes `downloaded_pages`/`bytes`, neither of them indexed.
+
+**The `GROUP BY` removal is this item's own corrected conclusion, and it is worth about 10%.** The join
+fanned each series out to one row per history row — sixty for a series read for sixty chapters — only to
+group it back down. The correlated form is one `index_history_manga_id` probe per manga, returns `NULL`
+for a never-read series exactly as the outer join did, and leaves no aggregate in the statement; applied
+to all four reads (`observeManga`, `getMangaByIds`, `observeMangaByIds`, `observeLibrary`) rather than
+the grid alone, since they share the projection. Equivalence was checked row-for-row against a populated
+v12 fixture, including never-read series, a series whose scanlator is filtered, and an id with no row.
+
+**`index_manga_title` is rejected, not deferred.** The 2026-09-11 correction found it to be a no-op; it
+is worse than that. Once the `GROUP BY` is gone SQLite *will* use it — and gets **slower** (14.4 ms →
+20.4 ms at 2000 titles), because scanning `manga` by title and probing `library` per row loses the
+library-driven scan. The temp B-tree for `ORDER BY manga.title` survives and should: sorting 2000 short
+strings is not this query's cost.
+
+**No migration test and no new Kotlin test**, in keeping with the twelve before it: `:core:data` has no
+`room-testing` artifact or instrumented source set, and `MangaRepositoryImpTest` fakes the DAO, so no SQL
+runs in the suite. Verified instead the way 2.3 and 5.3 were — against SQLite fixtures built from the
+checked-in schema JSON: old and new statements return identical rows; the generated `13.json` differs
+from `12.json` in exactly one index and in no column, foreign key or primary key of any table; a v12
+database with `Migration12To13` applied is structurally identical (`table_info`, `index_list`,
+`foreign_key_list`, every table) to a fresh v13 install. 381 tests across `:core:domain` + `:core:data`
+green; Android builds.
+
+**Not done here:** the two correlated sub-queries are what this query now costs, and `unread_count` is
+still a per-title count over `chapters ⋈ reading_progress` — cheaper only by denormalising a counter,
+which is a different item.
+
+**Problem:** `observeLibrary()` did `ORDER BY manga.title` with no index — a full sort on every emission.
 Minor at 200 titles, real at 2000+. Folds naturally into whichever migration comes next.
-
-*(Updated after 3.2: this used to name `observeMangaBySource()` too. That query is gone — its one
-caller wanted ids — and `getLibraryUpdateTargets()` deliberately has no `ORDER BY`, so `observeLibrary`
-is now the only unindexed sort. 3.2 made each emission cheaper to sort, not cheaper to order.)
-
-> **Correction, measured while picking up 5.3 (2026-09-11) — do not ship this item as written.** Adding
-> `index_manga_title` changes **nothing**. Checked with `EXPLAIN QUERY PLAN` against a fixture built
-> from the checked-in `11.json`: with and without the index the plan is byte-identical, still
-> `SCAN manga USING INDEX sqlite_autoindex_manga_1` followed by `USE TEMP B-TREE FOR ORDER BY`. The
-> cause is `GROUP BY manga.id` — SQLite drives from the primary-key index to satisfy the grouping, and
-> one index cannot serve both the grouping and the ordering. The index is only picked up if the
-> `LEFT JOIN history` + `GROUP BY` is first replaced by a correlated
-> `(SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id)`, which removes the `GROUP BY`
-> outright; then the temp B-tree disappears.
->
-> Even then the payoff is close to nil: at 2000 titles with 20 chapters each, all four combinations
-> measured **6.8–7.5 ms**, within noise of each other. Sorting 2000 short strings is not the cost of
-> this query — the two correlated sub-queries are. So this item is really "remove the `GROUP BY`", its
-> value is the plan rather than the clock, and 5.3's v12 migration deliberately did **not** fold in an
-> index that nothing would have used.
 
 ### 3.5 Fix the `LibraryViewModel.latestCategories` data race — **DONE (with 3.1)**
 
@@ -1299,8 +1335,13 @@ another file of the same package.
 CLAUDE.md warns: never pipe gradle through `tail` or use `-q` when checking results, and check the
 embedded `Shared.framework` mtime before believing an iOS-only bug.
 
-**Schema changes (1.1, 3.4):** a migration test is mandatory — Room's `MigrationTestHelper` against
-the checked-in `10.json` → `11.json`. Verify an existing install upgrades without data loss.
+**Schema changes (1.1, 5.3, 3.4):** none of the thirteen migrations has a Kotlin test — `:core:data`
+has no `room-testing` artifact and no instrumented source set, and standing that up is its own piece of
+work. What is done instead, and what the last three items each did: diff the generated schema JSON
+against its predecessor and confirm only the intended field changed, then apply the migration to a
+fixture built from the old JSON and assert it is structurally identical (`table_info`, `index_list`,
+`foreign_key_list`, every table) to a fresh install of the new one. That is the property Room's identity
+hash would otherwise only discover at runtime on a real upgrade. Plus a by-hand upgrade on device.
 
 **Phase 1 behavioral check:** add logging (or a debug counter) around `SourceLoader.fetchChapterList`
 and `fetchMangaDetails`, then open the same series 5× in a row. Before: 10 calls. After 1.3: 2.

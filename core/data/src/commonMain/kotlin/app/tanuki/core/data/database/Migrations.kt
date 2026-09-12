@@ -24,6 +24,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration9To10,
         Migration10To11,
         Migration11To12,
+        Migration12To13,
     )
 
 /**
@@ -315,5 +316,36 @@ internal object Migration10To11 : Migration(10, 11) {
 internal object Migration11To12 : Migration(11, 12) {
     override fun migrate(connection: SQLiteConnection) {
         connection.execSQL("ALTER TABLE manga DROP COLUMN cover_last_modified")
+    }
+}
+
+/**
+ * Widens `chapter_downloads`' `manga_id` index to `(manga_id, state)`.
+ *
+ * The library grid derives `downloaded_count` from a correlated sub-query filtering
+ * `manga_id = ? AND state = 'Downloaded'`. With only single-column indexes to choose from, SQLite
+ * picked `index_chapter_downloads_state` and scanned every downloaded row in the database **once per
+ * library title** — on a query Room invalidates from six tables, including `chapter_downloads`, whose
+ * `setProgress` fires once per downloaded page. Measured against a fixture built from the checked-in
+ * `12.json` at 300 library titles and 1500 downloaded chapters: 26.4 ms → 4.8 ms, the plan going from
+ * `SEARCH … USING INDEX index_chapter_downloads_state (state=?)` to a covering
+ * `(manga_id=? AND state=?)` probe. At 2000 titles and 4000 downloaded rows, 402 ms → 17 ms.
+ *
+ * A widening, not an addition: `manga_id` is no FK child column here (the only foreign key is
+ * `chapter_id`, which is also the primary key), so the narrow index carried no constraint duty, and
+ * every `WHERE manga_id = ?` read still matches on the leftmost prefix — verified by query plan for
+ * `observeForManga` and `deleteForManga`. `index_chapter_downloads_state` stays: the queue's
+ * state-only reads use it and are optimal on it.
+ *
+ * Index-only, so nothing is rewritten and no data can be lost; the statements are identical on both
+ * platforms under the bundled `androidx.sqlite` driver.
+ */
+internal object Migration12To13 : Migration(12, 13) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("DROP INDEX IF EXISTS index_chapter_downloads_manga_id")
+        connection.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_chapter_downloads_manga_id_state " +
+                "ON chapter_downloads (manga_id, state)",
+        )
     }
 }
