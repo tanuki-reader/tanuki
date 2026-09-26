@@ -16,7 +16,9 @@ import okio.Path
  *
  * Covers are effectively immutable (their URLs embed a file hash), so both cache tiers are sized
  * generously and nothing needs revalidation: a cover fetched once is served from RAM within a session
- * and from disk across launches, and only genuine cache misses ever reach the source again.
+ * and from disk across launches, and only genuine cache misses ever reach the source again. What is
+ * *not* kept is a failure — [SuccessOnlyCacheStrategy] stops Coil's default from storing a `404` and
+ * then serving it from disk forever, so a cover that failed is asked for again next time.
  *
  * That immutability is also why **a cover is keyed on its URL alone** — `coverImageRequest` sets no
  * `memoryCacheKey` or `diskCacheKey`, so new art means a new key by construction. `MangaCover` carried a
@@ -39,14 +41,16 @@ import okio.Path
  * @param httpClient the shared source client; not owned here (a process-lived DI singleton), so this
  *   loader never closes it out from under the source layer.
  */
-@OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) is @ExperimentalCoilApi.
+@OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) and CacheStrategy are experimental.
 fun newTanukiImageLoader(
     context: PlatformContext,
     httpClient: HttpClient,
 ): ImageLoader =
     ImageLoader
         .Builder(context)
-        .components { add(KtorNetworkFetcherFactory(httpClient = httpClient)) }
+        .components {
+            add(KtorNetworkFetcherFactory(httpClient = { httpClient }, cacheStrategy = { SuccessOnlyCacheStrategy }))
+        }
         .memoryCache {
             MemoryCache
                 .Builder()
@@ -81,6 +85,9 @@ private const val DISK_CACHE_MAX_BYTES = 256L * 1024 * 1024
  * same instance source API calls use — so a page from a protected host (the reader's real Cloudflare
  * case) inherits the solved `cf_clearance` and no page fetch bypasses the interceptor.
  *
+ * Same [SuccessOnlyCacheStrategy] as covers, and it matters more here: a failed page is re-warmed by
+ * `PagePrefetch`, and with a `404` stored on disk every one of those retries would fail without a request.
+ *
  * Crossfade is deliberately **off**, unlike the cover loader. A cover fades in behind a gradient placeholder,
  * where the transition hides a pop-in. A page arrives on a black surface and is the only thing on screen, so
  * the fade buys nothing visually and costs a full-screen composite of *two* page-sized bitmaps on every frame
@@ -93,14 +100,16 @@ private const val DISK_CACHE_MAX_BYTES = 256L * 1024 * 1024
  * @param httpClient the shared source client; not owned here (a process-lived DI singleton), so this
  *   loader never closes it out from under the source layer.
  */
-@OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) is @ExperimentalCoilApi.
+@OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) and CacheStrategy are experimental.
 fun newTanukiPageImageLoader(
     context: PlatformContext,
     httpClient: HttpClient,
 ): ImageLoader =
     ImageLoader
         .Builder(context)
-        .components { add(KtorNetworkFetcherFactory(httpClient = httpClient)) }
+        .components {
+            add(KtorNetworkFetcherFactory(httpClient = { httpClient }, cacheStrategy = { SuccessOnlyCacheStrategy }))
+        }
         .memoryCache {
             MemoryCache
                 .Builder()

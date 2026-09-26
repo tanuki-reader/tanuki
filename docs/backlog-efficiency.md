@@ -908,7 +908,51 @@ exponential backoff on idempotent GETs. **Do not retry `DownloadError.NeedsVerif
 `DownloadManager:325` deliberately exempts Cloudflare challenges from retry, and a client-level
 retry would fight the interceptor.
 
-### 5.2 Pin Coil's `CacheStrategy` for covers and pages
+### 5.2 Pin Coil's `CacheStrategy` for covers and pages — **DONE (not as written)**
+
+Shipped as `SuccessOnlyCacheStrategy` (`shared/.../platform/imaging/ImageCacheStrategy.kt`), passed to
+both loaders' `KtorNetworkFetcherFactory`. It delegates to `CacheStrategy.DEFAULT` for every success and
+refuses to store, or to serve, anything else.
+
+**The 2026-09-07 correction below was right about what it checked, and missed the other half.** Re-read
+against Coil 3.5.0's own sources: `DefaultCacheStrategy.read` is indeed "always return the disk cache
+response". It never revalidates, which is what this item feared and what content-addressed image URLs
+want. But its `write` stores every 2xx **and** `CACHEABLE_STATUS_CODES = {300, 301, 404, 405, 410, 414,
+501}`. `NetworkFetcher.doFetch` then opens that entry, the default `read` hands it back, and
+`throwIfFailureResponseCode` throws `HttpException` **without going to the network**. So one `404` on a
+cover or a reader page failed that image from disk until LRU eviction, hundreds of megabytes of other
+images later, or an app-data clear. For the reader it also defeated 5.4: `PagePrefetch` forgets a failed
+page so it can be warmed again, and every later warm hit the stored `404` and failed at once. Downloads
+were never affected (they use `KtorPageFetcher`, not Coil's cache), and neither are Cloudflare challenges
+(`403`/`503` are not in Coil's set).
+
+**Only failures change.** Successes go through `CacheStrategy.DEFAULT` untouched, so no image that
+loads today is fetched, stored or served any differently. The one real decision is the predicate
+`isCacheableImageResponse`: 2xx, plus `304`, which only refreshes the headers of an entry that already
+succeeded. (The loaders never send a conditional request, so a `304` shouldn't arrive at all.)
+
+**It heals what is already on disk.** A failure stored before this shipped is read as a miss:
+`ReadResult(networkRequest)` is the hook Coil's fetcher leaves for exactly this ("lets cache-aware
+strategies issue a fresh request when a cached failure has expired"). The next success overwrites the
+entry through the fetcher's `closeAndOpenEditor`. No cache wipe, no migration.
+
+**Wiring detail:** the only 3.5.0 overload that takes a `cacheStrategy` takes the client as a lambda, so
+the call is `httpClient = { httpClient }`. Its other defaults (`UNCOORDINATED` concurrent requests, the
+platform `ConnectivityChecker`) are the ones the previous overload used, so nothing else moved.
+
+Covered by `ImageCacheStrategyTest` (4 cases, `:shared` `commonTest`, so both targets): successes and
+`304` are cacheable, and each of Coil's seven default failure codes, listed one by one so that a Coil
+upgrade widening its set is something this test is read against, is not; nor are `403`/`408`/`429`/5xx.
+The failure case was confirmed failing against a predicate copying Coil's default set. The strategy
+object itself is not driven by a test: its methods take a Coil `Options`, which needs a `PlatformContext`,
+and on the Android host that is a real `Context`. So the decision is kept in the pure predicate and the
+object only routes to it. 12 tests in `:shared` on the Android host and 12 on the iOS simulator, green;
+Android builds.
+
+**Not reachable by unit test:** the real fetcher round trip. It is a by-hand check (see Verification).
+
+The original item and its correction follow, unchanged.
+
 
 **Problem:** `respectCacheHeaders` / `CacheStrategy` is never configured on either loader
 (`shared/.../imaging/TanukiImageLoader.kt`). Coil 3.5 therefore uses `CacheStrategy.DEFAULT`,
@@ -1419,7 +1463,11 @@ still loads its predecessor); either layout, cross a boundary and immediately hi
 button (the jump lands).
 
 **Phase 5.2 check:** the decisive test is a source whose CDN sends a short `max-age`. Load a
-library screen, force-kill, relaunch offline — covers should still render from disk.
+library screen, force-kill, relaunch offline — covers should still render from disk. And the half that
+actually shipped: serve a page or cover URL that `404`s once and then succeeds (a local proxy is
+enough). The first load fails, and the next attempt, whether a prefetch re-warm, a scroll back or a
+relaunch, reaches the network and renders. Before `SuccessOnlyCacheStrategy`, every attempt failed from
+disk without a request.
 
 ---
 
