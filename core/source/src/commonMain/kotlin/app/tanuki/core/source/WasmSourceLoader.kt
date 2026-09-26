@@ -34,7 +34,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /**
@@ -61,11 +63,13 @@ import kotlinx.coroutines.withContext
  * unwinding. Refusing before entering the engine keeps an offline failure an ordinary Kotlin exception
  * on both platforms.
  *
- * Modules are cached per source id behind a [Mutex] so concurrent calls don't double-instantiate, and
- * that cache is bounded: at most [MAX_CACHED_MODULES] modules are kept, the least recently used closed
- * to make room (see [trim]). An engine instance is the heaviest long-lived object the app holds — on
- * iOS `close` frees memory the Kotlin heap can't see at all — so "instantiated once" is deliberately no
- * longer the contract; "instantiated once *while in use*" is. Only the `fetch*` path caches:
+ * Modules are cached per source id, and that cache is bounded: at most [MAX_CACHED_MODULES] sources are
+ * kept, the least recently used closed to make room (see [trim]). Each keeps **one** idle instance; up to
+ * [MAX_INSTANCES_PER_SOURCE] calls to one source run at once, each on an instance of its own, and the
+ * overflow instance is closed when its call returns (see [callModule]). An engine instance is the heaviest
+ * long-lived object the app holds — on iOS `close` frees memory the Kotlin heap can't see at all — so
+ * "instantiated once" is deliberately not the contract; "one instance per source *while idle*" is. Only
+ * the `fetch*` path caches:
  * `SOURCE_META` runs against a [withTransientModule] instance, because it is asked of every installed
  * bundle rather than of the source the user is looking at. The shared [host] is bound to every module's
  * imports, so all source HTTP flows through one Ktor client.
@@ -92,12 +96,12 @@ class WasmSourceLoader(
     private val modulesLock = Mutex()
 
     /**
-     * Instantiated modules of the sources being *fetched* from, least-recently-used first.
+     * The instance pools of the sources being *fetched* from, least-recently-used first.
      *
      * A [LinkedHashMap] rather than a plain map because that iteration order is the eviction order (see
-     * [trim]); [acquire] re-inserts on every hit to keep it true.
+     * [trim]); [pin] re-inserts on every call to keep it true.
      */
-    private val modules = LinkedHashMap<String, LoadedModule>()
+    private val modules = LinkedHashMap<String, SourceModules>()
 
     override suspend fun loadSource(id: String): Source = withContext(dispatchers.default) {
         // Instantiating + decoding SOURCE_META both validates the bundle loads and yields display
@@ -217,31 +221,43 @@ class WasmSourceLoader(
     }
 
     /**
-     * Calls [export] on [sourceId]'s cached module, **one call at a time per source**.
+     * Calls [export] on an instance of [sourceId]'s module that **no other call is using**.
      *
      * The exclusion is not optional. A [WasmModule] wraps a live engine instance with a single operand
      * stack and one linear memory; entering it twice at once interleaves two calls' stack traffic and
      * corrupts both (Chicory surfaces this as an `ArrayIndexOutOfBoundsException` from its interpreter,
-     * far from the cause). The app does exactly that whenever one screen makes two source calls at once
-     * — the detail screen refreshes chapters and details in parallel on open — so serializing here, at
-     * the one place every export call passes through, is what makes those callers safe.
+     * far from the cause). So an instance is *owned* by the call running on it, from [take] to [giveBack].
      *
-     * Per source, not global: two different sources are separate instances sharing nothing, and one
-     * source's slow feed shouldn't block another's browse.
+     * What is not required is that a source have only one instance, and that used to be the costly part.
+     * Both engines bridge the guest's HTTP import with `runBlocking`, so a call holds its instance for
+     * whole round-trips — retry backoff included, and a Cloudflare challenge the user is answering — and
+     * a single instance per source queued everything behind that: the detail screen's parallel details +
+     * chapters refresh, a browse behind a background library run working the same source, the reader
+     * opening a chapter behind a download's page list. Up to [MAX_INSTANCES_PER_SOURCE] calls now overlap,
+     * each on its own instance; past that a call waits for one to be handed back rather than making one.
+     * No guest keeps state between calls, and none may — the cache can close an instance and make a fresh
+     * one at any time (see [WasmModule]).
      *
-     * [acquire] / [release] bracket the call so the cap and the uninstall sweep can tell a module that is
-     * merely cached from one that is mid-call — see [trim].
+     * [pin] / [unpin] bracket the whole call, *including* the wait, so the cap and the uninstall sweep can
+     * tell a source that is merely cached from one that has a call running or queued — see [trim].
      */
     private suspend fun callModule(
         sourceId: String,
         export: String,
         input: ByteArray,
     ): ByteArray {
-        val loaded = acquire(sourceId)
-        return try {
-            loaded.lock.withLock { loaded.module.call(export, input) }
+        val pool = pin(sourceId)
+        try {
+            return pool.permits.withPermit {
+                val module = take(sourceId, pool)
+                try {
+                    module.call(export, input)
+                } finally {
+                    giveBack(pool, module)
+                }
+            }
         } finally {
-            release(loaded)
+            unpin(pool)
         }
     }
 
@@ -269,61 +285,80 @@ class WasmSourceLoader(
     }
 
     /**
-     * Takes [sourceId]'s cached module for one call, instantiating it on first use, marking it in-use and
-     * moving it to the most-recently-used end. Balanced by [release] — never call it without one.
+     * Marks [sourceId]'s pool as having a call, creating it on first use and moving it to the
+     * most-recently-used end. Balanced by [unpin] — never call it without one.
      *
-     * [modulesLock] guards the *map* only, and is released before the call itself runs: a source's own
-     * [LoadedModule.lock] serializes its calls (see [callModule]), so a long guest call can't block
-     * instantiating an unrelated source. That release is exactly why [LoadedModule.inUse] exists — a
-     * module handed out here is reachable by nobody else, but is not yet holding its own lock, so a
-     * concurrent [trim] or [evictModulesOutside] would otherwise be free to close it out from under the
-     * caller.
+     * [modulesLock] guards the *map* only, and is not held while a call waits for or runs on an instance:
+     * a long guest call must not block instantiating an unrelated source. That is exactly why
+     * [SourceModules.borrowers] exists — a pool whose calls are running or waiting holds no lock of its
+     * own that [trim] or [evictModulesOutside] could see, so they would otherwise be free to close it out
+     * from under them.
      */
-    private suspend fun acquire(sourceId: String): LoadedModule = modulesLock.withLock {
+    private suspend fun pin(sourceId: String): SourceModules = modulesLock.withLock {
         // remove + put rather than a plain get: a LinkedHashMap keeps insertion order, so re-inserting a
         // hit is what makes iteration order least-recently-used first for trim().
-        val loaded = modules.remove(sourceId) ?: LoadedModule(instantiate(sourceId))
-        modules[sourceId] = loaded
-        loaded.inUse++
+        val pool = modules.remove(sourceId) ?: SourceModules()
+        modules[sourceId] = pool
+        pool.borrowers++
         trim()
-        loaded
+        pool
     }
 
     /**
-     * Ends the borrow [acquire] began: drops the in-use mark, closes the module if it was retired while
-     * the call was running, and brings the cache back under its cap.
+     * Ends the call [pin] began and brings the cache back under its cap.
      *
      * [NonCancellable] because this runs from a `finally` and [Mutex.lock] is cancellable — a fetch
-     * cancelled while it held a module would otherwise skip the decrement and leave that module pinned
-     * in the cache for the life of the process, which is the exact leak this whole item is about.
+     * cancelled here would otherwise skip the decrement and leave its source pinned in the cache for the
+     * life of the process.
      */
-    private suspend fun release(loaded: LoadedModule) = withContext(NonCancellable) {
+    private suspend fun unpin(pool: SourceModules) = withContext(NonCancellable) {
         modulesLock.withLock {
-            loaded.inUse--
-            if (loaded.inUse == 0 && loaded.closeWhenIdle) loaded.module.close()
+            pool.borrowers--
             trim()
         }
     }
 
     /**
-     * Closes least-recently-used modules until at most [MAX_CACHED_MODULES] remain. Call under
+     * Hands the calling coroutine an instance of its own: the pool's idle one if it has it, a fresh one
+     * otherwise. Called holding one of [SourceModules.permits], which is what bounds how many exist.
+     */
+    private suspend fun take(sourceId: String, pool: SourceModules): WasmModule = modulesLock.withLock {
+        pool.idle.removeLastOrNull() ?: instantiate(sourceId)
+    }
+
+    /**
+     * Returns an instance after its call: kept as the pool's idle instance if it has none, closed
+     * otherwise — the second instance exists for the overlap only, so a burst leaves memory where it
+     * found it. A pool retired mid-call ([SourceModules.retired]) closes everything handed back.
+     *
+     * [NonCancellable] for the same reason as [unpin]: a skipped hand-back leaks a live instance.
+     */
+    private suspend fun giveBack(pool: SourceModules, module: WasmModule) = withContext(NonCancellable) {
+        modulesLock.withLock {
+            if (pool.retired || pool.idle.isNotEmpty()) module.close() else pool.idle.addLast(module)
+        }
+    }
+
+    /**
+     * Closes least-recently-used sources until at most [MAX_CACHED_MODULES] remain. Call under
      * [modulesLock].
      *
-     * The cap is **soft**: a module with a call in flight is skipped rather than waited for, so calls to
-     * more distinct sources than the cap can hold exceed it briefly. Every [release] trims again, so the
-     * excess lasts only as long as the concurrent calls do. Closing under [modulesLock] is safe because a
-     * victim is removed from the map first and [LoadedModule.inUse] only ever rises under that same lock,
-     * so nothing can acquire it after the decision.
+     * The cap is **soft**: a source with a call running or waiting is skipped rather than waited for, so
+     * calls to more distinct sources than the cap can hold exceed it briefly. Every [unpin] trims again,
+     * so the excess lasts only as long as the concurrent calls do. Closing under [modulesLock] is safe
+     * because a victim is removed from the map first and [SourceModules.borrowers] only ever rises under
+     * that same lock, so nothing can reach it after the decision — and an unpinned pool's instances are
+     * all idle, none executing.
      */
     private fun trim() {
         while (modules.size > MAX_CACHED_MODULES) {
             // Copied out of the entry before the removal: Kotlin/Native invalidates a `MutableEntry` the
             // moment its backing map changes and throws on the next read, where the JVM's tolerates it.
-            val (id, victim) = modules.entries.firstOrNull { it.value.inUse == 0 }
+            val (id, victim) = modules.entries.firstOrNull { it.value.borrowers == 0 }
                 ?.let { it.key to it.value }
                 ?: return
             modules.remove(id)
-            victim.module.close()
+            victim.closeIdle()
         }
     }
 
@@ -343,9 +378,10 @@ class WasmSourceLoader(
      * Retires every cached module whose source is no longer in [installed], closing each one so the
      * engine releases its instance rather than leaving it to answer calls for a bundle that is gone.
      *
-     * A module mid-call is removed from the map immediately — so no later [acquire] can find it — but
-     * closed by its own [release] rather than here: on iOS `close` frees the native instance, and freeing
-     * one while the guest is executing inside it is a use-after-free rather than a leak.
+     * A source mid-call is removed from the map immediately — so no later [pin] can find it — and its
+     * idle instance closed, but an instance in use is closed by its own [giveBack] rather than here: on
+     * iOS `close` frees the native instance, and freeing one while the guest is executing inside it is a
+     * use-after-free rather than a leak.
      *
      * Only *removal* is handled here. A bundle rewritten in place keeps its id, so this cannot see it —
      * today that is harmless, because the only writer is the dev installer and it runs at launch before
@@ -357,25 +393,33 @@ class WasmSourceLoader(
         modulesLock.withLock {
             val removed = modules.keys.filterNot { it in keep }
             removed.forEach { id ->
-                val loaded = modules.remove(id) ?: return@forEach
-                if (loaded.inUse == 0) loaded.module.close() else loaded.closeWhenIdle = true
+                val pool = modules.remove(id) ?: return@forEach
+                pool.retired = true
+                pool.closeIdle()
             }
         }
     }
 
     /**
-     * A cached module, the lock that keeps its single engine instance single-threaded, and the two flags
-     * that say whether it may be closed. Both flags are guarded by [modulesLock], never by [lock].
+     * One source's instances: at most one idle, plus however many calls are running on others (bounded by
+     * [permits]). Everything but [permits] is guarded by [modulesLock].
      */
-    private class LoadedModule(
-        val module: WasmModule,
-        val lock: Mutex = Mutex(),
-    ) {
-        /** Calls currently borrowing this module. Non-zero means it must not be closed. */
-        var inUse: Int = 0
+    private class SourceModules {
+        /** One per instance allowed at once; a call holds one from [take] to [giveBack]. */
+        val permits = Semaphore(MAX_INSTANCES_PER_SOURCE)
 
-        /** Set when the module was retired mid-call; its last [release] does the closing. */
-        var closeWhenIdle: Boolean = false
+        /** Instances no call is running on — at most one outside the moment of a hand-back. */
+        val idle = ArrayDeque<WasmModule>()
+
+        /** Calls running on *or waiting for* an instance. Non-zero means the pool must not be closed. */
+        var borrowers: Int = 0
+
+        /** Set when the source was uninstalled; every instance handed back after that is closed. */
+        var retired: Boolean = false
+
+        fun closeIdle() {
+            while (idle.isNotEmpty()) idle.removeFirst().close()
+        }
     }
 
     private companion object {
@@ -383,7 +427,8 @@ class WasmSourceLoader(
         val EMPTY = ByteArray(0)
 
         /**
-         * How many instantiated modules the fetch path may keep.
+         * How many sources the fetch path may keep instantiated — one idle instance each, so in steady
+         * state also how many instances.
          *
          * Three, because the app's access pattern is overwhelmingly one source at a time: a reading
          * session never leaves its series' source, and the detail screen's parallel details+chapters
@@ -392,5 +437,16 @@ class WasmSourceLoader(
          * source the user has moved on from.
          */
         const val MAX_CACHED_MODULES = 3
+
+        /**
+         * How many calls to one source may run at once, each on an instance of its own.
+         *
+         * Two covers every overlap the app actually makes — the detail screen's details + chapters pair,
+         * and one foreground call beside a background library run or download on the same source — for
+         * one extra instantiation (a bundle of a couple of hundred KB) that is closed when its call
+         * returns. More would multiply what a single source sees from us at once, which is the limit
+         * that matters for its rate limits and its Cloudflare rules, for little gain.
+         */
+        const val MAX_INSTANCES_PER_SOURCE = 2
     }
 }

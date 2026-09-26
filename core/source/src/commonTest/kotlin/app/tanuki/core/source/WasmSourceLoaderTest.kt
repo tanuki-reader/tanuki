@@ -16,24 +16,39 @@ import app.tanuki.core.source.abi.Wire
 import app.tanuki.core.source.runtime.SourceHost
 import app.tanuki.core.source.runtime.WasmEngine
 import app.tanuki.core.source.runtime.WasmModule
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.newFixedThreadPoolContext
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 /**
@@ -215,6 +230,101 @@ class WasmSourceLoaderTest {
             listOf("b", "c", "d").forEach { loader.fetchMangaList(it) }
 
             assertEquals(listOf("b", "c", "d"), engine.openIds())
+        }
+
+    @Test
+    fun `two calls to one source run at once - each on its own instance`() =
+        inFlightTest { io ->
+            val engine = FakeWasmEngine(parking = setOf("a"))
+            val loader = loader(engine, FakeBundleStore("a"), dispatchers = io)
+
+            val calls = List(2) { async { loader.fetchMangaList("a") } }
+
+            // Under a per-source lock the second call would queue behind the first's whole round-trip
+            // (the engines hold a call across the guest's HTTP), and this would time out.
+            engine.parked.first { it == 2 }
+            assertEquals(2, engine.instantiations("a"))
+
+            engine.gate.complete(Unit)
+            calls.awaitAll()
+        }
+
+    @Test
+    fun `a call past the per-source limit waits for an instance rather than making one`() =
+        inFlightTest { io ->
+            val engine = FakeWasmEngine(parking = setOf("a"))
+            val loader = loader(engine, FakeBundleStore("a"), dispatchers = io)
+
+            val calls = List(2) { async { loader.fetchMangaList("a") } }.toMutableList()
+            engine.parked.first { it == 2 }
+            calls += async { loader.fetchMangaList("a") }
+
+            // Real time, not virtual: the call being waited on is on another thread. Nothing can make
+            // this pass wrongly — a third instance would show up in the count below.
+            delay(200.milliseconds)
+            assertEquals(2, engine.parked.value)
+            assertEquals(2, engine.instantiations("a"))
+
+            engine.gate.complete(Unit)
+            calls.awaitAll()
+            // The waiter ran on an instance one of the first two handed back.
+            assertEquals(3, engine.parked.value)
+            assertEquals(2, engine.instantiations("a"))
+        }
+
+    @Test
+    fun `a burst leaves one instance open per source`() =
+        inFlightTest { io ->
+            val engine = FakeWasmEngine(parking = setOf("a"))
+            val loader = loader(engine, FakeBundleStore("a"), dispatchers = io)
+
+            val calls = List(2) { async { loader.fetchMangaList("a") } }
+            engine.parked.first { it == 2 }
+            engine.gate.complete(Unit)
+            calls.awaitAll()
+
+            // The second instance exists for the overlap only; keeping it would double what every
+            // source the user touched in parallel costs for the rest of the session.
+            assertEquals(listOf("a"), engine.openIds())
+        }
+
+    @Test
+    fun `a source mid-call is not closed to make room in the cache`() =
+        inFlightTest { io ->
+            val engine = FakeWasmEngine(parking = setOf("a"))
+            val loader = loader(engine, FakeBundleStore("a", "b", "c", "d"), dispatchers = io)
+
+            val call = async { loader.fetchMangaList("a") }
+            engine.parked.first { it == 1 }
+            listOf("b", "c", "d").forEach { loader.fetchMangaList(it) }
+
+            // "a" is the least recently used, but closing it now would free an instance the guest is
+            // executing in — so the oldest *idle* source pays instead.
+            assertEquals(listOf("a", "c", "d"), engine.openIds())
+
+            engine.gate.complete(Unit)
+            call.await()
+            assertEquals(listOf("a", "c", "d"), engine.openIds())
+        }
+
+    @Test
+    fun `uninstalling a source mid-call closes its instance when the call returns`() =
+        inFlightTest { io ->
+            val store = FakeBundleStore("a")
+            val engine = FakeWasmEngine(parking = setOf("a"))
+            val loader = loader(engine, store, dispatchers = io)
+
+            val call = async { loader.fetchMangaList("a") }
+            engine.parked.first { it == 1 }
+            store.removeBundle("a")
+            assertEquals(emptyList(), loader.observeInstalledSources().first())
+
+            // Retired, but still executing: on iOS closing it here is a use-after-free.
+            assertEquals(listOf("a"), engine.openIds())
+
+            engine.gate.complete(Unit)
+            call.await()
+            assertEquals(emptyList(), engine.openIds())
         }
 
     @Test
@@ -560,18 +670,49 @@ class WasmSourceLoaderTest {
             override val main get() = dispatcher
         }
 
+    /**
+     * Runs [body] on real threads, for the tests that need a call held *inside* the engine while others
+     * start. [WasmModule.call] isn't suspend, so under a test dispatcher a call never yields; parking it in
+     * `runBlocking` is exactly what the real engines do across a guest's HTTP. The loader gets its own
+     * pool (passed to [body]) so that parked calls can never starve the test of a thread.
+     */
+    @OptIn(DelicateCoroutinesApi::class)
+    private fun inFlightTest(body: suspend CoroutineScope.(DispatcherProvider) -> Unit) =
+        runTest {
+            val pool = newFixedThreadPoolContext(4, "wasm-loader-test")
+            val dispatchers =
+                object : DispatcherProvider {
+                    override val default get() = pool
+                    override val io get() = pool
+                    override val main get() = pool
+                }
+            try {
+                // Off the test scheduler, so the timeout is real time rather than skipped virtual time.
+                withContext(Dispatchers.Default) { withTimeout(IN_FLIGHT_LIMIT) { body(dispatchers) } }
+            } finally {
+                pool.close()
+            }
+        }
+
     private fun loader(
         engine: WasmEngine,
         store: SourceBundleStore,
         repository: SourceRepository = FakeSourceRepository(),
-        connection: ConnectionObserver = FakeConnectionObserver()
-    ) = WasmSourceLoader(engine, NoOpSourceHost, store, repository, testDispatchers(), connection)
+        connection: ConnectionObserver = FakeConnectionObserver(),
+        dispatchers: DispatcherProvider = testDispatchers()
+    ) = WasmSourceLoader(engine, NoOpSourceHost, store, repository, dispatchers, connection)
 
     private fun metaWire(
         id: String,
         name: String
     ) = Wire.SourceMetaWire(id = id, name = name, lang = "en", baseUrl = "https://$id.test")
 }
+
+/** How long an in-flight test may take — well short of [PARK_LIMIT], so a failure reports as a timeout. */
+private val IN_FLIGHT_LIMIT = 5.seconds
+
+/** The longest a parked fake call waits for its gate before giving up on its own. */
+private val PARK_LIMIT = 15.seconds
 
 /** A [SourceHost] that does nothing; the loader tests never exercise a real HTTP/log import. */
 private object NoOpSourceHost : SourceHost {
@@ -650,8 +791,19 @@ private class FakeWasmEngine(
     private val chapters: Map<String, List<Wire.ChapterWire>> = emptyMap(),
     private val abiVersion: Int = SourceAbi.VERSION,
     /** Records the last MANGA_LIST request each module received, so arg plumbing can be asserted. */
-    val requests: MutableList<Wire.MangaListRequest> = mutableListOf()
+    val requests: MutableList<Wire.MangaListRequest> = mutableListOf(),
+    /**
+     * Sources whose export calls park until [gate] completes — the engines' `runBlocking` bridge held
+     * open, so a test can have a call in flight while it starts others.
+     */
+    private val parking: Set<String> = emptySet()
 ) : WasmEngine {
+    /** Releases every parked call. */
+    val gate = CompletableDeferred<Unit>()
+
+    /** How many calls have entered a parking module — updated from whichever thread made the call. */
+    val parked = MutableStateFlow(0)
+
     /**
      * Every [instantiate] in order, with the module it produced — the module cache's whole observable
      * surface: how often a source was instantiated, and which instances the loader has closed.
@@ -670,8 +822,16 @@ private class FakeWasmEngine(
             details = details,
             chapters = chapters,
             abiVersion = abiVersion,
-            requests = requests
+            requests = requests,
+            park = if (sourceId in parking) ::park else null
         ).also { instantiated += sourceId to it }
+
+    private fun park() {
+        parked.update { it + 1 }
+        // Bounded, and longer than inFlightTest's own timeout: a test that fails leaves this call parked,
+        // and cancelling the test has to wait for the blocked thread — unbounded, a failure is a hang.
+        runBlocking { withTimeoutOrNull(PARK_LIMIT) { gate.await() } }
+    }
 
     /** Source ids with a module the loader instantiated and hasn't closed — i.e. what it is holding. */
     fun openIds(): List<String> = instantiated.filterNot { (_, module) -> module.closed }.map { it.first }
@@ -687,9 +847,18 @@ private class FakeWasmModule(
     private val details: Map<String, Wire.MangaWire>,
     private val chapters: Map<String, List<Wire.ChapterWire>>,
     private val abiVersion: Int,
-    private val requests: MutableList<Wire.MangaListRequest>
+    private val requests: MutableList<Wire.MangaListRequest>,
+    private val park: (() -> Unit)?
 ) : WasmModule {
     override fun call(
+        export: String,
+        input: ByteArray
+    ): ByteArray {
+        park?.invoke()
+        return answer(export, input)
+    }
+
+    private fun answer(
         export: String,
         input: ByteArray
     ): ByteArray =

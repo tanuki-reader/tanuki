@@ -1227,17 +1227,73 @@ necessarily fix: `CloudflareCookieStore.byHost`, `CloudflareInterceptor.locks` (
 host, never removed), and `SourceCookieJar.byHost` (which drops `Max-Age`/`Expires` at parse
 time, so **nothing ever expires** — its KDoc acknowledges this).
 
-### 5.7 Reconsider the per-source mutex in `WasmSourceLoader`
+### 5.7 Reconsider the per-source mutex in `WasmSourceLoader` — **DONE**
 
-`callModule` (`:219-226`) takes a per-source `Mutex`, serializing all calls to one source. Its
+Shipped as a **per-source pool of up to two instances** in place of the per-source `Mutex`:
+`MAX_INSTANCES_PER_SOURCE = 2`, one idle instance kept per cached source, and the overflow instance closed
+when its call returns. `LoadedModule(module, lock)` became `SourceModules(permits, idle, borrowers,
+retired)`, and `acquire`/`release` became `pin`/`unpin` (the cache bookkeeping, spanning the whole call
+*including* the wait) around `take`/`giveBack` (one instance, owned by one call).
+
+**What the investigation found: the exclusion is load-bearing, the per-source part is not.** A
+`WasmModule` is one engine instance — one operand stack, one linear memory — so entering it twice corrupts
+both calls; that rule stays, now as "one call per *instance*", and it needs no lock at all because an
+instance is owned by the call running on it. What was never required is one instance per *source*: no guest
+under `native/sources/` keeps mutable global state (no `static mut`, `OnceCell`, `thread_local` or
+`lazy_static`), and 5.6 had already made instances disposable — the LRU can close a source and instantiate
+it fresh between any two calls, so no guest could rely on state surviving anyway. The pool adds no contract
+5.6 didn't already impose; `WasmModule`'s KDoc now states it explicitly.
+
+**Why the serialization was expensive, which 1.3 did not change.** The item expected TTL-gating to make
+the parallel detail refresh rare enough to stop mattering. That was the smaller half. Both engines bridge
+the guest's HTTP import with `runBlocking`, so the lock was held across **whole round-trips** — 5.1's retry
+backoff (up to ~8 s) included, and an `InteractiveCloudflareSolver` Turnstile the user is answering. And the
+contention was not only the detail pair (which 1.4's pull-to-refresh runs on every pull): `UpdateLibrary`
+works a source's series back to back, so a browse or chapter open on that source queued behind a
+background run; `DownloadManager`'s page-list call did the same to the reader.
+
+**Why two, and why the second is closed.** Two covers every overlap the app actually makes — the detail
+pair, and one foreground call beside a background run or download. More would multiply what one source
+sees from us at once, which is the limit that matters for its rate limits and its Cloudflare rules
+(`CloudflareInterceptor`'s per-host lock still serializes the solving itself). The extra instance is a
+75–200 KB bundle instantiated only when two calls actually overlap, and closing it on return keeps steady
+state exactly where 5.6 left it: one instance per cached source, three sources. A third concurrent call
+waits for an instance to be handed back rather than making one — a `Semaphore` per source, waited on
+**outside** `modulesLock`, so a queued call never blocks an unrelated source.
+
+**The in-use guard moved, and widened.** 5.6's `inUse` counted calls holding the module; `borrowers`
+counts calls running *or waiting*, since a waiter is about to need the pool. Uninstall retires a pool
+(`retired`): its idle instance is closed at once, and anything still executing is closed by its own
+`giveBack`, preserving 5.6's use-after-free fix on iOS. Instantiation stays under `modulesLock` as before.
+
+**The test harness 5.6 said was impossible.** 5.6 recorded that no test could hold a call in flight,
+because `WasmModule.call` is not suspend. It can, the way the real engines do: `FakeWasmEngine` now takes
+`parking` sources whose calls block in `runBlocking` until a gate opens, and `inFlightTest` runs those
+tests on a dedicated thread pool off the test scheduler (virtual time would otherwise skip straight
+through the real-thread waits). The park is itself bounded, and longer than the test's own timeout,
+because cancelling a test has to wait for its blocked thread — an unbounded park turns a failure into a
+hang, which is exactly what the first baseline run did. 5 new cases: two calls to one source overlap on
+two instances; a third waits and reuses one; a burst leaves one instance open; a source mid-call is
+skipped by the cap and the oldest *idle* source pays instead (5.6's guard, finally exercised); uninstalling
+a source mid-call closes its instance when the call returns. The three pool cases were confirmed failing
+(timing out) against the old mutex before the change was kept. 127 tests on the Android host and 125 on
+the iOS simulator, green; Android builds.
+
+**Not reachable by unit test:** real-engine concurrency — two Chicory interpreters or two wasmi instances
+of the same bundle running side by side. Nothing is shared between them (separate `Store`s on Android,
+separate `tanuki_module_new` handles on iOS over one shared, read-only wasmi `Engine`), but it is a by-hand
+check: open a series' detail screen and confirm details and chapters now overlap, and browse a source
+while a library update is working it.
+
+**Problem (as originally filed):** `callModule` (`:219-226`) takes a per-source `Mutex`, serializing all calls to one source. Its
 KDoc names the detail screen's parallel details+chapters fetch as the motivating case. Once 1.3
 reduces how often that happens, it's worth checking whether the serialization is still needed for
 correctness (WASM instance reentrancy) or whether a small pool of instances would let browse and
 reader calls proceed concurrently. **Investigate before changing** — this guard may be
 load-bearing for memory safety in the wasm runtime.
 
-*(Untouched by 5.6: that item bracketed `callModule` with `acquire`/`release` so the cache can tell a
-cached module from a mid-call one, but the per-source mutex and what it serializes are unchanged.)*
+*(5.6 bracketed `callModule` with `acquire`/`release` and left this mutex alone; 5.7 replaced both — see
+above.)*
 
 ---
 
@@ -1323,7 +1379,9 @@ Per item, before moving to the next:
 Note the task names: neither `:core:domain` nor `:core:data` declares `withHostTest {}`, so their
 `commonTest` runs on the iOS simulator target only and there is no `testAndroidHostTest` task for
 either. The modules that do have one are `:core:source`, `:core:navigation`, `:core:presentation` and
-`:shared`. Only `:shared` and — as of 5.5 — `:core:source` actually have an `androidHostTest` *source set*;
+`:shared`. `:core:source`'s `WasmSourceLoaderTest` can hold an engine call in flight (5.7): a parking fake blocks in
+`runBlocking` like the real engines, and `inFlightTest` runs on real threads with a bounded park so a failure
+times out instead of hanging. Only `:shared` and — as of 5.5 — `:core:source` actually have an `androidHostTest` *source set*;
 put a test there only when the behaviour really is JVM-specific (5.5's is: Ktor decodes content encoding on
 the JVM and leaves it to NSURLSession on Darwin), since `commonTest` runs on both targets and a
 platform-specific assertion there fails on one of them. `:features:library`, `:features:home` and `:features:activity` have `commonTest` source sets

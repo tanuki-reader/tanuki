@@ -25,8 +25,12 @@ interface WasmEngine {
 }
 
 /**
- * A single instantiated WASM module. One per loaded source; not safe to assume re-entrancy across
- * concurrent calls (the loader serializes/threads as needed).
+ * A single instantiated WASM module. **Not re-entrant**: one instance runs one call at a time, and the
+ * loader guarantees it by giving each concurrent call an instance of its own.
+ *
+ * So one source may be running in several instances at once, and any instance may be closed and replaced
+ * by a fresh one between two calls (the loader's cache is bounded). A guest therefore must not rely on
+ * state surviving from one call to the next — anything it needs again it recomputes or asks the host for.
  *
  * The call shape is a named export taking one byte buffer and returning one byte buffer. Below this
  * call the engine performs the memory ABI (`tanuki_alloc`/`tanuki_dealloc`, the `(ptr,len)` ⇄ packed
