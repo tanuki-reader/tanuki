@@ -53,6 +53,9 @@ androidx-work = "2.10.0"
 # must already be installed in Xcode via SPM *before* Gradle runs; it resolves the xcframework out of
 # DerivedData, so CI needs `sentryKmp { linker { frameworkPath } }` pinned (getsentry/…-multiplatform#484).
 sentry = "0.27.0"
+# Sentry Android Gradle plugin — R8 mapping upload for :androidApp. Its SDK auto-install is turned off, so
+# the SDK version is still whatever the KMP SDK above brings; this only versions the build tooling.
+sentryAndroidGradle = "6.23.0"
 
 [libraries]
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
@@ -110,5 +113,6 @@ kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", versio
 metro = { id = "dev.zacsweers.metro", version.ref = "metro" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "room" }
-# Not applied yet — applying it before Sentry Cocoa is installed in Xcode via SPM breaks the iOS build.
+# Applied in :shared. Needs Sentry Cocoa installed in Xcode via SPM, or the iOS link fails.
 sentryKmp = { id = "io.sentry.kotlin.multiplatform.gradle", version.ref = "sentry" }
+sentryAndroid = { id = "io.sentry.android.gradle", version.ref = "sentryAndroidGradle" }

@@ -11,6 +11,7 @@ import dev.zacsweers.metro.Provides
 import dev.zacsweers.metro.SingleIn
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.Platform
+import platform.Foundation.NSBundle
 
 /**
  * iOS platform bindings for `core:domain`. Neither needs an application object or a `Context`:
@@ -34,4 +35,8 @@ object DomainPlatformBindings {
 private object IosBuildEnvironment : BuildEnvironment {
     override val isDebug: Boolean = Platform.isDebugBinary
     override val platform: AppPlatform = AppPlatform.Ios
+
+    // `CURRENT_PROJECT_VERSION` in iosApp/Configuration/Config.xcconfig, as stamped into Info.plist.
+    override val buildNumber: String =
+        NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleVersion") as? String ?: "0"
 }

@@ -150,11 +150,15 @@ class SentryCrashReporter(
         options.environment = if (buildEnvironment.isDebug) "debug" else "production"
         options.debug = buildEnvironment.isDebug
 
-        // Set explicitly rather than left to the SDK's auto-detection, which differs per platform and
-        // would let Android and iOS report the same build under two different names — the one thing that
-        // must not happen, since Sentry groups crashes by release and that grouping is what answers "did
-        // 1.1 fix it?" and "which version regressed?". The `name@version` form is Sentry's convention.
-        options.release = "app.tanuki@$APP_VERSION"
+        // Set explicitly rather than left to the SDK's auto-detection, whose format differs per SDK layer.
+        // One name per platform, same version: release health (crash-free sessions and users, adoption)
+        // can only be split by release, never by a tag, so this is the only way to read a crash-free rate
+        // per platform. Issues are unaffected — they group by stack trace across releases, so a bug in
+        // shared code is still one issue. The `name@version` form is Sentry's convention.
+        options.release = "app.tanuki.${buildEnvironment.platform.tagValue}@$APP_VERSION"
+
+        // What separates two builds of the same version, so a fixed build can be told from a broken one.
+        options.dist = buildEnvironment.buildNumber
 
         // Must be off on Apple targets. With it on, an unhandled Kotlin exception thrown from a Compose
         // Multiplatform callback surfaces as Kotlin/Native's internal `ExceptionObjHolderImpl` C++ crash

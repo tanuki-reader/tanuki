@@ -17,7 +17,8 @@ import dev.zacsweers.metro.SingleIn
  * by the app's platform bindings — the same [Context] source the database and source-bundle stores use.
  *
  * [BuildEnvironment] reads the manifest's `debuggable` flag rather than a library `BuildConfig` (which
- * the KMP library plugin doesn't generate and which wouldn't reflect the app's build type anyway).
+ * the KMP library plugin doesn't generate and which wouldn't reflect the app's build type anyway), and
+ * its build number from the installed package's `versionCode` for the same reason.
  * [ConnectionObserver] watches the default network; it is a singleton because it registers a system
  * callback that stays for the process's life.
  */
@@ -29,6 +30,7 @@ object DomainPlatformBindings {
     fun provideBuildEnvironment(context: Context): BuildEnvironment =
         AndroidBuildEnvironment(
             isDebug = (context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE) != 0,
+            buildNumber = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode.toString(),
         )
 
     @Provides
@@ -36,6 +38,9 @@ object DomainPlatformBindings {
     fun provideConnectionObserver(context: Context): ConnectionObserver = AndroidConnectionObserver(context)
 }
 
-private class AndroidBuildEnvironment(override val isDebug: Boolean) : BuildEnvironment {
+private class AndroidBuildEnvironment(
+    override val isDebug: Boolean,
+    override val buildNumber: String
+) : BuildEnvironment {
     override val platform: AppPlatform = AppPlatform.Android
 }

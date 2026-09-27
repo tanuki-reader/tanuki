@@ -14,6 +14,14 @@ interface BuildEnvironment {
 
     /** Which platform this build runs on. */
     val platform: AppPlatform
+
+    /**
+     * The build number: Android's `versionCode`, iOS's `CFBundleVersion`. It separates two builds of the
+     * same marketing version, which is what tells a fixed build from the broken one it replaced (Sentry's
+     * `dist`). Read from the installed app at runtime rather than compiled into shared code, so it is
+     * whatever the platform build actually stamped.
+     */
+    val buildNumber: String
 }
 
 /**

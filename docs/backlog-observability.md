@@ -38,9 +38,10 @@ Live state of `tanuki-jc/tanuki` (checked via the Sentry API):
 crashes + handled errors + breadcrumbs (no performance tracing for now); anonymous per-install
 UUID for reliable user counts.
 
-> **Status (2026-09-27):** Phase 0 (0.1, 0.2) and Phase 1 (1.1–1.5) are implemented; see the ✅ notes
-> under each item. Phase 2 is not started. Phase 3 is mostly applied: first through the Sentry API
-> (2026-09-26), then through the web UI (2026-09-27). The "Still manual" list at the end of Phase 3
+> **Status (2026-09-27):** Phase 0 (0.1–0.3) and Phase 1 (1.1–1.5) are implemented; see the ✅ notes
+> under each item. Phase 2's code is in (2.1, 2.3, 2.5; 2.2 decided as "minify off"). What remains there is
+> checking it on devices: auto-init off, ANR, and Kotlin frames in an iOS crash. Phase 3 is mostly
+> applied: first through the Sentry API (2026-09-26), then through the web UI (2026-09-27). The "Still manual" list at the end of Phase 3
 > shows what's left: hiding `debug` once it exists, the dashboard and saved searches once events flow,
 > and the release filter, which the current plan doesn't allow.
 
@@ -91,6 +92,8 @@ per-key rate limits). But do stop adding it to history.
 **Files:** `iosApp/iosApp/iOSApp.swift`, `local.properties` (git-ignored, not committed).
 
 ### 0.3 Fix the `WatchdogTermination`
+
+✅ Done — efficiency 4.1 shipped as `ReaderWindow`; `pagesCache` is gone.
 
 Not a Sentry change — a real OOM on a real device. It is almost certainly
 `ReaderViewModel.pagesCache` growing unbounded across a long reading session (efficiency
@@ -214,6 +217,12 @@ symbolication, no release health, and no ANR data.
 
 ### 2.1 Apply the Sentry Android Gradle plugin
 
+✅ Done — `io.sentry.android.gradle` 6.23.0 applied in `androidApp`, with `autoInstallation` off so the KMP
+SDK's `sentry-android` (8.41.0) stays the only one on the classpath. Tracing and source context are off,
+debug builds are ignored, and mapping upload runs only when `SENTRY_AUTH_TOKEN` is set. The manifest carries
+`io.sentry.auto-init=false` (confirmed in the merged release manifest). **Not yet verified on a device:** a
+launch with reporting off sends no session.
+
 Add `io.sentry.android.gradle` to `androidApp/build.gradle.kts` (version to
 `gradle/libs.versions.toml` — CLAUDE.md forbids inline versions). It provides ProGuard/R8
 mapping upload, optional source context, and build-time auto-instrumentation.
@@ -237,6 +246,10 @@ Configure the plugin conservatively to start:
 
 ### 2.2 Enable R8 and upload mappings
 
+✅ Decided: minify stays **off** for now, with the reason written next to `isMinifyEnabled` in
+`androidApp/build.gradle.kts`. Stack traces are readable as-is. Turning R8 on later also turns on the
+mapping upload from 2.1, with nothing else to change.
+
 `androidApp/build.gradle.kts:47` has `isMinifyEnabled = false` on release. Turn it on for real
 releases and let the plugin upload the mapping file, otherwise every production stack trace is
 obfuscated. Keep a debug/staging build type unminified.
@@ -249,6 +262,13 @@ it a decision rather than an accident.
 
 ### 2.3 Fix `versionCode`
 
+✅ Done — `versionCode` is `TANUKI_BUILD_NUMBER` if set, else `git rev-list --count HEAD`, else 1.
+`BuildEnvironment.buildNumber` reads it back at runtime (Android `longVersionCode`, iOS `CFBundleVersion`)
+and `SentryCrashReporter` sets it as `options.dist`. The release name is now per platform:
+`app.tanuki.android@<version>` / `app.tanuki.ios@<version>` (see 3.6). **iOS gap:** `CFBundleVersion` is
+still the fixed `CURRENT_PROJECT_VERSION=1` in `iosApp/Configuration/Config.xcconfig`, since an xcconfig
+can't run git. Bump it by hand per release, or have CI pass `CURRENT_PROJECT_VERSION=…` to `xcodebuild`.
+
 `androidApp/build.gradle.kts:36` hardcodes `versionCode = 1`. `versionName` correctly comes from
 the version catalog (with a comment explaining it must match what iOS reports), but the build
 number does not. Sentry uses it as `dist`, which is what separates two builds of the same
@@ -259,6 +279,9 @@ Derive it from git commit count or a CI build number, and set `options.dist` in
 
 ### 2.4 ANR reporting
 
+Nothing to build: ANR detection is on by default in `sentry-android` and starts with the SDK on opt-in.
+**Still to verify** with a real ANR once events flow.
+
 The Android SDK reports Application Not Responding events, which have no iOS equivalent and are
 the single most useful Android-only signal. Confirm it's active once the manifest flag in 2.1 is
 in place (ANR detection starts with the SDK, so it only works after consent — expected).
@@ -267,6 +290,12 @@ Your app has real ANR candidates: `WasmSourceLoader`'s per-source `Mutex` and th
 `FileSystemChapterDownloadStore` directory walks.
 
 ### 2.5 Upload iOS dSYMs (the Android item's twin)
+
+✅ Mostly in place already. The Sentry wizard added an "Upload Debug Symbols to Sentry" Run Script phase,
+and Release builds are `dwarf-with-dsym`. The phase had `--include-sources`, which uploads source files;
+that flag is now removed, matching Android's `includeSourceContext = false`. The phase warns rather than
+fails when `sentry-cli` or its login is missing. **Still to verify:** a Release iOS crash shows Kotlin
+frames, not `culprit: ?`.
 
 Not Android, but it's the same class of gap and belongs here. `TANUKI-1` shows `culprit: ?`
 because no debug symbols were ever uploaded. Add a `sentry-cli upload-dif` Run Script build phase
@@ -356,7 +385,8 @@ and 14 days. What was actually built differs from the table above in three ways:
   platform, give each platform its own release name, e.g. `app.tanuki.android@x` /
   `app.tanuki.ios@x`, set in `SentryCrashReporter.configure` alongside 2.3. The release-health table
   then splits by platform on its own. (This also changes the release-name pattern in 3.4's
-  release filter.)
+  release filter.) ✅ Adopted in 2.3. Releases before it are named `app.tanuki@1.0`, so the
+  crash-free widget shows that name next to the new ones until old builds age out.
 - **The Sentry UI only offers tags it has already seen**, so `tanuki.*` tags can't be picked in the
   widget builder yet. Workarounds used:
   - "Errors by platform" is two filtered queries (`tanuki.platform:android` / `:ios`) rather than a
@@ -432,8 +462,9 @@ biggest quality-of-life win in the Sentry UI.
       because saved searches (3.7) need the Team plan.
 - [ ] Once Phase 1 events arrive, check that the `tanuki.platform` / `tanuki.event` / `tanuki.tag`
       widgets fill in.
-- [ ] Decide on per-platform release names (see 3.6). This is the only way to split crash-free
-      rate by platform and to build the per-platform crash-free alert (3.5, third alert).
+- [x] Decide on per-platform release names (see 3.6). Adopted: `app.tanuki.android@x` /
+      `app.tanuki.ios@x`. Once both have sessions, build the per-platform crash-free alert
+      (3.5, third alert) by filtering on release.
 - [ ] Check what `TANUKI-5` / `TANUKI-6` are: new issues since this backlog was written, both
       `HTTPClientError … 503`, together ~450 events and most of the event volume. HTTP client
       errors suggest failed-request capture was on (the Cocoa SDK default under the old Swift init),

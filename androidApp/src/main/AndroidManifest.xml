@@ -54,6 +54,14 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
 
+        <!-- Sentry's SDK ships a ContentProvider that starts it at process start, before the user's
+             crash-reporting choice has been read. SentryCrashReporter starts it only on opt-in, so the
+             auto-start is switched off; without this, turning reporting off would not stop sessions
+             from being sent. -->
+        <meta-data
+            android:name="io.sentry.auto-init"
+            android:value="false" />
+
         <!-- WorkManager's automatic startup is removed so TanukiApplication's Configuration.Provider
              is the configuration that takes effect. Left in, the default initializer can install a
              stock configuration first, whose default WorkerFactory cannot construct

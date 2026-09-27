@@ -148,7 +148,8 @@ class DefaultLoggerTest {
 
 private class FixedBuildEnvironment(
     override val isDebug: Boolean,
-    override val platform: AppPlatform = AppPlatform.Android
+    override val platform: AppPlatform = AppPlatform.Android,
+    override val buildNumber: String = "1"
 ) : BuildEnvironment
 
 private class RecordingReceiver : Logger.LogReceiver {
