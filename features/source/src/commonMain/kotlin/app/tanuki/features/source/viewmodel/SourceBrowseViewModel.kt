@@ -278,7 +278,10 @@ class SourceBrowseViewModel(
                         Searching(query = text, items = items, append = append)
                     }
             }.onFailure {
-                logger.warn(tag, "First-page load failed for source '$sourceId' (query='$text')", it)
+                // The search text stays out of the message: it is what the user typed, and this can leave
+                // the device. The error screen is what makes it worth reporting; a load-more is not.
+                val mode = if (text.isBlank()) "listing" else "search"
+                logFailure("First-page load ($mode) failed for source '$sourceId'", it, reportAs = BROWSE_FAILED)
                 uiState.value = Error
             }
     }
@@ -306,6 +309,9 @@ class SourceBrowseViewModel(
     }
 
     private companion object {
+        /** Crash-reporting label for a source whose first page could not be loaded. */
+        const val BROWSE_FAILED = "source.browse_failed"
+
         /** Debounce so a burst of keystrokes issues one search, not one per character. */
         const val SEARCH_DEBOUNCE_MS = 320L
     }

@@ -27,7 +27,8 @@ internal data class LogEntry(
     val priority: LogPriority,
     val tag: String?,
     val message: String?,
-    val throwable: Throwable?
+    val throwable: Throwable?,
+    val analyticsEvent: String? = null
 )
 
 internal class RecordingLogger : Logger {
@@ -41,7 +42,7 @@ internal class RecordingLogger : Logger {
         analyticsEvent: String?,
         addToBreadcrumbs: Boolean
     ) {
-        entries += LogEntry(priority, tag, message, throwable)
+        entries += LogEntry(priority, tag, message, throwable, analyticsEvent)
     }
 
     override fun addReceiver(receiver: Logger.LogReceiver) = Unit

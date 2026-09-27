@@ -86,6 +86,16 @@ class SettingsRepositoryImp(
         }
     }
 
+    // Created inside `edit`, which is atomic, so two first reads racing each other still settle on one id.
+    override suspend fun getOrCreateInstallId(): String =
+        withContext(dispatcherProvider.io) {
+            val stored =
+                dataStore.edit { preferences ->
+                    if (preferences[INSTALL_ID_KEY] == null) preferences[INSTALL_ID_KEY] = Uuid.random().toString()
+                }
+            checkNotNull(stored[INSTALL_ID_KEY]) { "The install id was not written" }
+        }
+
     override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> =
         preferences.map { it[UPDATE_INTERVAL_KEY].toUpdateInterval() }
 
@@ -176,6 +186,7 @@ class SettingsRepositoryImp(
 
     private companion object {
         val CRASH_REPORTING_KEY = booleanPreferencesKey("crash_reporting_enabled")
+        val INSTALL_ID_KEY = stringPreferencesKey("install_id")
         val THEME_KEY = stringPreferencesKey("theme_preference")
         val UPDATE_INTERVAL_KEY = stringPreferencesKey("library_update_interval")
         val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")

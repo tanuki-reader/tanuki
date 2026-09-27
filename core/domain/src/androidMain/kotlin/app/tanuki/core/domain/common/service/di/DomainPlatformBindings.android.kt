@@ -3,6 +3,7 @@ package app.tanuki.core.domain.common.service.di
 import android.content.Context
 import android.content.pm.ApplicationInfo
 import app.tanuki.core.domain.common.service.AndroidConnectionObserver
+import app.tanuki.core.domain.common.service.AppPlatform
 import app.tanuki.core.domain.common.service.BuildEnvironment
 import app.tanuki.core.domain.common.service.ConnectionObserver
 import dev.zacsweers.metro.AppScope
@@ -35,4 +36,6 @@ object DomainPlatformBindings {
     fun provideConnectionObserver(context: Context): ConnectionObserver = AndroidConnectionObserver(context)
 }
 
-private class AndroidBuildEnvironment(override val isDebug: Boolean) : BuildEnvironment
+private class AndroidBuildEnvironment(override val isDebug: Boolean) : BuildEnvironment {
+    override val platform: AppPlatform = AppPlatform.Android
+}

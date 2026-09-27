@@ -1,19 +1,25 @@
 package app.tanuki.platform.observability
 
+import app.tanuki.core.domain.common.service.AppPlatform
 import app.tanuki.core.domain.common.service.BuildEnvironment
 import app.tanuki.core.domain.common.service.CrashReporter
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.NoOpCrashReporter
+import app.tanuki.core.domain.settings.usecase.GetInstallId
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import io.sentry.kotlin.multiplatform.Sentry
 import io.sentry.kotlin.multiplatform.SentryLevel
+import io.sentry.kotlin.multiplatform.log.SentryLogLevel
 import io.sentry.kotlin.multiplatform.protocol.Breadcrumb
+import io.sentry.kotlin.multiplatform.protocol.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * [CrashReporter] backed by Sentry, replacing [NoOpCrashReporter] wherever this module is on the graph.
@@ -33,6 +39,17 @@ import kotlinx.coroutines.launch
  * Thread Checker flags it (`ThreadSafeApplication.swift`). The consent subscription runs on the
  * application scope's background dispatcher, so the hop is made here rather than being every caller's
  * problem to remember.
+ *
+ * **Each report carries an anonymous install id as its user** ([GetInstallId]) and a `tanuki.platform`
+ * tag. The id is what lets Sentry tell one user crashing many times from many users crashing once; it is
+ * random, made on the device and tied to nothing, so `sendDefaultPii` stays off honestly.
+ *
+ * **Breadcrumbs double as Sentry structured logs.** Every event a call site marked as a breadcrumb is also
+ * sent as a log, so `info`/`warn` are searchable on their own rather than only as the trail of a crash.
+ * Riding on the breadcrumb flag, instead of registering a [app.tanuki.core.domain.common.service.Logger.LogReceiver],
+ * is deliberate: one opt-in and one privacy rule (ids and hosts, never titles or URLs — see
+ * [CrashReporter]) cover both, and text a call site kept out of the trail — a source's own diagnostics —
+ * stays out of the logs too.
  */
 @Inject
 @SingleIn(AppScope::class)
@@ -40,10 +57,18 @@ import kotlinx.coroutines.launch
 class SentryCrashReporter(
     private val buildEnvironment: BuildEnvironment,
     private val scope: CoroutineScope,
-    private val dispatchers: DispatcherProvider
+    private val dispatchers: DispatcherProvider,
+    private val getInstallId: GetInstallId
 ) : CrashReporter {
 
     private var started = false
+
+    /**
+     * Serializes starting and stopping. Starting suspends (reading the install id), so without this a
+     * stop queued behind it could run first and leave the SDK started after the user opted out.
+     * [Mutex] is fair, so the SDK still sees the calls in the order the user made them.
+     */
+    private val lifecycle = Mutex()
 
     override fun setEnabled(enabled: Boolean) {
         // No DSN means this build was compiled without one — a fork, or a checkout that never set
@@ -60,7 +85,7 @@ class SentryCrashReporter(
         // Main thread, always — see the class KDoc. Both queues are FIFO, so a rapid off-on-off sequence
         // still reaches the SDK in the order the user made it.
         scope.launch(dispatchers.main) {
-            if (enabled) Sentry.init(::configure) else Sentry.close()
+            lifecycle.withLock { if (enabled) start() else Sentry.close() }
         }
     }
 
@@ -77,6 +102,12 @@ class SentryCrashReporter(
                 category = tag
             )
         )
+        val body = message ?: return
+        Sentry.logger.log(priority.toSentryLogLevel()) {
+            // The plain overload: the template one would read a `%` in the message as a placeholder.
+            message(body)
+            tag?.let { source -> attributes { this[TAG_SOURCE] = source } }
+        }
     }
 
     override fun reportError(
@@ -100,6 +131,14 @@ class SentryCrashReporter(
                 eventName?.let { scope.setTag(TAG_EVENT, it) }
             }
         }
+    }
+
+    /** Starts the SDK, then attaches what every event should carry: the install's id and its platform. */
+    private suspend fun start() {
+        val installId = getInstallId()
+        Sentry.init(::configure)
+        Sentry.setUser(User(id = installId))
+        Sentry.configureScope { it.setTag(TAG_PLATFORM, buildEnvironment.platform.tagValue) }
     }
 
     /**
@@ -148,6 +187,10 @@ class SentryCrashReporter(
         // No performance tracing. It is the expensive half of the quota, and the reader's performance
         // work is done against on-device profilers, not production spans.
         options.tracesSampleRate = null
+
+        // Structured logs: breadcrumbs are also sent as logs (see the class KDoc). Billed apart from the
+        // error quota, and gated by the same opt-in as everything else here.
+        options.logs.enabled = true
     }
 }
 
@@ -159,6 +202,26 @@ private fun LogPriority.toSentryLevel(): SentryLevel =
         LogPriority.WARN -> SentryLevel.WARNING
         LogPriority.ERROR -> SentryLevel.ERROR
     }
+
+/** Maps app log severity onto Sentry's structured-log levels. */
+private fun LogPriority.toSentryLogLevel(): SentryLogLevel =
+    when (this) {
+        LogPriority.DEBUG -> SentryLogLevel.DEBUG
+        LogPriority.INFO -> SentryLogLevel.INFO
+        LogPriority.WARN -> SentryLogLevel.WARN
+        LogPriority.ERROR -> SentryLogLevel.ERROR
+    }
+
+/** The `tanuki.platform` tag's value: one fixed spelling per platform, for saved searches and dashboards. */
+private val AppPlatform.tagValue: String
+    get() =
+        when (this) {
+            AppPlatform.Android -> "android"
+            AppPlatform.Ios -> "ios"
+        }
+
+/** Scope tag naming the platform, so one project can still be read per platform. */
+private const val TAG_PLATFORM = "tanuki.platform"
 
 /** Scope tag carrying the app-side log tag, so issues can be filtered by originating subsystem. */
 private const val TAG_SOURCE = "tanuki.tag"

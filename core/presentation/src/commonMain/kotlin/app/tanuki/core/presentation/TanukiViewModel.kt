@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.OfflineException
+import app.tanuki.core.domain.common.service.error
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
@@ -135,13 +137,38 @@ abstract class TanukiViewModel(
      * by a closing screen or a superseded search unwinds silently instead of painting an error over state
      * that has already moved on. A bare `runCatching` around a suspend call gets the second one wrong; use
      * [runCatchingCancellable] where the hop isn't wanted.
+     *
+     * The failure is logged through [logFailure]: a warning by default, which suits a best-effort load
+     * the screen recovers from. Pass [reportAs] only when a failure leaves the user looking at something
+     * broken.
      */
     protected suspend fun <T> tryIo(
         what: String,
+        reportAs: String? = null,
         block: suspend CoroutineScope.() -> T
     ): Result<T> =
         runCatchingCancellable { withContext(dispatcher.io, block) }
-            .onFailure { logger.warn(tag, what, it) }
+            .onFailure { logFailure(what, it, reportAs) }
+
+    /**
+     * Logs a failed action against [tag] with [what] as the message.
+     *
+     * Without [reportAs] it is a warning — context in the crash-reporting trail, not a report. With it, the
+     * failure is logged as an error under that label (`area.kind_of_failure`) and reaches crash reporting,
+     * **unless the device was offline**: an [OfflineException] is the environment rather than a bug, and
+     * reporting every chapter a user tried to open on a train would spend the quota on nothing fixable.
+     */
+    protected fun logFailure(
+        what: String,
+        error: Throwable,
+        reportAs: String? = null
+    ) {
+        if (reportAs != null && error !is OfflineException) {
+            logger.error(tag, what, error, analyticsEvent = reportAs)
+        } else {
+            logger.warn(tag, what, error)
+        }
+    }
 
     private companion object {
         /**

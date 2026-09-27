@@ -8,6 +8,8 @@ import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.common.service.LogPriority
+import app.tanuki.core.domain.common.service.OfflineException
 import app.tanuki.core.domain.common.service.RecordingLogger
 import app.tanuki.core.domain.common.service.uuidV7
 import app.tanuki.core.domain.library.model.LibraryManga
@@ -149,6 +151,40 @@ class UpdateLibraryTest {
 
             // Offline, or no sources installed — the next launch should retry rather than wait out a day.
             assertNull(world.settings.lastUpdate)
+        }
+
+    @Test
+    fun `a run where every series failed is reported as an error`() =
+        runTest {
+            val world = World(series = listOf("one-piece", "berserk"), failing = setOf("one-piece", "berserk"))
+
+            world.update()(Trigger.Manual)
+
+            val error = world.logger.entries.single { it.priority == LogPriority.ERROR }
+            assertEquals("library_update.total_failure", error.analyticsEvent)
+        }
+
+    @Test
+    fun `a run that failed only because the device was offline is not reported`() =
+        runTest {
+            val world =
+                World(series = listOf("one-piece", "berserk"), failing = setOf("one-piece", "berserk"), offline = true)
+
+            world.update()(Trigger.Manual)
+
+            assertTrue(world.logger.entries.none { it.priority == LogPriority.ERROR })
+        }
+
+    @Test
+    fun `a run where only some series failed is not reported`() =
+        runTest {
+            val world = World(series = listOf("one-piece", "berserk"), failing = setOf("berserk"))
+
+            world.update()(Trigger.Manual)
+
+            // One source having a bad day is a warning in the trail, not a report.
+            assertTrue(world.logger.entries.none { it.priority == LogPriority.ERROR })
+            assertTrue(world.logger.entries.any { it.priority == LogPriority.WARN })
         }
 
     @Test
@@ -364,6 +400,8 @@ private class World(
     series: List<String>,
     newChaptersEach: Int = 1,
     failing: Set<String> = emptySet(),
+    /** Whether [failing] series fail because the device is offline rather than the source being down. */
+    offline: Boolean = false,
     private val interval: LibraryUpdateInterval = LibraryUpdateInterval.DAILY,
     lastUpdate: Instant? = null,
     /** When each series was last synced — the stamp a per-series staleness gate would read. */
@@ -388,6 +426,7 @@ private class World(
     val updates = FakeChapterUpdateRepository()
     val settings = FakeSettingsRepository(interval, lastUpdate)
     private val notifier = RecordingNotifier()
+    val logger = RecordingLogger()
 
     /** What each notification announced; empty when a run stayed silent. */
     val announced get() = notifier.announced
@@ -398,7 +437,8 @@ private class World(
                     // "md-0" is the chapter already held, so only the rest count as new.
                     List(newChaptersEach + 1) { index -> listing("md-$index", index.toDouble()) }
                 },
-            failing = failing
+            failing = failing,
+            offline = offline
         )
 
     fun update(): UpdateLibrary =
@@ -422,7 +462,7 @@ private class World(
                 ),
             settingsRepository = settings,
             dispatchers = UnconfinedDispatchers,
-            logger = RecordingLogger()
+            logger = logger
         )
 
     private fun manga(key: String) =
@@ -489,7 +529,8 @@ private object UnconfinedDispatchers : DispatcherProvider {
 /** A [SourceLoader] serving canned chapter feeds, recording what it was asked for. */
 private class FakeSourceLoader(
     private val listings: Map<String, List<ChapterListing>>,
-    private val failing: Set<String>
+    private val failing: Set<String>,
+    private val offline: Boolean
 ) : SourceLoader {
     val asked = mutableSetOf<String>()
 
@@ -498,7 +539,10 @@ private class FakeSourceLoader(
         mangaKey: String
     ): List<ChapterListing> {
         asked += mangaKey
-        if (mangaKey in failing) error("source is down")
+        if (mangaKey in failing) {
+            if (offline) throw OfflineException()
+            error("source is down")
+        }
         return listings[mangaKey].orEmpty()
     }
 
@@ -724,6 +768,8 @@ private class FakeSettingsRepository(
     override fun observeCrashReportingEnabled(): Flow<Boolean> = error("unused")
 
     override suspend fun setCrashReportingEnabled(enabled: Boolean) = error("unused")
+
+    override suspend fun getOrCreateInstallId(): String = error("unused")
 
     override suspend fun getRemovedSourceIds(): Set<String> = error("unused")
 

@@ -3,7 +3,7 @@ package app.tanuki.core.domain.download.usecase
 import app.tanuki.core.domain.category.repository.CategoryRepository
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.common.service.Logger
-import app.tanuki.core.domain.common.service.info
+import app.tanuki.core.domain.common.service.debug
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import dev.zacsweers.metro.AppScope
@@ -71,7 +71,7 @@ sealed interface AutoDownloadNewChapters {
 
             val queued = enqueueChapterDownloads(chapters.map(Chapter::id))
             if (queued > 0) {
-                logger.info(TAG, "Auto-downloading $queued new chapter(s) of ${manga.title.value}")
+                logger.debug(TAG, "Auto-downloading $queued new chapter(s) of ${manga.id}")
             }
             return queued
         }

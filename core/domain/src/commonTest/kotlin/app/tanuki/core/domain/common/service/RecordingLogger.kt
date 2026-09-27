@@ -12,6 +12,7 @@ class RecordingLogger : Logger {
         val tag: String?,
         val message: String?,
         val throwable: Throwable?,
+        val analyticsEvent: String? = null,
     )
 
     val entries = mutableListOf<Entry>()
@@ -24,7 +25,7 @@ class RecordingLogger : Logger {
         analyticsEvent: String?,
         addToBreadcrumbs: Boolean,
     ) {
-        entries += Entry(priority, tag, message, throwable)
+        entries += Entry(priority, tag, message, throwable, analyticsEvent)
     }
 
     override fun addReceiver(receiver: Logger.LogReceiver) = Unit

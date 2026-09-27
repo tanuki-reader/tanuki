@@ -3,6 +3,8 @@ package app.tanuki.core.domain.update.usecase
 import app.tanuki.core.domain.chapter.usecase.SyncSourceChapters
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.OfflineException
+import app.tanuki.core.domain.common.service.error
 import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.repository.MangaRepository
@@ -176,16 +178,24 @@ sealed interface UpdateLibrary {
                     }
                 }
 
-            val failed = outcomes.count { it == null }
-            val newChapters = outcomes.sumOf { it ?: 0 }
+            val failures = outcomes.filterIsInstance<SeriesOutcome.Failed>()
+            val refreshed = outcomes.filterIsInstance<SeriesOutcome.Refreshed>()
+            val failed = failures.size
             val result =
                 Completed(
                     checked = outcomes.size,
                     failed = failed,
-                    newChapters = newChapters,
-                    updatedSeries = outcomes.count { (it ?: 0) > 0 },
+                    newChapters = refreshed.sumOf(SeriesOutcome.Refreshed::newChapters),
+                    updatedSeries = refreshed.count { it.newChapters > 0 },
                 )
             logger.info(TAG, "Library update finished: $result")
+
+            // One series failing is that series' source having a bad day, and is only a warning. Every
+            // series failing is the run itself being broken — unless the device was simply offline, which
+            // the environment explains and nobody can fix from a report.
+            if (outcomes.isNotEmpty() && failed == outcomes.size && !failures.all(SeriesOutcome.Failed::offline)) {
+                logger.error(TAG, "Library update failed for every series: $result", analyticsEvent = TOTAL_FAILURE)
+            }
 
             // An all-failed run is the environment, not the library — don't let it burn the interval.
             // An empty run (nothing was due) counts as a success: it did everything there was to do.
@@ -211,21 +221,21 @@ sealed interface UpdateLibrary {
          * that was down tells us nothing about how often the series publishes, and pushing its next
          * check out would turn one bad afternoon into weeks of silence.
          *
-         * @return How many chapters it gained, or `null` if it could not be refreshed at all.
+         * @return How many chapters it gained, or why it could not be refreshed at all.
          */
-        private suspend fun refresh(manga: LibraryUpdateTarget): Int? =
+        private suspend fun refresh(manga: LibraryUpdateTarget): SeriesOutcome =
             try {
                 // `force`: this run does its own scheduling — the interval check in [isDue], the
                 // per-series one in [LibraryUpdateTarget.isDue], and a manual trigger that bypasses both — so the
                 // sync's own staleness gate must not second-guess it.
-                syncSourceChapters(manga.id, force = true).size
+                SeriesOutcome.Refreshed(syncSourceChapters(manga.id, force = true).size)
             } catch (cancellation: CancellationException) {
                 // The run itself is being torn down (the app closed, the OS reclaimed the task). Not a
                 // failure of this series, and swallowing it would keep the loop alive past its scope.
                 throw cancellation
             } catch (error: Throwable) {
-                logger.warn(TAG, "Library update failed for ${manga.title.value}", error)
-                null
+                logger.warn(TAG, "Library update failed for ${manga.id}", error)
+                SeriesOutcome.Failed(offline = error is OfflineException)
             }
 
         /** Whether the user's interval says a scheduled run is due. An interval of `OFF` never is. */
@@ -242,6 +252,9 @@ sealed interface UpdateLibrary {
         private companion object {
             const val TAG = "UpdateLibrary"
 
+            /** Crash-reporting label for a run in which no series could be refreshed. */
+            const val TOTAL_FAILURE = "library_update.total_failure"
+
             /**
              * How many sources are worked at once. Small on purpose: the limit that matters is what a
              * single source tolerates, and the win from a fourth or fifth in flight is small next to a
@@ -250,6 +263,14 @@ sealed interface UpdateLibrary {
             const val MAX_CONCURRENT_SOURCES = 3
         }
     }
+}
+
+/** What refreshing one series came to, within an [UpdateLibrary] run. */
+private sealed interface SeriesOutcome {
+    data class Refreshed(val newChapters: Int) : SeriesOutcome
+
+    /** @property offline The device had no network, so the failure says nothing about the source. */
+    data class Failed(val offline: Boolean) : SeriesOutcome
 }
 
 /** The outcome of an [UpdateLibrary] run. */

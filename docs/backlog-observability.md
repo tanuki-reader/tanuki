@@ -38,6 +38,12 @@ Live state of `tanuki-jc/tanuki` (checked via the Sentry API):
 crashes + handled errors + breadcrumbs (no performance tracing for now); anonymous per-install
 UUID for reliable user counts.
 
+> **Status (2026-09-27):** Phase 0 (0.1, 0.2) and Phase 1 (1.1–1.5) are implemented; see the ✅ notes
+> under each item. Phase 2 is not started. Phase 3 is mostly applied: first through the Sentry API
+> (2026-09-26), then through the web UI (2026-09-27). The "Still manual" list at the end of Phase 3
+> shows what's left: hiding `debug` once it exists, the dashboard and saved searches once events flow,
+> and the release filter, which the current plan doesn't allow.
+
 Items are ordered so each is independently shippable. Phase 0 is a correctness/privacy fix and
 should go first regardless of how far you take the rest.
 
@@ -46,6 +52,8 @@ should go first regardless of how far you take the rest.
 ## Phase 0 — Stop the contradiction (do this first)
 
 ### 0.1 Delete the Swift-side `SentrySDK.start`
+
+✅ Done — the block and `import Sentry` are gone; the SPM package stays linked.
 
 **Problem:** `iosApp/iosApp/iOSApp.swift` starts Sentry before any consent is read, with PII on
 and full tracing/profiling. It also means two independent `init` calls (Swift's and the KMP
@@ -65,8 +73,10 @@ plugin links against it. Only the Swift-side *initialization* goes away.
 
 ### 0.2 Purge the committed DSN
 
-**Problem:** `https://46f9e011…@o4511837132292096.ingest.de.sentry.io/4511837251043408` is in
-git history. `shared/build.gradle.kts` already has a careful DSN-injection mechanism
+✅ Done going forward — the literal is gone from the tree and `local.properties` carries `sentry.dsn`. It
+remains in history, by decision (see below); the per-key rate limit is set.
+
+**Problem:** the project's DSN is in git history (it was the literal in `iOSApp.swift`). `shared/build.gradle.kts` already has a careful DSN-injection mechanism
 (`TANUKI_SENTRY_DSN` env → `tanuki.sentry.dsn` Gradle property → `sentry.dsn` in the
 git-ignored `local.properties`) whose entire stated purpose is "the DSN never enters public git
 history." The Swift file defeats it.
@@ -93,6 +103,12 @@ catching it.
 
 ### 1.1 Turn `warn` into breadcrumbs
 
+✅ Done — `info` and `warn` both breadcrumb. Per-item `info` was demoted to `debug`
+(`AutoDownloadNewChapters`, `DeleteReadChapterDownloads`, `DownloadManager` abandon/hold). Scrubbed at
+the call site: titles (`UpdateLibrary`, `AutoDownloadNewChapters`) became ids, the Cloudflare solver no
+longer logs challenge URLs, and source browse no longer logs the search text. A guest source's `ERROR`
+log is now logged as `WARN` (`KtorSourceHost`), so third-party text can never become a report.
+
 **Problem:** `Logger.warn` (`core/domain/.../common/service/Logger.kt`) passes
 `addToBreadcrumbs = false`. Combined with 1.2 below, this is why every event has an empty trail.
 
@@ -113,6 +129,13 @@ as part of the same change, not after.** Item 5.3 adds a server-side backstop, b
 belongs at the call site.
 
 ### 1.2 Introduce `logger.error` at real failure sites
+
+✅ Done — `reader.pages_unavailable` (reader page list), `source.browse_failed` (first page → error
+screen), `download.failed` (only `DownloadError.Unknown`), `library_update.total_failure` (every series
+failed, not all of them offline), `cloudflare.clearance_rejected` (solved but still challenged).
+An `OfflineException` is never reported. `tryIo` gained an optional `reportAs` label rather than a
+sibling function; `TanukiViewModel.logFailure` holds the offline rule. Room/WASM-internal sites were not
+promoted: they surface through the reader/browse events, and a migration failure crashes anyway.
 
 **Problem:** zero call sites. `DefaultLogger` reports only `ERROR` to the reporter, so the app
 currently tells Sentry nothing about its own failures.
@@ -139,6 +162,9 @@ best-effort. Leave it; add a sibling `tryIoOrError` only if a specific screen ne
 
 ### 1.3 Attach an anonymous install ID
 
+✅ Done — `SettingsRepository.getOrCreateInstallId` / `GetInstallId`; set via `Sentry.setUser` on start.
+No "reset identifier" UI yet.
+
 **Problem:** `sendDefaultPii = false` and no user id is ever set, so Sentry cannot distinguish
 one user crashing 400 times from 400 users crashing once. Every "users affected" number you're
 looking at is unreliable, and crash-free-rate is only meaningful with a stable id.
@@ -153,6 +179,8 @@ identifier" affordance next to the crash-reporting toggle if you want to be thor
 
 ### 1.4 Tag platform explicitly
 
+✅ Done — `BuildEnvironment.platform: AppPlatform`; tag `tanuki.platform` = `android` / `ios`.
+
 Sentry auto-tags `os.name`, but that's derived and inconsistent across SDK layers. Set an
 explicit `tanuki.platform` tag (`"android"` / `"ios"`) in `SentryCrashReporter.configure` via a
 new `BuildEnvironment` property or an expect/actual constant. Cheap, and it makes every saved
@@ -161,6 +189,10 @@ search and dashboard filter unambiguous.
 See "Do you need to differentiate Android and iOS?" below for why this matters.
 
 ### 1.5 Consider Sentry structured logs
+
+✅ Done — 0.27.0 has it (`options.logs.enabled`, `Sentry.logger`). Rather than a new `LogReceiver`,
+`SentryCrashReporter.recordBreadcrumb` also sends each breadcrumb as a log, so the breadcrumb flag is the
+single opt-in/privacy gate for both.
 
 The Swift init had `options.experimental.enableLogs = true` — Sentry's newer structured-logging
 product, which would let `info`/`warn` flow as searchable logs rather than only as breadcrumbs
@@ -315,10 +347,39 @@ regression on one platform isn't diluted by health on the other.
 
 The last two only become useful after Phase 1 ships; build the dashboard then, not before.
 
+✅ Built 2026-09-27: <https://tanuki-jc.sentry.io/dashboard/6140066/>. Saved filters are `production`
+and 14 days. What was actually built differs from the table above in three ways:
+
+- **Crash-free rate can't be split by `tanuki.platform`.** Session data (the Releases dataset) can
+  only be grouped by `environment`, `project`, `release` and `session.status`, never by a custom
+  tag. The widget shows crash-free sessions and crash-free users, unsplit. To split sessions per
+  platform, give each platform its own release name, e.g. `app.tanuki.android@x` /
+  `app.tanuki.ios@x`, set in `SentryCrashReporter.configure` alongside 2.3. The release-health table
+  then splits by platform on its own. (This also changes the release-name pattern in 3.4's
+  release filter.)
+- **The Sentry UI only offers tags it has already seen**, so `tanuki.*` tags can't be picked in the
+  widget builder yet. Workarounds used:
+  - "Errors by platform" is two filtered queries (`tanuki.platform:android` / `:ios`) rather than a
+    group-by.
+  - The `tanuki.event` and `tanuki.tag` widgets were built as Discover queries (tag set in the URL)
+    and added via "Add to Dashboard". They're top-5 time series grouped by that tag +
+    `tanuki.platform`, filtered with `has:<tag>`.
+- **Adoption** is a "Release health & adoption" table: release, crash-free sessions, crash-free
+  users, users, sessions.
+
+Widgets: Crash-free rate (sessions / users) · Errors by platform · Errors by release · Top
+unresolved issues · Errors by failure kind (`tanuki.event`) · Errors by subsystem (`tanuki.tag`) ·
+Release health & adoption · Unresolved issues — Android · Unresolved issues — iOS.
+
 ### 3.7 Saved searches
 
 Create and pin: `is:unresolved tanuki.platform:android environment:production` and the same for
 `ios`. This is the day-to-day answer to "one project or two" (see below).
+
+⚠️ **Not available on the free Developer plan:** saved issue searches need the Team plan. Instead,
+the dashboard has two issue tables, "Unresolved issues — Android" and "— iOS". They filter with
+`is:unresolved tanuki.platform:<platform>`, sort by events, and inherit the dashboard's
+`production` filter.
 
 ### 3.8 Releases
 
@@ -326,6 +387,57 @@ Once 2.3 gives you a real `dist`, wire release creation into your build (`sentry
 new` / the Gradle plugin does this for Android). Associating commits with releases is what turns
 "this issue started in 1.2" into "this issue started in *this commit*", and it's the single
 biggest quality-of-life win in the Sentry UI.
+
+### Applied via the Sentry API (2026-09-26)
+
+- Client key rate limit: **100 events / hour** (3.4). Raise it once real volume is known.
+- `TANUKI-4` ignored forever. The API can't delete issues, so it's ignored rather than deleted.
+- `TANUKI-2` has a note pointing at efficiency item 4.1. `TANUKI-1`/`TANUKI-2` are still open, by design (3.1).
+- Project platform set to `kotlin`.
+- Metric monitor **"Crash-free session rate below 99%"** (`production`, 1h window) created —
+  <https://tanuki-jc.sentry.io/monitors/2302031/>. **It has no connected alert yet**, so it notifies
+  no one (see below).
+
+### Applied via the Sentry web UI (2026-09-27)
+
+- **Alerts (3.5):**
+  - The crash-free monitor is connected to "Send a notification for high priority issues".
+  - New alert **"New issue in production"**: triggers on "a new issue is created", filtered to
+    `production`. It notifies suggested assignees, or recently active members if there are none.
+- **Data scrubbing (3.3):**
+  - Project level: Data Scrubber and Use Default Scrubbers were already on.
+  - Org level: **Require Data Scrubber** was *off* and is now on.
+  - Two advanced rules, both masking `(?i)\b(?:https?|wss?)://\S+`:
+    - Errors dataset, source `$breadcrumb.message || tags.'tanuki.message'`
+    - Logs dataset, attribute `message`. Needed because 1.5 also sends each breadcrumb as a log.
+- **Spike protection (3.4):** already enabled for `tanuki`.
+- **Inbound filters (3.4):** turned on browser extensions, localhost and web crawlers. Health-check,
+  hydration and ChunkLoadError filters were already on.
+
+### Still manual
+
+- [x] Connect the monitor to an alert, and create the "new issue in `environment:production`" issue
+      alert (3.5).
+- [x] Security & Privacy: Data Scrubber + default scrubbers + advanced URL-masking rules (3.3).
+- [ ] **Verify** the `tags.'tanuki.message'` selector actually masks. Sentry accepted the rule, but it
+      has not been checked against a real event. Look at the first Phase 1 event carrying a URL.
+- [x] Spike protection on; standard inbound filters on (3.4).
+- [ ] ~~Reject releases other than `app.tanuki@*`~~. **Not possible on the current plan:** custom
+      release filters need a Business plan or higher. They're also blocklist globs, so "everything
+      except `app.tanuki@*`" can't be written as one anyway. Rely on the per-key rate limit for now.
+- [ ] Hide the `debug` environment (3.2). It doesn't exist yet; it only appears after the first
+      debug-build event. Hide it then.
+- [ ] Use "Send Test Notification" on the new alert to confirm delivery.
+- [x] "Tanuki Health" dashboard (3.6). Per-platform issue lists were added as dashboard tables,
+      because saved searches (3.7) need the Team plan.
+- [ ] Once Phase 1 events arrive, check that the `tanuki.platform` / `tanuki.event` / `tanuki.tag`
+      widgets fill in.
+- [ ] Decide on per-platform release names (see 3.6). This is the only way to split crash-free
+      rate by platform and to build the per-platform crash-free alert (3.5, third alert).
+- [ ] Check what `TANUKI-5` / `TANUKI-6` are: new issues since this backlog was written, both
+      `HTTPClientError … 503`, together ~450 events and most of the event volume. HTTP client
+      errors suggest failed-request capture was on (the Cocoa SDK default under the old Swift init),
+      even though `SentryCrashReporter` deliberately disables it.
 
 ---
 
@@ -438,7 +550,7 @@ that plumbing exists and is currently only used for Sentry tags.
 
 **Phase 0:**
 ```bash
-git grep -n "ingest.de.sentry.io"     # must return nothing after 0.2
+git grep -n "ingest.*sentry.io"      # must return nothing after 0.2
 grep -rn "SentrySDK.start" iosApp/    # must return nothing
 ```
 Then build iOS from Xcode, launch with crash reporting **off**, and confirm **no** event or

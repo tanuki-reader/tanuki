@@ -95,22 +95,40 @@ fun Logger.debug(
     message: String
 ) = log(LogPriority.DEBUG, tag, message, null, null, false)
 
-/** Logs normal, expected lifecycle information. */
+/**
+ * Logs normal, expected lifecycle information, and records it as a crash-reporting breadcrumb.
+ *
+ * Because it becomes a breadcrumb, the message can leave the device once the user has opted in to crash
+ * reporting: interpolate ids, source ids and hosts, never a manga title, a full URL or what the user typed.
+ * Something that fires per item, per page or per chapter belongs in [debug] instead — the trail keeps only
+ * the most recent events, and a loop's worth of them would push out the context that matters.
+ */
 fun Logger.info(
     tag: String?,
     message: String
-) = log(LogPriority.INFO, tag, message, null, null, false)
+) = log(LogPriority.INFO, tag, message, null, null, true)
 
-/** Logs a recoverable problem the app carried on from (e.g. a best-effort background refresh failed). */
+/**
+ * Logs a recoverable problem the app carried on from (e.g. a best-effort background refresh failed), and
+ * records it as a crash-reporting breadcrumb — a warning is exactly the context worth having in the trail
+ * that leads up to a crash. The same privacy rule as [info] applies to the message.
+ *
+ * The line between this and [error]: if the app carried on and the user probably didn't notice, it is a
+ * warning. Promoting it would spend the crash-reporting quota on something nobody saw break.
+ */
 fun Logger.warn(
     tag: String?,
     message: String? = null,
     throwable: Throwable? = null
-) = log(LogPriority.WARN, tag, message, throwable, null, false)
+) = log(LogPriority.WARN, tag, message, throwable, null, true)
 
 /**
- * Logs a genuine error. Defaults to recording a crash-reporting breadcrumb; pass an [analyticsEvent] to
- * also forward it to analytics.
+ * Logs a genuine error — one the user saw as something broken — and reports it to crash reporting.
+ * Defaults to also recording a breadcrumb. Pass an [analyticsEvent] (`area.kind_of_failure`, e.g.
+ * `reader.pages_unavailable`) so reports of the same kind group and can be searched.
+ *
+ * Every call can become a reported event, and the reporting quota is small: never call this inside a
+ * per-page or per-chapter loop, and don't use it for a failure the environment explains (being offline).
  */
 fun Logger.error(
     tag: String?,

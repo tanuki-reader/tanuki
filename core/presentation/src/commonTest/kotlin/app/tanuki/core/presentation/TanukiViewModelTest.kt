@@ -2,6 +2,7 @@ package app.tanuki.core.presentation
 
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.OfflineException
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.NavEvent
@@ -112,6 +113,32 @@ class TanukiViewModelTest {
         }
         assertTrue(logger.entries.isEmpty())
     }
+
+    @Test
+    fun `tryIo with a report label logs the failure as an error carrying the label`() = runTest {
+        val logger = RecordingLogger()
+        val viewModel = TestViewModel(logger)
+        val boom = IllegalStateException("boom")
+
+        viewModel.runTryIo("Load failed", reportAs = "test.load_failed") { throw boom }
+
+        assertEquals(
+            listOf(LogEntry(LogPriority.ERROR, "TestViewModel", "Load failed", boom, "test.load_failed")),
+            logger.entries
+        )
+    }
+
+    @Test
+    fun `tryIo does not report a failure caused by being offline`() = runTest {
+        val logger = RecordingLogger()
+        val viewModel = TestViewModel(logger)
+        val offline = OfflineException()
+
+        viewModel.runTryIo("Load failed", reportAs = "test.load_failed") { throw offline }
+
+        // Offline is the environment, not a bug: it stays a warning in the trail.
+        assertEquals(listOf(LogEntry(LogPriority.WARN, "TestViewModel", "Load failed", offline)), logger.entries)
+    }
 }
 
 /**
@@ -131,6 +158,7 @@ private class TestViewModel(
 
     suspend fun <T> runTryIo(
         what: String,
+        reportAs: String? = null,
         block: suspend () -> T
-    ): Result<T> = tryIo(what) { block() }
+    ): Result<T> = tryIo(what, reportAs) { block() }
 }

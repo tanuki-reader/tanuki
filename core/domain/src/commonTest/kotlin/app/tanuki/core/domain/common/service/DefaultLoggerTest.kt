@@ -74,17 +74,50 @@ class DefaultLoggerTest {
     }
 
     @Test
-    fun `only breadcrumbs events that asked for it`() {
+    fun `info and warn and error helpers all leave a breadcrumb`() {
         val reporter = RecordingCrashReporter()
         val logger = DefaultLogger(FixedBuildEnvironment(isDebug = true), reporter)
 
-        // info/warn default addToBreadcrumbs to false; error defaults it to true.
         logger.info("library", "refreshed")
         logger.warn("library", "refresh was partial")
         logger.error("library", "refresh failed")
 
-        assertEquals(1, reporter.breadcrumbs.size)
-        assertEquals("refresh failed", reporter.breadcrumbs.single().message)
+        assertEquals(
+            listOf(LogPriority.INFO, LogPriority.WARN, LogPriority.ERROR),
+            reporter.breadcrumbs.map { it.priority },
+        )
+    }
+
+    @Test
+    fun `a warning is a breadcrumb but not a report`() {
+        val reporter = RecordingCrashReporter()
+        val logger = DefaultLogger(FixedBuildEnvironment(isDebug = true), reporter)
+
+        logger.warn("library", "refresh was partial", IllegalStateException("partial"))
+
+        assertEquals("refresh was partial", reporter.breadcrumbs.single().message)
+        assertTrue(reporter.errors.isEmpty())
+    }
+
+    @Test
+    fun `only breadcrumbs events that asked for it`() {
+        val reporter = RecordingCrashReporter()
+        val logger = DefaultLogger(FixedBuildEnvironment(isDebug = true), reporter)
+
+        logger.log(LogPriority.WARN, "source", "guest text", null, analyticsEvent = null, addToBreadcrumbs = false)
+
+        assertTrue(reporter.breadcrumbs.isEmpty())
+    }
+
+    @Test
+    fun `debug helper produces neither a breadcrumb nor a report in a release build`() {
+        val reporter = RecordingCrashReporter()
+        val logger = DefaultLogger(FixedBuildEnvironment(isDebug = false), reporter)
+
+        logger.debug("downloads", "holding on chapter")
+
+        assertTrue(reporter.breadcrumbs.isEmpty())
+        assertTrue(reporter.errors.isEmpty())
     }
 
     @Test
@@ -114,7 +147,8 @@ class DefaultLoggerTest {
 }
 
 private class FixedBuildEnvironment(
-    override val isDebug: Boolean
+    override val isDebug: Boolean,
+    override val platform: AppPlatform = AppPlatform.Android
 ) : BuildEnvironment
 
 private class RecordingReceiver : Logger.LogReceiver {

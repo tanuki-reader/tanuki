@@ -1,5 +1,6 @@
 package app.tanuki.core.domain.common.service.di
 
+import app.tanuki.core.domain.common.service.AppPlatform
 import app.tanuki.core.domain.common.service.BuildEnvironment
 import app.tanuki.core.domain.common.service.ConnectionObserver
 import app.tanuki.core.domain.common.service.IosConnectionObserver
@@ -32,4 +33,5 @@ object DomainPlatformBindings {
 @OptIn(ExperimentalNativeApi::class)
 private object IosBuildEnvironment : BuildEnvironment {
     override val isDebug: Boolean = Platform.isDebugBinary
+    override val platform: AppPlatform = AppPlatform.Ios
 }

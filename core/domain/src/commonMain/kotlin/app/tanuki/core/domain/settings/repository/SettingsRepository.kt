@@ -48,6 +48,15 @@ interface SettingsRepository {
     suspend fun setCrashReportingEnabled(enabled: Boolean)
 
     /**
+     * The anonymous identifier of this install, created on first read and stable afterwards.
+     *
+     * Crash reporting attaches it so a report can tell one user crashing many times from many users
+     * crashing once. It is random and generated on the device: it names no account, no email and no
+     * device, and clearing the app's data replaces it with a new one.
+     */
+    suspend fun getOrCreateInstallId(): String
+
+    /**
      * Observes how often the library checks its sources for new chapters.
      *
      * @return A [Flow] emitting the stored interval, defaulting to [LibraryUpdateInterval.Default]

@@ -20,10 +20,11 @@ import dev.zacsweers.metro.SingleIn
  *
  * **Nothing leaves the device until [setEnabled] is called with `true`.** Reporting is opt-in, so the
  * default implementation state must be "off" and stay off until the user's stored preference says
- * otherwise. Note that [recordBreadcrumb] and [reportError] receive whatever text a call site logged,
- * which can include source URLs and manga titles — an implementation that sends them off-device is
- * handling user-identifying content and should scrub accordingly. (`LogPriority.DEBUG` is already dropped
- * in release builds before it can reach here; see [LogPriority].)
+ * otherwise. Note that [recordBreadcrumb] and [reportError] receive whatever text a call site logged —
+ * every `info` and `warn` becomes a breadcrumb — so the rule lives at the call site: log ids, source ids
+ * and hosts, never manga titles, full URLs or search text. An implementation that sends text off-device
+ * should still treat it as possibly user-identifying and back that rule up server-side.
+ * (`LogPriority.DEBUG` is already dropped in release builds before it can reach here; see [LogPriority].)
  */
 interface CrashReporter {
     /**

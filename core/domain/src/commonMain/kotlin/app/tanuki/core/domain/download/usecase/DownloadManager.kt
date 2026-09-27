@@ -3,6 +3,8 @@ package app.tanuki.core.domain.download.usecase
 import app.tanuki.core.domain.chapter.usecase.GetChapterPages
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.debug
+import app.tanuki.core.domain.common.service.error
 import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.download.model.ChapterDownload
@@ -342,7 +344,13 @@ sealed interface DownloadManager {
             message: String,
             cause: Throwable? = null,
         ): Outcome {
-            logger.warn(TAG, "$message for chapter ${record.chapterId} ($error)", cause)
+            // Only an unexplained failure is reported. A network drop, a Cloudflare wall or a source that
+            // is down are the environment, and the queue already shows them to the user with a retry.
+            if (error == DownloadError.Unknown) {
+                logger.error(TAG, "$message for chapter ${record.chapterId}", cause, analyticsEvent = DOWNLOAD_FAILED)
+            } else {
+                logger.warn(TAG, "$message for chapter ${record.chapterId} ($error)", cause)
+            }
             downloadRepository.markFailed(record.chapterId, error)
             return Outcome.Failed
         }
@@ -356,7 +364,7 @@ sealed interface DownloadManager {
             chapterId: Uuid,
             part: ChapterDownloadPart? = null,
         ): Outcome {
-            logger.info(TAG, "Abandoning chapter $chapterId")
+            logger.debug(TAG, "Abandoning chapter $chapterId")
             part?.discard()
             return Outcome.Abandoned
         }
@@ -386,7 +394,7 @@ sealed interface DownloadManager {
             pageCount: Int,
             progress: ChapterProgress,
         ): Outcome {
-            logger.info(TAG, "Holding on chapter ${record.chapterId}")
+            logger.debug(TAG, "Holding on chapter ${record.chapterId}")
             // The counters come from the run, not from [record], which is the snapshot this turn started
             // with: `update` writes the whole row, so reusing the snapshot's totals would roll the row
             // back to where the chapter was before any of this turn's pages landed.
@@ -434,6 +442,9 @@ sealed interface DownloadManager {
 
         private companion object {
             const val TAG = "DownloadManager"
+
+            /** Crash-reporting label for a chapter that failed for no reason the queue can name. */
+            const val DOWNLOAD_FAILED = "download.failed"
 
             /**
              * How many pages of one chapter are fetched at once. Small deliberately: the point is to

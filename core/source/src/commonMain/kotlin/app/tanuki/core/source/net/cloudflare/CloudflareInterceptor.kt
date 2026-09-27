@@ -1,8 +1,8 @@
 package app.tanuki.core.source.net.cloudflare
 
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.common.service.error
 import app.tanuki.core.domain.common.service.info
-import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.source.net.cookie.parseCookieHeader
 import app.tanuki.core.source.net.cookie.renderCookieHeader
 import io.ktor.client.plugins.api.ClientPlugin
@@ -82,12 +82,14 @@ fun cloudflarePlugin(
             if (replay.response.isCloudflareChallenge()) {
                 // Detailed on purpose: a rejected replay is indistinguishable from a failed solve in the
                 // caller's error, and the difference is everything — one means the browser never cleared
-                // the challenge, the other means it did and we failed to impersonate it afterwards.
-                logger.warn(
+                // the challenge, the other means it did and we failed to impersonate it afterwards. Reported,
+                // because the second is our bug: the user did everything right and is still walled off.
+                logger.error(
                     TAG,
                     "Replay for '$host' was challenged again; dropping the clearance. " +
                         "Sent cookies=${solved.cookies.keys}, ua=${solved.userAgent}, " +
                         "extra headers=${solved.headers.keys}",
+                    analyticsEvent = CLEARANCE_REJECTED,
                 )
                 store.clear(host)
             }
@@ -96,6 +98,9 @@ fun cloudflarePlugin(
     }
 
 private const val TAG = "Cloudflare"
+
+/** Crash-reporting label for a solved clearance the site still refused. */
+private const val CLEARANCE_REJECTED = "cloudflare.clearance_rejected"
 
 /**
  * Serializes challenge solving per host, so concurrent requests to one host answer one challenge between

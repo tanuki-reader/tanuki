@@ -650,6 +650,8 @@ internal class FakeSettingsRepository : SettingsRepository {
 
     override suspend fun setCrashReportingEnabled(enabled: Boolean) = unused()
 
+    override suspend fun getOrCreateInstallId(): String = unused()
+
     override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> = unused()
 
     override suspend fun setLibraryUpdateInterval(interval: LibraryUpdateInterval) = unused()

@@ -3,7 +3,7 @@ package app.tanuki.core.domain.download.usecase
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
 import app.tanuki.core.domain.common.service.Logger
-import app.tanuki.core.domain.common.service.info
+import app.tanuki.core.domain.common.service.debug
 import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.repository.DownloadRepository
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
@@ -76,7 +76,7 @@ sealed interface DeleteReadChapterDownloads {
             if (expendable.isEmpty()) return 0
 
             deleteChapterDownloads(expendable.map(Chapter::id))
-            logger.info(TAG, "Deleted ${expendable.size} read chapter download(s) of $mangaId")
+            logger.debug(TAG, "Deleted ${expendable.size} read chapter download(s) of $mangaId")
             return expendable.size
         }
 

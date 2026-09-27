@@ -40,12 +40,12 @@ class InteractiveCloudflareSolver(
         // place, or at nothing, would park the request until they dismissed it. Check the scheme up front
         // rather than trusting the parse.
         if (!challenge.url.startsWith("http://") && !challenge.url.startsWith("https://")) {
-            logger.warn(TAG, "Not asking for a session: '${challenge.url}' is not an absolute URL")
+            logger.warn(TAG, "Not asking for a session: the challenge URL is not absolute")
             return null
         }
         val host = runCatching { Url(challenge.url).host }.getOrNull().orEmpty()
         if (host.isBlank()) {
-            logger.warn(TAG, "Not asking for a session: no host in '${challenge.url}'")
+            logger.warn(TAG, "Not asking for a session: the challenge URL has no host")
             return null
         }
 

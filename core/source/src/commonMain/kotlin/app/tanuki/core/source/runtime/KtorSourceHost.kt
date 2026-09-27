@@ -45,13 +45,19 @@ class KtorSourceHost(
         )
     }
 
-    /** Routes a source's own diagnostics through the app logger, tagged so they're attributable to a source. */
+    /**
+     * Routes a source's own diagnostics through the app logger, tagged so they're attributable to a source.
+     *
+     * A source's `ERROR` is logged as a warning. The text is written by a third party, so it must not
+     * become a crash report: it could carry anything, and one noisy source would spend the whole
+     * reporting quota. For the same reason none of it is recorded as a breadcrumb.
+     */
     override fun log(level: Wire.LogLevel, message: String) {
         val priority = when (level) {
             Wire.LogLevel.DEBUG -> LogPriority.DEBUG
             Wire.LogLevel.INFO -> LogPriority.INFO
             Wire.LogLevel.WARN -> LogPriority.WARN
-            Wire.LogLevel.ERROR -> LogPriority.ERROR
+            Wire.LogLevel.ERROR -> LogPriority.WARN
         }
         logger.log(priority, TAG, message, throwable = null, analyticsEvent = null, addToBreadcrumbs = false)
     }

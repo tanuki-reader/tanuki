@@ -11,4 +11,16 @@ package app.tanuki.core.domain.common.service
 interface BuildEnvironment {
     /** `true` when running a debuggable/development build, `false` in a release build. */
     val isDebug: Boolean
+
+    /** Which platform this build runs on. */
+    val platform: AppPlatform
+}
+
+/**
+ * The platform a build runs on. Stated by each platform's binding rather than derived from an OS name at
+ * runtime, so anything keyed on it (crash-report tags, dashboards) has exactly one spelling per platform.
+ */
+enum class AppPlatform {
+    Android,
+    Ios
 }

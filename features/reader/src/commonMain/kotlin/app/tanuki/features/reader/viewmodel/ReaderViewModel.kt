@@ -317,7 +317,7 @@ class ReaderViewModel(
             }
 
             val pages =
-                tryIo("Failed to load pages for chapter $initialChapterId") {
+                tryIo("Failed to load pages for chapter $initialChapterId", reportAs = PAGES_UNAVAILABLE) {
                     getReaderPages(initialChapterId)
                 }.getOrNull()
 
@@ -506,8 +506,9 @@ class ReaderViewModel(
 
         viewModelScope.launch {
             val pages =
-                tryIo("Failed to load pages for chapter $chapterId") { getReaderPages(chapterId) }
-                    .getOrNull()
+                tryIo("Failed to load pages for chapter $chapterId", reportAs = PAGES_UNAVAILABLE) {
+                    getReaderPages(chapterId)
+                }.getOrNull()
             val active = session
             window.update { w ->
                 w.loadingFinished(chapterId).let { cleared ->
@@ -864,6 +865,9 @@ class ReaderViewModel(
     }
 
     internal companion object {
+        /** Crash-reporting label for a chapter whose page list could not be resolved. */
+        const val PAGES_UNAVAILABLE = "reader.pages_unavailable"
+
         /** Wait this long after the last page change before writing, so a fast swipe writes once. */
         const val PROGRESS_PERSIST_DEBOUNCE_MS = 400L
 
