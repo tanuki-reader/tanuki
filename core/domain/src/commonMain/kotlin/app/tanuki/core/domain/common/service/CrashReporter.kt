@@ -39,6 +39,15 @@ interface CrashReporter {
     fun setEnabled(enabled: Boolean)
 
     /**
+     * Changes the anonymous install id that reports are attributed to, after the user reset it.
+     *
+     * While reporting is off this may be ignored: starting the reporter reads the current id anyway.
+     *
+     * @param id The new install id — random and tied to nothing, like the one it replaces.
+     */
+    fun setUserId(id: String)
+
+    /**
      * Records context that will accompany a later [reportError] — the trail, not the destination.
      *
      * @param priority Severity of the originating log event.
@@ -83,6 +92,8 @@ interface CrashReporter {
 @ContributesBinding(AppScope::class)
 class NoOpCrashReporter : CrashReporter {
     override fun setEnabled(enabled: Boolean) = Unit
+
+    override fun setUserId(id: String) = Unit
 
     override fun recordBreadcrumb(
         priority: LogPriority,

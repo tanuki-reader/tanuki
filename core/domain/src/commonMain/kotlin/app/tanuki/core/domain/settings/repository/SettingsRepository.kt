@@ -57,6 +57,13 @@ interface SettingsRepository {
     suspend fun getOrCreateInstallId(): String
 
     /**
+     * Replaces the install id with a new random one, so later reports can't be linked to earlier ones.
+     *
+     * @return The new id, which [getOrCreateInstallId] returns from now on.
+     */
+    suspend fun resetInstallId(): String
+
+    /**
      * Observes how often the library checks its sources for new chapters.
      *
      * @return A [Flow] emitting the stored interval, defaulting to [LibraryUpdateInterval.Default]

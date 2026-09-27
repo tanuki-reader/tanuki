@@ -198,6 +198,8 @@ private class RecordingCrashReporter : CrashReporter {
         this.enabled = enabled
     }
 
+    override fun setUserId(id: String) = Unit
+
     override fun recordBreadcrumb(
         priority: LogPriority,
         tag: String?,

@@ -77,6 +77,9 @@
     <string name="settings_crash_reporting_switch">Send crash reports</string>
     <string name="settings_crash_reporting_collected">When this is on, a crash sends the error and its stack trace, your device model and OS version, and the app version. It helps fix the crashes you actually hit instead of the ones we can reproduce.</string>
     <string name="settings_crash_reporting_never">It never sends what you read: no titles, no library, no reading history, no screenshots. This is off until you turn it on, and turning it off stops it immediately.</string>
+    <string name="settings_reset_identifier">Reset anonymous identifier</string>
+    <string name="settings_reset_identifier_explain">Reports carry a random identifier so repeated crashes from one device count once. It is not tied to you or your device. Resetting it means reports sent from now on can't be linked to earlier ones.</string>
+    <string name="settings_reset_identifier_done">A new identifier was created. Reports sent from now on can't be linked to earlier ones.</string>
 
     <!-- Download settings screen -->
     <string name="settings_downloads_title">Downloads</string>

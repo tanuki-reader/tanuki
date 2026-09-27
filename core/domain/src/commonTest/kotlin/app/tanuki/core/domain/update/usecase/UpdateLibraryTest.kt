@@ -771,6 +771,8 @@ private class FakeSettingsRepository(
 
     override suspend fun getOrCreateInstallId(): String = error("unused")
 
+    override suspend fun resetInstallId(): String = error("unused")
+
     override suspend fun getRemovedSourceIds(): Set<String> = error("unused")
 
     override suspend fun setSourceRemoved(

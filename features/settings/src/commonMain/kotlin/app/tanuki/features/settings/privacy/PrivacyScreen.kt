@@ -16,6 +16,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.TanukiDetailTopBar
+import app.tanuki.assets.designSystem.component.TanukiListRow
 import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.features.settings.privacy.viewmodel.PrivacyViewModel
@@ -24,6 +25,9 @@ import app.tanuki.features.settings.resources.settings_crash_reporting_collected
 import app.tanuki.features.settings.resources.settings_crash_reporting_never
 import app.tanuki.features.settings.resources.settings_crash_reporting_switch
 import app.tanuki.features.settings.resources.settings_privacy
+import app.tanuki.features.settings.resources.settings_reset_identifier
+import app.tanuki.features.settings.resources.settings_reset_identifier_done
+import app.tanuki.features.settings.resources.settings_reset_identifier_explain
 import app.tanuki.features.settings.resources.settings_section_crash_reporting
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import org.jetbrains.compose.resources.stringResource
@@ -46,9 +50,12 @@ fun PrivacyRoute(
     viewModel: PrivacyViewModel = metroViewModel()
 ) {
     val enabled by viewModel.crashReportingEnabled.collectAsStateWithLifecycle()
+    val identifierReset by viewModel.identifierReset.collectAsStateWithLifecycle()
     PrivacyScreen(
         crashReportingEnabled = enabled,
         onCrashReportingChange = viewModel::onCrashReportingChange,
+        identifierReset = identifierReset,
+        onResetIdentifier = viewModel::onResetIdentifier,
         onBack = onBack,
         modifier = modifier
     )
@@ -58,6 +65,8 @@ fun PrivacyRoute(
 private fun PrivacyScreen(
     crashReportingEnabled: Boolean,
     onCrashReportingChange: (Boolean) -> Unit,
+    identifierReset: Boolean,
+    onResetIdentifier: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -97,6 +106,26 @@ private fun PrivacyScreen(
             )
             Text(
                 text = stringResource(Res.string.settings_crash_reporting_never),
+                style = TanukiTheme.typography.caption,
+                color = TanukiTheme.colors.textFaint
+            )
+            // Shown whether reporting is on or off: the id is stored either way.
+            TanukiSectionGroup {
+                TanukiListRow(
+                    title = stringResource(Res.string.settings_reset_identifier),
+                    onClick = onResetIdentifier,
+                    showChevron = false
+                )
+            }
+            Text(
+                text =
+                    stringResource(
+                        if (identifierReset) {
+                            Res.string.settings_reset_identifier_done
+                        } else {
+                            Res.string.settings_reset_identifier_explain
+                        }
+                    ),
                 style = TanukiTheme.typography.caption,
                 color = TanukiTheme.colors.textFaint
             )

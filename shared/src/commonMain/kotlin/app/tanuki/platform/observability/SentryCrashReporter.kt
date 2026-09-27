@@ -89,6 +89,16 @@ class SentryCrashReporter(
         }
     }
 
+    override fun setUserId(id: String) {
+        // Not started: nothing to update, and the next start() reads the new id itself.
+        if (!started) return
+        // Same queue as starting and stopping, so this can't land before a pending start (which would
+        // then overwrite it with the id it read earlier) or after a stop.
+        scope.launch(dispatchers.main) {
+            lifecycle.withLock { Sentry.setUser(User(id = id)) }
+        }
+    }
+
     override fun recordBreadcrumb(
         priority: LogPriority,
         tag: String?,

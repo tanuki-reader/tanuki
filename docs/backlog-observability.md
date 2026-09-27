@@ -38,9 +38,10 @@ Live state of `tanuki-jc/tanuki` (checked via the Sentry API):
 crashes + handled errors + breadcrumbs (no performance tracing for now); anonymous per-install
 UUID for reliable user counts.
 
-> **Status (2026-09-27):** Phase 0 (0.1–0.3) and Phase 1 (1.1–1.5) are implemented; see the ✅ notes
-> under each item. Phase 2's code is in (2.1, 2.3, 2.5; 2.2 decided as "minify off"). What remains there is
-> checking it on devices: auto-init off, ANR, and Kotlin frames in an iOS crash. Phase 3 is mostly
+> **Status (2026-09-27):** Phase 0 (0.1–0.3) and Phase 1 (1.1–1.5) are implemented, including 1.3's
+> "reset identifier"; see the ✅ notes under each item. Phase 2's code is in (2.1, 2.3 on both platforms,
+> 2.5; 2.2 decided as "minify off"), and so is 3.8's release script. **No code work is left.** What remains
+> is checking it on devices: auto-init off, ANR, and Kotlin frames in an iOS crash. Phase 3 is mostly
 > applied: first through the Sentry API (2026-09-26), then through the web UI (2026-09-27). The "Still manual" list at the end of Phase 3
 > shows what's left: hiding `debug` once it exists, the dashboard and saved searches once events flow,
 > and the release filter, which the current plan doesn't allow.
@@ -166,7 +167,8 @@ best-effort. Leave it; add a sibling `tryIoOrError` only if a specific screen ne
 ### 1.3 Attach an anonymous install ID
 
 ✅ Done — `SettingsRepository.getOrCreateInstallId` / `GetInstallId`; set via `Sentry.setUser` on start.
-No "reset identifier" UI yet.
+Settings → Privacy has "Reset anonymous identifier" (`ResetInstallId`). It writes a new id and calls
+`CrashReporter.setUserId`, so a running SDK switches user immediately rather than on the next launch.
 
 **Problem:** `sendDefaultPii = false` and no user id is ever set, so Sentry cannot distinguish
 one user crashing 400 times from 400 users crashing once. Every "users affected" number you're
@@ -265,9 +267,9 @@ it a decision rather than an accident.
 ✅ Done — `versionCode` is `TANUKI_BUILD_NUMBER` if set, else `git rev-list --count HEAD`, else 1.
 `BuildEnvironment.buildNumber` reads it back at runtime (Android `longVersionCode`, iOS `CFBundleVersion`)
 and `SentryCrashReporter` sets it as `options.dist`. The release name is now per platform:
-`app.tanuki.android@<version>` / `app.tanuki.ios@<version>` (see 3.6). **iOS gap:** `CFBundleVersion` is
-still the fixed `CURRENT_PROJECT_VERSION=1` in `iosApp/Configuration/Config.xcconfig`, since an xcconfig
-can't run git. Bump it by hand per release, or have CI pass `CURRENT_PROJECT_VERSION=…` to `xcodebuild`.
+`app.tanuki.android@<version>` / `app.tanuki.ios@<version>` (see 3.6). On iOS, the "Stamp Build Number"
+phase (`iosApp/scripts/stamp-build-number.sh`) writes the same number into the built Info.plist's
+`CFBundleVersion`, since an xcconfig can't run git. `CURRENT_PROJECT_VERSION=1` stays only as the fallback.
 
 `androidApp/build.gradle.kts:36` hardcodes `versionCode = 1`. `versionName` correctly comes from
 the version catalog (with a comment explaining it must match what iOS reports), but the build
@@ -294,8 +296,10 @@ Your app has real ANR candidates: `WasmSourceLoader`'s per-source `Mutex` and th
 ✅ Mostly in place already. The Sentry wizard added an "Upload Debug Symbols to Sentry" Run Script phase,
 and Release builds are `dwarf-with-dsym`. The phase had `--include-sources`, which uploads source files;
 that flag is now removed, matching Android's `includeSourceContext = false`. The phase warns rather than
-fails when `sentry-cli` or its login is missing. **Still to verify:** a Release iOS crash shows Kotlin
-frames, not `culprit: ?`.
+fails when `sentry-cli` or its login is missing. The target had that wizard phase *and* our
+`scripts/upload-dsyms.sh` phase, so every Release build uploaded twice. The wizard's phase is removed, and its
+Homebrew `PATH` line moved into the script. **Still to verify:** a Release iOS crash shows Kotlin frames, not
+`culprit: ?`.
 
 Not Android, but it's the same class of gap and belongs here. `TANUKI-1` shows `culprit: ?`
 because no debug symbols were ever uploaded. Add a `sentry-cli upload-dif` Run Script build phase
@@ -417,6 +421,13 @@ Once 2.3 gives you a real `dist`, wire release creation into your build (`sentry
 new` / the Gradle plugin does this for Android). Associating commits with releases is what turns
 "this issue started in 1.2" into "this issue started in *this commit*", and it's the single
 biggest quality-of-life win in the Sentry UI.
+
+✅ Done — `scripts/sentry-release.sh <android|ios>` creates `app.tanuki.<platform>@<version>` (the name
+`SentryCrashReporter` sends) and runs `set-commits --auto`, falling back to `--local` because the repo has no
+git remote or Sentry repository integration yet. It runs from `upload-dsyms.sh` on Release iOS builds, and from
+the `sentryRelease` task after `:androidApp:assembleRelease` when `SENTRY_AUTH_TOKEN` is set. Never fails the
+build. **Not yet run against Sentry.** Connect GitHub in Settings → Integrations once there is a remote, and
+`--auto` takes over.
 
 ### Applied via the Sentry API (2026-09-26)
 

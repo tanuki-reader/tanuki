@@ -271,6 +271,8 @@ private class FakeSettingsRepository(
 
     override suspend fun getOrCreateInstallId(): String = error("unused")
 
+    override suspend fun resetInstallId(): String = error("unused")
+
     override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> = error("unused")
 
     override suspend fun setLibraryUpdateInterval(interval: LibraryUpdateInterval) = error("unused")

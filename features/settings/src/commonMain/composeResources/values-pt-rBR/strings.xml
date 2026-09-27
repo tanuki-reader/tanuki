@@ -77,6 +77,9 @@
     <string name="settings_crash_reporting_switch">Enviar relatórios de falhas</string>
     <string name="settings_crash_reporting_collected">Quando ativado, uma falha envia o erro e seu stack trace, o modelo do aparelho e a versão do sistema, e a versão do app. Isso ajuda a corrigir as falhas que você realmente encontra, e não apenas as que conseguimos reproduzir.</string>
     <string name="settings_crash_reporting_never">Nunca envia o que você lê: nenhum título, nenhuma biblioteca, nenhum histórico de leitura, nenhuma captura de tela. Fica desativado até você ativar, e desativar interrompe o envio imediatamente.</string>
+    <string name="settings_reset_identifier">Redefinir identificador anônimo</string>
+    <string name="settings_reset_identifier_explain">Os relatórios levam um identificador aleatório para que falhas repetidas de um mesmo aparelho contem uma vez só. Ele não está ligado a você nem ao seu aparelho. Ao redefini-lo, os relatórios enviados a partir de agora não podem ser ligados aos anteriores.</string>
+    <string name="settings_reset_identifier_done">Um novo identificador foi criado. Os relatórios enviados a partir de agora não podem ser ligados aos anteriores.</string>
 
     <!-- Tela de configurações de download -->
     <string name="settings_downloads_title">Downloads</string>

@@ -31,6 +31,12 @@
 
 set -eu
 
+# A build phase gets Xcode's PATH, which on Apple Silicon lacks Homebrew's prefix — where
+# `brew install getsentry/tools/sentry-cli` puts it.
+if [ "$(uname -m)" = arm64 ]; then
+    export PATH="/opt/homebrew/bin:$PATH"
+fi
+
 SENTRY_ORG="${SENTRY_ORG:-tanuki-jc}"
 SENTRY_PROJECT="${SENTRY_PROJECT:-tanuki}"
 
@@ -68,5 +74,9 @@ sentry-cli debug-files upload \
     --project "$SENTRY_PROJECT" \
     "${DWARF_DSYM_FOLDER_PATH:-.}" \
     || echo "warning: [tanuki] dSYM upload failed — build continues, crashes will be unsymbolicated."
+
+# Same gates as the upload (Release, credentials, sentry-cli), so the release and its commits are recorded
+# here rather than in a second phase that would repeat them.
+"$(dirname "$0")/../../scripts/sentry-release.sh" ios
 
 exit 0

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
+import app.tanuki.core.domain.settings.usecase.ResetInstallId
 import app.tanuki.core.domain.settings.usecase.SetCrashReportingEnabled
 import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
@@ -12,6 +13,7 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -32,6 +34,7 @@ import kotlinx.coroutines.launch
 class PrivacyViewModel(
     observeCrashReportingEnabled: ObserveCrashReportingEnabled,
     private val setCrashReportingEnabled: SetCrashReportingEnabled,
+    private val resetInstallId: ResetInstallId,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : TanukiViewModel(dispatcher, logger) {
@@ -43,5 +46,20 @@ class PrivacyViewModel(
     /** Persist the choice; the new value flows back into [crashReportingEnabled]. */
     fun onCrashReportingChange(enabled: Boolean) {
         viewModelScope.launch { setCrashReportingEnabled(enabled) }
+    }
+
+    /**
+     * `true` once the identifier was reset on this visit to the screen, so it can confirm the reset.
+     * Screen-local on purpose: the confirmation is for the tap that just happened, not a stored fact.
+     */
+    val identifierReset: StateFlow<Boolean>
+        field = MutableStateFlow(false)
+
+    /** Replace the anonymous install id; see [ResetInstallId]. */
+    fun onResetIdentifier() {
+        viewModelScope.launch {
+            tryIo("Resetting the install id failed") { resetInstallId() }
+                .onSuccess { identifierReset.value = true }
+        }
     }
 }

@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import okio.Path
 import okio.Path.Companion.toPath
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -43,15 +44,22 @@ import kotlin.uuid.Uuid
  * The theme is persisted by its enum [ThemePreference.name]; an unknown/absent value falls back to
  * [ThemePreference.System], so a corrupt or older store degrades gracefully instead of throwing.
  */
-@Inject
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
-class SettingsRepositoryImp(
-    fileFactory: PreferencesFileFactory,
+class SettingsRepositoryImp internal constructor(
+    preferencesPath: () -> Path,
     private val dispatcherProvider: DispatcherProvider
 ) : SettingsRepository {
+    // The DI entry point. The primary constructor takes the path directly so tests can point the store at
+    // a temporary file: [PreferencesFileFactory] is an expect class they can't build.
+    @Inject
+    constructor(
+        fileFactory: PreferencesFileFactory,
+        dispatcherProvider: DispatcherProvider
+    ) : this({ fileFactory.resolve().toPath() }, dispatcherProvider)
+
     private val dataStore: DataStore<Preferences> =
-        PreferenceDataStoreFactory.createWithPath(produceFile = { fileFactory.resolve().toPath() })
+        PreferenceDataStoreFactory.createWithPath(produceFile = preferencesPath)
 
     /**
      * The stored preferences, with a read failure (missing/corrupt file) surfacing as defaults rather
@@ -94,6 +102,13 @@ class SettingsRepositoryImp(
                     if (preferences[INSTALL_ID_KEY] == null) preferences[INSTALL_ID_KEY] = Uuid.random().toString()
                 }
             checkNotNull(stored[INSTALL_ID_KEY]) { "The install id was not written" }
+        }
+
+    override suspend fun resetInstallId(): String =
+        withContext(dispatcherProvider.io) {
+            val newId = Uuid.random().toString()
+            dataStore.edit { preferences -> preferences[INSTALL_ID_KEY] = newId }
+            newId
         }
 
     override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> =

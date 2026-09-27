@@ -71,6 +71,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 }
+// Whether this build can talk to Sentry at all: gates the mapping upload and the release below.
+val hasAuthToken = providers.environmentVariable("SENTRY_AUTH_TOKEN").isPresent
+
 // Build tooling only. The SDK comes from the KMP SDK in :shared, and starts only when the user opts in
 // (SentryCrashReporter) — the manifest's `io.sentry.auto-init=false` keeps the SDK's own ContentProvider
 // from starting it at process start.
@@ -90,10 +93,21 @@ sentry {
 
     // Only with a token, so a contributor's release build never fails for want of one. A no-op while
     // minify is off: there is no mapping to upload.
-    val hasAuthToken = providers.environmentVariable("SENTRY_AUTH_TOKEN").isPresent
     includeProguardMapping = hasAuthToken
     autoUploadProguardMapping = hasAuthToken
 
     ignoredBuildTypes = setOf("debug")
     telemetry = false
+}
+
+// Records the release and its commits in Sentry after a release build (scripts/sentry-release.sh, which
+// also does it for iOS). Token-gated like the mapping upload, and it never fails the build.
+val sentryRelease =
+    tasks.register<Exec>("sentryRelease") {
+        description = "Creates this version's Android release in Sentry and associates its commits."
+        commandLine(rootProject.layout.projectDirectory.file("scripts/sentry-release.sh").asFile.path, "android")
+        isIgnoreExitValue = true
+    }
+if (hasAuthToken) {
+    tasks.matching { it.name == "assembleRelease" }.configureEach { finalizedBy(sentryRelease) }
 }
