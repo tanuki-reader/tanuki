@@ -346,6 +346,10 @@ Portuguese (pt-BR)** for now, more later. No hardcoded display copy.
 - Pure content/data (manga title, genre, author) stays a plain `String` — it comes from sources, isn't
   localizable, and never goes through `stringResource`.
 - A new screen is not done until both languages have every key. Don't add a string in one language only.
+- **iOS (SwiftUI) reads the same copy.** `:shared:generateIosStrings` (`scripts/generate-ios-strings.py`)
+  turns every module's `strings.xml` into `iosApp/iosApp/Strings/<Module>.xcstrings` on each Xcode
+  build, and fails if a language is missing a key. Swift uses `tr("key", args…, table: .home)`. Edit the
+  `strings.xml`, never the generated `.xcstrings`.
 - Status: **not wired up yet** — `composeResources/` string catalogs don't exist. Set up `values/` +
   `values-pt-rBR/` for the Compose UI; the iOS mechanism waits on the open decision above.
 

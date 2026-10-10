@@ -221,6 +221,36 @@ if (sentryDsn.get().isBlank()) {
     )
 }
 
+// --- iOS string catalogs ------------------------------------------------------------------------
+// The SwiftUI app reads the same copy as Compose: scripts/generate-ios-strings.py turns every module's
+// composeResources strings.xml into an .xcstrings table under iosApp/iosApp/Strings (checked in), and
+// fails if a language lacks a key. Hooked to the Xcode build's framework step, so iOS builds can't run
+// on stale strings. Skipped where there is no python3 (Android-only machines never run this task).
+val generateIosStrings =
+    tasks.register<Exec>("generateIosStrings") {
+        group = "tanuki"
+        description = "Generates iosApp's .xcstrings catalogs from the modules' Compose strings.xml."
+
+        // Locals only, as with the cargo tasks below, so the configuration cache never captures the script.
+        val python = File("/usr/bin/python3")
+        onlyIf { python.exists() }
+
+        val root = rootProject.layout.projectDirectory
+        workingDir = root.asFile
+        commandLine(python.absolutePath, "-I", "scripts/generate-ios-strings.py", ".", "iosApp/iosApp/Strings")
+
+        inputs.file(root.file("scripts/generate-ios-strings.py"))
+        inputs.files(
+            root.asFileTree.matching {
+                include("shared/src/commonMain/composeResources/values*/strings.xml")
+                include("features/*/src/commonMain/composeResources/values*/strings.xml")
+            }
+        )
+        outputs.dir(root.dir("iosApp/iosApp/Strings"))
+    }
+
+tasks.matching { it.name == "embedAndSignAppleFrameworkForXcode" }.configureEach { dependsOn(generateIosStrings) }
+
 // --- Dev source bundles -------------------------------------------------------------------------
 // Builds the first-party `.wasm` sources and drops them into composeResources so DevSourceInstaller
 // can copy them into the SourceBundleStore on launch. Temporary: replaced by the remote source repo

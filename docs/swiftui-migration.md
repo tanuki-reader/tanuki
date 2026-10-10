@@ -131,9 +131,13 @@ iOSApp (SwiftUI @main)
 ## Decisions to confirm (defaults chosen)
 
 - **Bridge: SKIE** (already the decision in CLAUDE.md). Verified in the Phase 0 spike.
-- **Strings:** one source of truth stays `strings.xml`. A small Gradle task generates
-  `iosApp/…/Localizable.xcstrings` (en + pt-BR) from it. Until that task exists, Home's ~14 keys are
-  copied by hand.
+- **Strings (built):** `strings.xml` stays the one source. `scripts/generate-ios-strings.py` (Gradle
+  `:shared:generateIosStrings`, which runs before every Xcode framework build) writes one checked-in
+  table per module to `iosApp/iosApp/Strings/` (`:shared` → `Localizable`, `:features:<x>` → `<X>`),
+  plus a generated `StringTable` enum. It converts escapes, `%1$s` → `%1$@`, `%1$d` → `%1$lld`, and
+  plurals into plural variations, and **fails the build if a language lacks a key**. Swift reads copy
+  with `tr("key", args…, table: .home)`; plain default-table keys also work as `LocalizedStringKey`.
+  Never edit the `.xcstrings`.
 - **Images (built):** Kotlin owns the fetch and the disk cache. `ImageBridge.loadCoverData(url, headers)`
   goes through Coil's singleton loader: the CF-aware Ktor client, `cover_cache` shared with Compose,
   success-only caching, and a pass-through decoder that returns the encoded bytes. **Nuke 13** (SPM) owns
@@ -282,4 +286,12 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
   simulator with a temporary specimen: a real MangaDex cover rendered, a 404 showed the placeholder, and
   `cover_cache` held exactly the one fetched cover. Calling the Kotlin suspend function from Nuke's
   background task works with no main-thread restriction.
-  Next: the strings pipeline (`strings.xml` → `Localizable.xcstrings`), then Phase 1: Home.
+- 2026-10-10 — Phase 0 strings pipeline done (see the Decisions bullet "Strings"). All 9 modules
+  generated, with en + pt-BR complete (662 strings, 60 plurals). The hand-made `Localizable.xcstrings`
+  is replaced by the generated one. **Verified live** with a temporary specimen in pt-BR and en: format
+  args, plural one/other, the `\'` escape, cross-table keys and a default-table `LocalizedStringKey`.
+- **Phase 0 complete**, apart from the SwiftUI site-session overlay, which is on hold: the Compose layer
+  behind the root may be enough; decide after a live Cloudflare test on a device. The hand checks of
+  the SwiftUI root are still pending (tab switching, leaf push/back, edge swipe, a Cloudflare reveal).
+  Next: **Phase 1 — Home** (split `:features:home:logic`, move the For You/Sources toggle into the VM,
+  `MangaCover` + `HomeView` in SwiftUI, add Home's branch to the destination switch).
