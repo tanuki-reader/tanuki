@@ -252,4 +252,22 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
     launch (SwiftUI tab bar + Compose Home, light and dark, no double status-bar inset).
     **Not verified (no UI automation here):** tab switching, pushing a leaf (tab bar hidden), Compose back
     and edge-swipe back, the ViewModel cleared on pop, and a live Cloudflare reveal.
-  Next: iOS design tokens, then `ImageBridge`, then the strings pipeline (Phase 0 remainder), then Home.
+- 2026-10-10 — Phase 0 iOS design tokens done (`iosApp/iosApp/DesignSystem/`), read from the remote
+  design project (`tokens/*.css`, `readme.md`, `ui_kits/ios/README.md`) and cross-checked against
+  Android's `TanukiPalette`, which matches it value for value.
+  - **Colours:** 22 colorsets in `Assets.xcassets/Tanuki/` (namespaced), each with a light and a dark
+    appearance, exposed as `Color.tk.*`. `AccentColor` = the orange token, light `#D9620F` and dark
+    `#E8731C`. Deliberately left out: the CSS glass fills/highlights, which only imitate Liquid Glass on
+    the web; iOS uses the system `.glassEffect()`.
+  - **Type:** `.tkStyle(.display|.title|.headline|.body|.caption|.label|.mono)`, SF Pro at the token
+    sizes, weights, line heights and tracking, scaled with Dynamic Type relative to the nearest system
+    style.
+  - **Spacing/radii/motion:** `TK.Space` (Android's names), `TK.Radius` (the Liquid Glass family:
+    container 10, glass card 14, cover 6, sheet 16), `TK.Size.tapMin`, `TK.Motion.ease()` (`--ease-ios` at
+    120/200/320 ms).
+  - Icons are SF Symbols, per the design readme's glyph vocabulary.
+  - **Not built yet:** components. Each one gets built when the first SwiftUI screen needs it (Home), from
+    the project's `components/` + `ui_kits/ios/`.
+  - **Verified:** a Debug xcodebuild, plus a temporary specimen screen screenshotted on the simulator in
+    dark and light (every token resolved and flipped), then reverted.
+  Next: `ImageBridge` + `TanukiImage`, then the strings pipeline, then Home.
