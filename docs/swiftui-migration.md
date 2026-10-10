@@ -61,18 +61,26 @@ iOSApp (SwiftUI @main)
  └─ .overlay: SiteSessionOverlay (observes SiteSessionCoordinator)
 ```
 
-### Swift ↔ ViewModel glue (written once, reused by every screen)
+### Swift ↔ ViewModel glue (written once, reused by every screen) — **built**
 
-- **Kotlin, `iosMain`:** `ScreenScope` owns a `ViewModelStore`. It creates ViewModels through
-  `ViewModelProvider.create(store, appGraph.metroViewModelFactory)` and calls `store.clear()` on close.
-  Each ViewModel gets a one-line accessor, e.g. `fun ScreenScope.homeViewModel(): HomeViewModel`.
-  Assisted ViewModels (Manga, Reader, SourceBrowse) get accessors that take the route args.
-- **Swift:** one generic `@Observable final class ScreenModel<VM, S>`. It holds the ViewModel and
-  `state: S`, iterates `vm.uiState` in `.task`, and closes the scope in `deinit`. A
-  `.navEvents(vm.navEvents, path:)` modifier appends or pops on the tab's path.
-- **So per-screen Swift = only the `View`.** It reads `model.state` and calls `model.vm.onX(…)`.
-  Lifecycle matches Android: `.task` cancels when the view leaves, `WhileSubscribed(5s)` stops the
-  pipeline, and the ViewModel is cleared when the screen is popped.
+- **Kotlin, `shared/src/iosMain/kotlin/app/tanuki/ScreenScope.kt`:** owns a `ViewModelStore` and
+  resolves ViewModels through `ViewModelProvider.create(store, appGraph.metroViewModelFactory)`, the same
+  factory as `metroViewModel()`. `close()` clears the store. Swift can't name a `KClass`, so each screen
+  gets a one-line accessor: `fun ScreenScope.homeViewModel(): HomeViewModel`. **Assisted ViewModels**
+  (Manga, Reader, SourceBrowse) get an accessor taking the route args when they migrate:
+  `viewModelFactory { addInitializer(kClass) { factory.createManuallyAssistedFactory(F::class)().create(…) } }`.
+- **Swift, `iosApp/iosApp/Presentation/ScreenModel.swift`:** `@Observable ScreenModel<VM, S>`. It
+  creates the ViewModel **lazily**, because SwiftUI re-evaluates `@State` initializers and discards the
+  extras. It exposes `vm` (for actions) and `state` (the last `uiState` emission, else `.value`).
+  `observe()` iterates `uiState` in the screen's `.task`, and `deinit` closes the scope.
+- **Swift, `iosApp/iosApp/Navigation/NavEvents.swift`:** `Route` wraps `any Destination` as `Hashable`,
+  using Kotlin `equals`/`hashCode`. `.navEvents(vm.navEvents, path: $path)` appends or pops on a
+  `[Route]` path.
+- **Per screen, Swift is only the `View`:**
+  `@State private var model = ScreenModel({ $0.homeViewModel() }, uiState: \.uiState)`, plus
+  `.task { await model.observe() }` and `.navEvents(model.vm.navEvents, path: $path)`. Lifecycle matches
+  Android: leaving cancels the `.task` → `WhileSubscribed(5s)` stops the pipeline, and popping clears the
+  ViewModel.
 
 ### Hybrid bridge for unmigrated destinations
 
@@ -213,4 +221,11 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
   `internal`, and its two tests moved to `:shared` (`commonTest` + `iosTest`). `:core:navigation` drops
   navigation-compose and declares `kotlinx-coroutines-core` as `api` (`AppNavigator` exposes `Flow`;
   it used to come in transitively). The framework header has no `NavType` any more.
-  Next: `ScreenScope` + `ScreenModel` + the navEvents modifier.
+- 2026-10-10 — Phase 0 glue done: `ScreenScope` (Kotlin, `iosMain`) + `ScreenScopeTest` (same instance
+  per class, `close()` → `onCleared`, an unregistered ViewModel fails), `ScreenModel` + `Route` +
+  `.navEvents` (Swift). A scratchpad probe typechecked a real usage against Home's ViewModel
+  (`ScreenModel({ $0.homeViewModel() }, uiState: \.uiState)`, `onEnum(of: model.state)`, `.navEvents`,
+  `.navigationDestination(for: Route.self)`), and the Debug app build passes. Runtime behaviour is still
+  unexercised: nothing renders it until the SwiftUI root.
+  Next: the SwiftUI root (`TabView` + a `NavigationStack` per tab) + `DestinationContent` + the Compose
+  bridge.
