@@ -12,7 +12,9 @@ toward the Mihon feature set incrementally. A previous, more fully-scaffolded at
 ## Project Goals
 
 - Bring the full Mihon experience (library, sources, trackers, reader) to iOS
-- Share as much logic as possible via KMP — domain/data/network/source + ViewModels/UI
+- Share as much logic as possible via KMP — domain/data/network/source + ViewModels and navigation
+  contracts. **UI is native per platform:** Jetpack Compose on Android, SwiftUI with Liquid Glass on iOS
+  (see "Platform UI split" below)
 - Solve the Cloudflare bypass problem that plagues existing iOS manga readers (e.g. Suwatte)
 - Design for a WASM-based extension migration (App Store / Play Store compatible path)
 
@@ -25,7 +27,8 @@ toward the Mihon feature set incrementally. A previous, more fully-scaffolded at
 ./gradlew :androidApp:assembleDebug
 
 # iOS: open ./iosApp in Xcode and run from there (no gradle run task).
-# iosApp is a thin host: it launches the shared Compose UI (a ComposeUIViewController from sharedUI).
+# Today iosApp still hosts the shared Compose UI (ComposeUIViewController via MainViewController).
+# Target: iosApp is a native SwiftUI app consuming the shared Kotlin framework through SKIE.
 ```
 
 ## Test
@@ -41,6 +44,37 @@ toward the Mihon feature set incrementally. A previous, more fully-scaffolded at
 When adding tests, the `kotlin-test-generator` skill follows this project's conventions
 (kotest + coroutine patterns). Source sets: `commonTest` for shared, `androidHostTest` /
 `iosTest` for platform-specific.
+
+---
+
+## Platform UI split (decided — migration pending)
+
+**Decision:** the iOS app gets a **native SwiftUI UI** built on **Liquid Glass** (iOS 26); Android keeps
+its **Jetpack Compose** UI. What stays shared in Kotlin is everything below the UI: domain, data,
+network, sources, ViewModels (`StateFlow<UiState>` + action methods) and the `Destination` contract.
+This reverses the earlier "one Compose UI on both platforms" decision.
+
+> **Current state (2026-10):** iOS still renders the shared Compose UI through
+> `iosApp/iosApp/ContentView.swift` → `MainViewControllerKt.MainViewController()`. The split has not
+> started. Until it lands:
+> - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.
+> - Keep the Compose UI working on iOS (don't break the current host) until the SwiftUI screen that
+>   replaces it ships; migrate one feature slice at a time (library → manga → reader → …).
+> - ViewModels must become consumable from Swift: move them out of the Compose `:features:<x>` modules
+>   into Compose-free modules (the `:features:<x>:logic` / `:features:<x>:ui` pairs from "When to split")
+>   that are exported in the iOS framework.
+
+- **Swift ↔ Kotlin bridge: SKIE.** `StateFlow`/`Flow` arrive in Swift as `AsyncSequence`, sealed types as
+  exhaustive Swift enums (`onEnum(of:)`), `suspend` functions as `async`. Don't hand-write Flow wrappers
+  or callback adapters; don't add KMP-NativeCoroutines alongside it.
+- **Each iOS screen** is a SwiftUI `View` plus a small `@Observable` Swift holder that owns the Kotlin
+  ViewModel, iterates its `uiState` in a `.task { for await state in vm.uiState { … } }`, forwards user
+  actions to the ViewModel's methods, and calls `clear()` when the screen is torn down. No presentation
+  logic in Swift — if Swift needs to compute it, it belongs in the ViewModel.
+- **What is native per platform:** screens, components, navigation rendering, icons, motion, strings
+  presentation, platform chrome. Once a slice is migrated, no composable renders on iOS for it.
+- iOS-specific non-UI code (headless `WKWebView`, WASM engine binding) stays in `iosMain` via
+  `expect`/`actual`, exactly as before.
 
 ---
 
@@ -62,7 +96,8 @@ shared module with a clear responsibility, so don't over-modularize.
 >
 > | Module | What's in it | Compose? |
 > |---|---|---|
-> | `:androidApp` / `:iosApp` | thin platform hosts | — |
+> | `:androidApp` | thin Android host | — |
+> | `iosApp` (Xcode) | today a thin host for the Compose UI; target: the native SwiftUI app (screens, Swift design system, SKIE consumers) | — (SwiftUI) |
 > | `:shared` | app shell: the one `Scaffold`/`NavHost`, Metro `AppGraph`, platform bindings | yes |
 > | `:core:domain` | models, repository interfaces, use cases, `DispatcherProvider`/`Logger` | no |
 > | `:core:data` | Room entities/DAOs + repository implementations | no |
@@ -70,7 +105,7 @@ shared module with a clear responsibility, so don't over-modularize.
 > | **`:core:presentation`** | **`TanukiViewModel`** + **`StateViewModel<S>`** — the base classes every screen's ViewModel extends | no |
 > | `:core:source` | WASM source runtime + Cloudflare/session networking | no |
 > | `:features:<x>` | one per slice (`library`, `manga`, `reader`, `activity`, `home`, `source`, `settings`) — each holds that slice's Compose screens **and** its ViewModels | yes |
-> | `:assets:designSystem` | the Compose design system | yes |
+> | `:assets:designSystem` | the Compose design system — **Android dialect** of the Tanuki Design System | yes |
 >
 > There is **no `:sharedLogic` / `:sharedUI` split** — those names in this doc and below are the **target**
 > vocabulary. They now map onto the `:core:*` modules (Compose-free foundation, the `sharedLogic` role) and
@@ -93,11 +128,17 @@ sharedLogic/   (KMP — ALL platforms, NEVER imports Compose)
   androidMain/   Android WASM engine binding; Android WebView interceptor
   iosMain/       iOS WASM engine binding; WKWebView interceptor
 
-sharedUI/      (Compose Multiplatform — ALL UI platforms incl. iOS; depends on sharedLogic)
+sharedUI/      (Compose — ANDROID UI only once the split lands; depends on sharedLogic)
   app.tanuki/
-    designsystem/  ONE Compose design system (theme, colors, TanukiTextStyle, components)
+    designsystem/  Android dialect of the design system (theme, colors, TanukiTextStyle, components)
     feature/       per-feature Compose screens; bind to the ViewModels in sharedLogic
       library/  browse/  reader/  tracking/  updates/  settings/
+
+iosApp/        (Xcode — native SwiftUI; imports the shared framework, SKIE-enhanced)
+  DesignSystem/    iOS dialect: color assets + Color.tk.*, type, Liquid Glass components
+  Features/        per-feature SwiftUI screens + @Observable holders over the Kotlin ViewModels
+      Library/  Browse/  Reader/  Tracking/  Updates/  Settings/
+  Navigation/      NavigationStack/TabView rendering of the shared `Destination`
 ```
 
 ### Presentation pattern: MVVM (not MVI)
@@ -106,13 +147,18 @@ Each feature has a **ViewModel** that lives in `sharedLogic` (Compose-free) and 
 state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSearch()`, `onRefresh()`).
 
 - **Why in `sharedLogic` and not `sharedUI`:** keeping ViewModels Compose-free preserves the boundary
-  rule (`sharedLogic` never imports Compose) and lets presentation logic be unit-tested without a Compose
-  runtime. The Compose UI in `sharedUI` collects the `StateFlow` and calls the plain action methods —
-  the same screens render on **both** Android and iOS, so presentation logic is written once.
+  rule (`sharedLogic` never imports Compose), lets presentation logic be unit-tested without a Compose
+  runtime, and is what lets **SwiftUI consume the same ViewModels** — presentation logic is written once,
+  even though each platform draws its own screens.
 - Use the KMP `ViewModel` from `androidx.lifecycle.viewmodel` (already a dependency) so both platforms
   get lifecycle scoping for free.
-- **Both platforms:** Compose screens collect state with `collectAsStateWithLifecycle()` and call
-  ViewModel methods. No reducers/intents/MVI machinery, no SwiftUI, no SKIE bridging needed for UI.
+- **Android:** Compose screens collect state with `collectAsStateWithLifecycle()` and call ViewModel
+  methods. **iOS (target):** SwiftUI observes `uiState` through SKIE's `AsyncSequence` in an
+  `@Observable` holder and calls the same methods (see "Platform UI split"). No reducers/intents/MVI
+  machinery on either side. (Today iOS still runs the Compose screens.)
+- **Keep ViewModel APIs Swift-friendly:** UI state as data classes / sealed interfaces (SKIE turns them
+  into enums), actions as plain methods with simple parameters, no Compose types (`Color`, `ImageVector`,
+  `StringResource` resolved to text) in state.
 - **Every ViewModel extends `TanukiViewModel`** (`:core:presentation`) rather than `ViewModel` directly.
   The base owns what every screen repeats — don't re-declare any of it:
   - `navEvents` + `navigateTo(destination)` / `navigateBack()` for screen-scoped navigation (a leaf
@@ -159,9 +205,9 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
 
 ### Navigation: shared contract, native rendering
 
-Single-activity on Android, single root view controller on iOS (both hosting the shared Compose UI).
-The **set of destinations is defined once in `sharedLogic`** as a serializable sealed type; a single
-Navigation Compose graph in `sharedUI` renders it on both platforms.
+Single-activity on Android; a SwiftUI `App` on iOS (today still a root view controller hosting the
+Compose UI). The **set of destinations is defined once in `sharedLogic`** as a serializable sealed type;
+each platform renders it natively.
 
 ```kotlin
 // sharedLogic — the ONE definition of what screens exist
@@ -176,11 +222,13 @@ sealed interface Destination {
 sealed interface NavEvent { data class Go(val to: Destination) : NavEvent; data object Back : NavEvent }
 ```
 
-- **Both platforms:** **Jetpack Navigation Compose** (multiplatform artifact
-  `org.jetbrains.androidx.navigation:navigation-compose`); a single `NavHost` in `sharedUI` switches
-  over `Destination`. Written once, runs on Android and iOS.
-- Navigation *intent* lives in shared ViewModels (`NavEvent`); the `NavHost` in `sharedUI` performs the
-  push/pop. One UI codebase, so routes/params cannot drift across platforms by construction.
+- **Android:** **Jetpack Navigation Compose**; a single `NavHost` switches over `Destination`.
+- **iOS (target):** a `TabView` (Liquid Glass tab bar) whose tabs each own a `NavigationStack`; a
+  `NavigationPath` of `Destination` values, rendered with `.navigationDestination` and an exhaustive
+  `switch onEnum(of: destination)`. Until the split, iOS uses the same Compose `NavHost`.
+- Navigation *intent* lives in shared ViewModels (`NavEvent`); each platform's navigator performs the
+  push/pop. Routes and params are defined once in `Destination`, so they cannot drift; a new destination
+  is not done until both platforms render it.
 - **Decided against:** Decompose (would own the back stack in Kotlin and duplicate what Navigation
   Compose already gives us across platforms).
 
@@ -193,6 +241,7 @@ sealed interface NavEvent { data class Go(val to: Destination) : NavEvent; data 
    layer swappable.
 4. `sharedLogic` **never imports Compose** — discipline (or a Konsist/lint rule), since packages can't
    enforce it the way module boundaries can.
+5. Only Compose-free modules are exported to the iOS framework. Swift never sees a Compose type.
 
 ### When to split a package into its own Gradle module
 
@@ -207,10 +256,12 @@ togglable. Natural first split: `:core`, `:domain`, `:data`, `:source`, then `:f
 |---|---|
 | Database | Room KMP  |
 | Networking | Ktor (replaces OkHttp in shared code) |
-| App UI (Android + iOS) | Compose Multiplatform (in `sharedUI`) — one UI, both platforms |
+| Android UI | Jetpack Compose + Material 3 (`sharedUI`, `:assets:designSystem`) |
+| iOS UI | SwiftUI on iOS 26 with Liquid Glass (`iosApp`) — native, not Compose (migration pending) |
+| Swift ↔ Kotlin bridge | SKIE (Flow → AsyncSequence, sealed → enum, suspend → async) |
 | iOS WebView (Cloudflare) | `WKWebView` headless via `expect`/`actual` — not part of the Compose UI tree |
 | Extensions (both platforms) | WASM source runtime — single shared mechanism, no JSCore, no APK loader |
-| Presentation | MVVM — `ViewModel` + `StateFlow<UiState>` in `sharedLogic` (Compose-free), no MVI |
+| Presentation | MVVM — `ViewModel` + `StateFlow<UiState>` in `sharedLogic` (Compose-free, consumed by both UIs), no MVI |
 | DI | Metro (KMP-compatible) |
 | Async | Kotlin Coroutines + Flow |
 
@@ -218,34 +269,43 @@ togglable. Natural first split: `:core`, `:domain`, `:data`, `:source`, then `:f
 
 ## Design System — single source of truth for all UI
 
-**All UI, designs, and visual artifacts MUST be based on the Tanuki Design System, which lives as a
-**remote claude.ai/design project** (the single source of truth — there is no local copy in this repo):
-`https://claude.ai/design/p/425e7085-96ba-4446-8f59-63793c9cbf48` (project id
-`425e7085-96ba-4446-8f59-63793c9cbf48`). This is the authoritative reference for the brand, colors,
-typography, spacing, iconography, copy/voice, and the dual-platform component language. Do not invent
-ad-hoc colors, type scales, spacing, or components — pull them from the remote project.
+**All UI, designs and visual artifacts MUST follow the Tanuki Design System**, a claude.ai Design System
+artifact: **https://claude.ai/artifact/D6FkueZhdrbViopx1rP1AT** (same artifact:
+`https://claude.ai/code/artifact/61e97a24-0b84-4d3a-8740-97432b556ee4`). It is the authority for brand,
+color, typography, spacing, shape, Liquid Glass usage, iconography, motion, voice and the component
+language of both platforms. Don't invent ad-hoc colors, type sizes, spacing or components.
 
-- **Access it via the `claude_design` MCP connector** (the `DesignSync` tool). If the connector needs
-  authorization, run `/design-login` (grants `user:design:read`/`write`). Read the project with
-  `DesignSync` methods: `list_files` to see paths, `get_file` to read a specific file's content.
-  Before building or mocking any screen, component, marketing/visual artifact, or production UI, pull
-  the relevant design files from the project first.
-- **Start here (paths inside the project):** `readme.md` (brand + visual foundations), `styles.css` →
-  `tokens/` (colors, typography, spacing, fonts — the actual values to use), `components/` (React
-  primitives, each with a `.prompt.md`), `ui_kits/android/` + `ui_kits/ios/` (full screen recreations
-  to copy and adapt). `SKILL.md` is the in-project agent guide.
-- **One Compose design system, both platforms:** the app renders the **same Compose UI** on Android and
-  iOS, so there is a single Material You–based Tanuki design system in `sharedUI/designsystem`. The design
-  project's `ui_kits/ios/` (Liquid Glass) is **reference only** — true OS Liquid Glass needs native
-  SwiftUI, which we've deliberately dropped for maximum code sharing. Where the design calls for a glassy
-  surface, approximate it in Compose (translucency/blur), but do not fork the component set per platform;
-  the `platform="android" | "ios"` prop collapses to a single Compose implementation.
-- Dark-first, near-monochrome, with a single warm tanuki orange (`#E8731C`) accent used sparingly. Use
-  **Material Symbols Rounded** across both platforms (SF Symbols aren't available to Compose); the only
-  proprietary glyph is the tanuki brand mark in the project's `assets/`.
-- The design doc at `_source/tanuki_design_doc.pdf` (inside the project) is the primary visual reference
-  the system is built from. When the design system and this file disagree on a visual detail, the design
-  system wins. To keep a local component library in sync with the project, use the `/design-sync` skill.
+> The old claude.ai/design project (`425e7085-96ba-4446-8f59-63793c9cbf48`, read via `DesignSync` /
+> `/design-sync`) and its `#E8731C` orange / tanuki-face logo are **superseded**. Don't read from it or
+> sync to it.
+
+- **How to read it:** use the Artifact tool's `read` on the link with a file `path`. Start with
+  `project/README.md` (the brand book and all usage rules), then `project/tokens.json` (every token, both
+  themes, with usage notes) and `project/components/<Name>/README.md` for a component's guidelines.
+  Logos are uploaded assets listed in `project/design-system.json` under `assetGroups.Logos`. The
+  artifact is private to the owner's account; if it can't be read, say so — don't guess values.
+- **One brand core, two native dialects.** The core (tokens, type scale, voice, the mark) is shared.
+  Android renders it as Material 3 in `:assets:designSystem` (`TanukiTheme` → M3 `ColorScheme` +
+  `LocalTanukiColors`); iOS renders it natively in `iosApp/DesignSystem` (asset-catalog colors, `Color.tk.*`).
+  Components keep the same names and behavior but each platform owns its own implementation. Generate
+  `TanukiColors.kt` and the iOS color assets **from `tokens.json`**; never hand-copy hex values.
+- **Brand at a glance:** dark-first (Night "sumi" + Day "washi"), warm ink/paper neutrals, one
+  persimmon `accent` (`kaki` #f2843a; #b0480b on light grounds) for state and the single primary action.
+  Display face **Bricolage Grotesque** (wordmark, hero titles, Android large titles); text face is the
+  platform's (Roboto / SF Pro). The mark is the **leaf-page** (a persimmon leaf split like an open book).
+- **iOS = Liquid Glass.** Glass is the navigation layer only: tab bar (+ search tab, continue-reading
+  bottom accessory), toolbar buttons, search, sheets, alerts, menus, reader chrome. Content (covers,
+  chapter rows, lists, cards, text) stays solid. Use the system: `.glassEffect()`,
+  `.buttonStyle(.glass)` / `.glassProminent` (only the primary action, tinted `accent`),
+  `GlassEffectContainer`, `ToolbarItemGroup`, scroll-edge effects. The `glass-*` tokens exist only for
+  web previews — Swift never paints them. Android has **no glass or blur**: opaque M3 tonal surfaces.
+- **Icons are the system sets — never hand-drawn.** Android: **Material Symbols Rounded** (FILL 0 at
+  rest, FILL 1 when selected). iOS: **SF Symbols** (`.fill` variants for selection, hierarchical
+  rendering for status, symbol effects for state changes). The Tanuki → Material → SF name table is in
+  the README. The custom-drawn `TanukiIcons.kt` vectors are being replaced; don't add to them. The only
+  proprietary glyph is the leaf mark.
+- **Status of the code:** `:assets:designSystem` still holds the previous palette, type scale and logo.
+  Bring it to the new tokens incrementally; when the code and the artifact disagree, the artifact wins.
 
 ---
 
@@ -254,23 +314,26 @@ ad-hoc colors, type scales, spacing, or components — pull them from the remote
 Every user-facing string MUST be localizable — the app ships in **English** and **Brazilian
 Portuguese (pt-BR)** for now, more later. No hardcoded display copy.
 
-- **One mechanism, both platforms — Compose Multiplatform Resources.** Because the UI is a single
-  Compose codebase, strings live once in `sharedUI/src/commonMain/composeResources/`:
-  `values/strings.xml` (en) and `values-pt-rBR/strings.xml` (pt-BR). No `Localizable.xcstrings`, no
-  SwiftUI `LocalizedStringKey` — those are gone with native iOS UI.
+- **Android (and the Compose UI that iOS still runs today): Compose Multiplatform Resources.** Strings
+  live in `sharedUI/src/commonMain/composeResources/`: `values/strings.xml` (en) and
+  `values-pt-rBR/strings.xml` (pt-BR).
+- **Native iOS UI: open decision.** How SwiftUI screens get localized copy (an Xcode String Catalog in
+  `iosApp`, or one shared string source both platforms read) is **not decided yet**. Raise it before the
+  first SwiftUI screen ships; don't pick one silently. Whatever is chosen, en + pt-BR stay in parity
+  with Android.
 - In composables, reference strings by generated id: `Text(stringResource(Res.string.filter_by_category))`
   — never an inline display literal. Dynamic values go through format args
   (`stringResource(Res.string.show_n_titles, n)`), not string concatenation; counts use
   `pluralStringResource(...)`.
-- **Strings needed in `sharedLogic` (Compose-free ViewModels):** do not resolve text there. Either expose
-  the `StringResource` reference in the UI state and resolve it in the composable, or use the non-composable
-  suspend `getString(Res.string.x)` accessor. Keep raw display `String`s out of ViewModels.
+- **Strings needed in `sharedLogic` (Compose-free ViewModels):** do not resolve text there, and don't
+  put `StringResource` in UI state either (Swift can't resolve it). Expose *meaning* — an enum or sealed
+  type (`DownloadError.NoNetwork`), counts, ids — and let each platform's UI map it to localized copy.
+  Keep raw display `String`s out of ViewModels.
 - Pure content/data (manga title, genre, author) stays a plain `String` — it comes from sources, isn't
   localizable, and never goes through `stringResource`.
 - A new screen is not done until both languages have every key. Don't add a string in one language only.
-- Status: **not wired up yet** — `composeResources/` string catalogs don't exist (the current `sharedUI`
-  is still the scaffold). The old `iosApp/iosApp/Localizable.xcstrings` approach is **superseded** by
-  Compose Resources; set up `values/` + `values-pt-rBR/` when real Compose UI lands.
+- Status: **not wired up yet** — `composeResources/` string catalogs don't exist. Set up `values/` +
+  `values-pt-rBR/` for the Compose UI; the iOS mechanism waits on the open decision above.
 
 ## Key Interface — Never Break This
 
@@ -307,7 +370,7 @@ HTTP Request → CloudflareInterceptor
 
 - **Android:** `android.webkit.WebView` (Chromium)
 - **iOS:** `WKWebView` driven headlessly (offscreen) via `expect`/`actual` — it solves the challenge;
-  it is not part of the Compose UI (headless platform binding, one of the few bits of iOS-specific code)
+  it is not part of any UI tree (a headless platform binding in `iosMain`, independent of SwiftUI)
 - Interceptor logic lives in `commonMain`; the WebView is injected via `expect`/`actual`.
 - **Independent of the extension runtime** — the interceptor and the WASM source loader are separate
   concerns. Don't couple the two.
@@ -366,10 +429,14 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
   SQLite driver** (`androidx.sqlite:sqlite-bundled`) so iOS/native works; add the KSP room compiler per
   target. Don't reach for SQLDelight — Room is the decided choice.
 - Don't import Android-specific Compose APIs in `commonMain`.
-- Don't write native SwiftUI screens for app UI — the iOS UI **is** Compose Multiplatform from `sharedUI`.
-  `iosApp` is a thin host that launches a `ComposeUIViewController`; the only iOS-specific code is
-  `expect`/`actual` platform bindings (headless `WKWebView`, WASM engine), not UI.
-- Don't define routes per-platform — destinations live once in `sharedLogic` (`Destination` sealed type).
+- Don't build new iOS UI in Compose — new iOS screens are SwiftUI. Don't remove the Compose host for a
+  slice until its SwiftUI replacement ships. Don't put presentation logic in Swift; it belongs in the
+  shared ViewModel.
+- Don't expose Compose types (`Color`, `ImageVector`, `StringResource`, `@Composable` lambdas) from
+  ViewModels or anything exported to the iOS framework.
+- Don't hand-write Flow/suspend bridges for Swift — SKIE handles them.
+- Don't define routes per-platform — destinations live once in `sharedLogic` (`Destination` sealed type);
+  only their rendering is per-platform.
 - Don't extend `ViewModel` directly, and don't re-declare a `navEvents` channel, a `stateIn` timeout, or
   a `withContext(dispatcher.io)` wrapper in a ViewModel — extend `TanukiViewModel` and use what it owns
   (see "Presentation pattern"), including the `binding<ViewModel>()` requirement on `@ContributesIntoMap`.
@@ -377,14 +444,17 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
   runs for the ViewModel's whole lifetime whether or not any UI is subscribed. Extend `StateViewModel<S>`
   and let its `asState` gate the pipeline on `WhileSubscribed`.
 - Don't invent ad-hoc colors, type scales, spacing, or UI components — base all designs on the Tanuki
-  Design System (remote claude.ai/design project, via the `claude_design` MCP). One Compose design system
-  serves both platforms; the iOS Liquid Glass kit is reference only, so don't fork components per platform.
-- Don't set type with raw font sizes — use the `TanukiTextStyle` tokens (Compose `TextStyle`s in the
-  design system) so size/weight/tracking/line-height come from the scale. (Snap to the nearest token;
-  don't use off-scale sizes.)
-- Don't hardcode user-facing copy — every display string must be localizable via Compose Resources with
-  `en` + `pt-BR` entries (see "Localization"). No inline display literals in Compose; use
-  `stringResource(Res.string.…)`.
+  Design System artifact (https://claude.ai/artifact/D6FkueZhdrbViopx1rP1AT). Don't use the old
+  claude.ai/design project. Same components on both platforms, each implemented natively.
+- Don't put Liquid Glass on content (covers, lists, cards, text), stack glass on glass, or tint secondary
+  glass; don't add glass/blur on Android. Don't draw custom icons — Material Symbols Rounded on Android,
+  SF Symbols on iOS.
+- Don't set type with raw font sizes — on Android use the `TanukiTextStyle` tokens (Compose `TextStyle`s
+  in the design system); on iOS use the Dynamic Type text styles the design system maps to the scale.
+  Snap to the nearest token; don't use off-scale sizes.
+- Don't hardcode user-facing copy — every display string must be localizable with `en` + `pt-BR`
+  entries (see "Localization"). No inline display literals in Compose (use `stringResource(Res.string.…)`)
+  or in SwiftUI.
 - Don't put dependency versions inline in build files — add them to `gradle/libs.versions.toml`.
 - Don't put shared build config in module build files — extend the `gradle/build-logic` convention
   plugins (`tanuki.*`) instead; SDK/JVM levels live in `Config.kt`.
@@ -396,14 +466,16 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
 
 ## References
 
-- **Tanuki Design System (authoritative UI reference):** remote claude.ai/design project `https://claude.ai/design/p/425e7085-96ba-4446-8f59-63793c9cbf48` — read via the `claude_design` MCP connector (`DesignSync` tool); auth with `/design-login`
+- **Tanuki Design System (authoritative UI reference):** https://claude.ai/artifact/D6FkueZhdrbViopx1rP1AT — read with the Artifact tool, starting at `project/README.md`
 - Mihon upstream: https://github.com/mihonapp/mihon
 - Aidoku (primary WASM extension reference): https://github.com/Aidoku/Aidoku
 - Suwatte (illustrates the iOS Cloudflare problem JSCore readers hit): https://github.com/suwatte
 - Compose Multiplatform WebView (Android in-app webview): https://github.com/KevinnZou/compose-webview-multiplatform
-- Compose Multiplatform for iOS (shared Compose UI, `ComposeUIViewController`): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-multiplatform-ios.html
+- SKIE (Kotlin↔Swift bridge for the SwiftUI app): https://skie.touchlab.co
+- Apple Liquid Glass (implemented natively in the iOS app): https://developer.apple.com/documentation/technologyoverviews/liquid-glass
+- SF Symbols: https://developer.apple.com/sf-symbols/
+- Material Symbols: https://fonts.google.com/icons
+- Compose Multiplatform for iOS (current iOS host, until the split): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-multiplatform-ios.html
 - Compose Multiplatform Resources (localized strings, images): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-multiplatform-resources.html
 - Navigation Compose (multiplatform): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-navigation-routing.html
-- SKIE (Kotlin↔Swift bridging — only if thin Swift host code needs it; not used for UI): https://skie.touchlab.co
-- Apple Liquid Glass (design reference only — not implemented natively): https://developer.apple.com/documentation/technologyoverviews/liquid-glass
 - KMP docs: https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html
