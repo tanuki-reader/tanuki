@@ -55,11 +55,18 @@ network, sources, ViewModels (`StateFlow<UiState>` + action methods) and the `De
 This reverses the earlier "one Compose UI on both platforms" decision.
 
 > **Current state (2026-10):** iOS still renders the shared Compose UI through
-> `iosApp/iosApp/ContentView.swift` → `MainViewControllerKt.MainViewController()`. The split has not
-> started. Until it lands:
+> `iosApp/iosApp/ContentView.swift` → `MainViewControllerKt.MainViewController()`. The migration is in
+> **Phase 0 (foundation)**: SKIE is applied in `:shared`, which exports the `:core:*` modules to Swift, and
+> the Swift side of the bridge has been verified. No SwiftUI screen ships yet. **Plan, estimates and
+> progress log: `docs/swiftui-migration.md`. Read it before any migration work, and update its progress
+> log at the end of the session.** Until the split lands:
 > - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.
 > - Keep the Compose UI working on iOS (don't break the current host) until the SwiftUI screen that
->   replaces it ships; migrate one feature slice at a time (library → manga → reader → …).
+>   replaces it ships. Migrate one feature slice at a time, in the order the plan sets
+>   (home → settings → library → source browse → manga → activity → downloads → reader). Unmigrated
+>   destinations keep rendering their Compose screen inside the SwiftUI root.
+> - A Kotlin bump must wait until **both** SKIE and Metro support the new version. Build the iOS
+>   framework, not just Android, before calling it done.
 > - ViewModels must become consumable from Swift: move them out of the Compose `:features:<x>` modules
 >   into Compose-free modules (the `:features:<x>:logic` / `:features:<x>:ui` pairs from "When to split")
 >   that are exported in the iOS framework.
