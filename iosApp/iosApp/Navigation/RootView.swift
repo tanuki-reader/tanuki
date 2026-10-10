@@ -44,13 +44,10 @@ struct RootView: View {
     private func stack(for key: TabKey) -> some View {
         let path = Binding(get: { paths[key] ?? [] }, set: { paths[key] = $0 })
         return NavigationStack(path: path) {
-            ComposeDestinationView(destination: key.destination, path: path)
-                .toolbar(.hidden, for: .navigationBar)
+            DestinationView(destination: key.destination, path: path)
                 .navigationDestination(for: Route.self) { route in
-                    // Leaves take the whole screen, as they do on Android: Compose draws their top bar,
-                    // and the tab bar steps aside.
-                    ComposeDestinationView(destination: route.destination, path: path)
-                        .toolbar(.hidden, for: .navigationBar)
+                    // Leaves take the whole screen, as they do on Android: the tab bar steps aside.
+                    DestinationView(destination: route.destination, path: path)
                         .toolbar(.hidden, for: .tabBar)
                 }
         }

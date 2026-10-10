@@ -21,7 +21,7 @@ struct TanukiImage<Placeholder: View>: View {
     var body: some View {
         // ponytail: no resize processor; a full decode of a ~512px cover is cheap. Add
         // ImageProcessors.Resize at the view's size when the reader brings full-size pages.
-        LazyImage(request: request, transaction: Transaction(animation: TK.Motion.ease())) { state in
+        LazyImage(request: request, transaction: Transaction(animation: TK.Motion.enter)) { state in
             if let image = state.image {
                 image.resizable().scaledToFill()
             } else {

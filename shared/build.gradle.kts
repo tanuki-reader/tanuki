@@ -33,9 +33,7 @@ kotlin {
             export(projects.core.domain)
             export(projects.core.navigation)
             export(projects.core.presentation)
-            // ponytail: SKIE spike only — exports the Compose feature module whole to prove a concrete
-            // StateViewModel bridges; replace with :features:home:logic in Phase 1.
-            export(projects.features.home)
+            export(projects.features.home.logic)
         }
     }
     
@@ -92,6 +90,7 @@ kotlin {
             api(projects.features.activity)
             api(projects.features.downloads)
             api(projects.features.home)
+            api(projects.features.home.logic)
             api(projects.features.source)
             api(projects.features.settings)
             implementation(projects.assets.designSystem)

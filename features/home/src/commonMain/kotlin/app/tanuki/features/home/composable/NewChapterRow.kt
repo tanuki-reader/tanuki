@@ -28,10 +28,10 @@ import app.tanuki.features.home.resources.home_time_just_now
 import app.tanuki.features.home.resources.home_time_minutes
 import app.tanuki.features.home.resources.home_time_weeks
 import app.tanuki.features.home.viewmodel.NewChapterItem
+import app.tanuki.core.presentation.Elapsed
+import app.tanuki.core.presentation.ElapsedUnit
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 private val COVER_WIDTH = 40.dp
 
@@ -112,35 +112,22 @@ internal fun NewChapterRow(
             }
         }
         Text(
-            text = relativeDiscoveredAt(item.discoveredAt),
+            text = relativeCaption(item.discoveredAgo),
             style = TanukiTheme.typography.caption,
             color = TanukiTheme.colors.textFaint
         )
     }
 }
 
-/**
- * A localized, relative caption for when an update was found — "Just now", "5 min ago", "3 h ago",
- * "2 days ago", "4 weeks ago". Coarse buckets, so no locale date formatting is needed; weeks is the
- * widest, which is plenty for something the user is expected to read soon.
- */
+/** The localized caption for how long ago an update was found ("Just now", "5 min ago", …). */
 @Composable
-private fun relativeDiscoveredAt(
-    discoveredAt: Instant,
-    now: Instant = Clock.System.now()
-): String {
-    val elapsed = now - discoveredAt
-    val minutes = elapsed.inWholeMinutes
-    val hours = elapsed.inWholeHours
-    val days = elapsed.inWholeDays
-    return when {
-        minutes < 1 -> stringResource(Res.string.home_time_just_now)
-        minutes < 60 -> pluralStringResource(Res.plurals.home_time_minutes, minutes.toInt(), minutes.toInt())
-        hours < 24 -> pluralStringResource(Res.plurals.home_time_hours, hours.toInt(), hours.toInt())
-        days < 7 -> pluralStringResource(Res.plurals.home_time_days, days.toInt(), days.toInt())
-        else -> {
-            val weeks = (days / 7).toInt()
-            pluralStringResource(Res.plurals.home_time_weeks, weeks, weeks)
-        }
+private fun relativeCaption(elapsed: Elapsed): String {
+    val count = elapsed.count
+    return when (elapsed.unit) {
+        ElapsedUnit.JustNow -> stringResource(Res.string.home_time_just_now)
+        ElapsedUnit.Minutes -> pluralStringResource(Res.plurals.home_time_minutes, count, count)
+        ElapsedUnit.Hours -> pluralStringResource(Res.plurals.home_time_hours, count, count)
+        ElapsedUnit.Days -> pluralStringResource(Res.plurals.home_time_days, count, count)
+        ElapsedUnit.Weeks -> pluralStringResource(Res.plurals.home_time_weeks, count, count)
     }
 }

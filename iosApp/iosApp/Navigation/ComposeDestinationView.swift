@@ -6,8 +6,9 @@ import UIKit
 /// hybrid bridge, `ComposeBridge.kt`). Pushes and pops go to the SwiftUI stack it sits in, so a Compose
 /// screen navigates exactly like a migrated one.
 ///
-/// Compose keeps owning its status-bar and keyboard insets, as it did as the whole UI, so only the top
-/// edge and the keyboard are ignored. The bottom stays inside the safe area, above the tab bar.
+/// Compose draws its own top bar, so the native navigation bar is hidden. Compose keeps owning its
+/// status-bar and keyboard insets, as it did as the whole UI, so only the top edge and the keyboard are
+/// ignored. The bottom stays inside the safe area, above the tab bar.
 struct ComposeDestinationView: View {
     let destination: any Destination
     @Binding var path: [Route]
@@ -16,6 +17,7 @@ struct ComposeDestinationView: View {
         ComposeController(destination: destination, path: $path)
             .ignoresSafeArea(edges: .top)
             .ignoresSafeArea(.keyboard)
+            .toolbar(.hidden, for: .navigationBar)
     }
 }
 

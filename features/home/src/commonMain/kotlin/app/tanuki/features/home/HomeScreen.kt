@@ -16,9 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,14 +42,12 @@ import app.tanuki.features.home.resources.home_segment_for_you
 import app.tanuki.features.home.resources.home_segment_sources
 import app.tanuki.features.home.resources.home_sources_empty
 import app.tanuki.features.home.resources.home_title
+import app.tanuki.features.home.viewmodel.HomeSegment
 import app.tanuki.features.home.viewmodel.HomeState.Content
 import app.tanuki.features.home.viewmodel.HomeState.Loading
 import app.tanuki.features.home.viewmodel.HomeViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import org.jetbrains.compose.resources.stringResource
-
-/** Home's two views. Which one is showing is a pure UI state — it changes nothing in the data. */
-private enum class HomeView { ForYou, Sources }
 
 /**
  * Stateful entry point for the Home tab. Resolves [HomeViewModel] from Metro, collects its state, and
@@ -83,7 +78,6 @@ private fun HomeScreen(
     viewModel: HomeViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var view by rememberSaveable { mutableStateOf(HomeView.ForYou) }
 
     Column(
         modifier =
@@ -102,29 +96,29 @@ private fun HomeScreen(
             onSearchQueryChange = {}
         )
 
-        TanukiSegmentedControl(
-            segments =
-                listOf(
-                    Segment(HomeView.ForYou, stringResource(Res.string.home_segment_for_you)),
-                    Segment(HomeView.Sources, stringResource(Res.string.home_segment_sources))
-                ),
-            selected = view,
-            onSelect = { view = it },
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(TanukiTheme.spacing.gutter)
-        )
-
         when (val current = state) {
             Loading -> {
                 Box(Modifier.fillMaxSize(), Alignment.Center) { TanukiLoadingIndicator() }
             }
 
             is Content -> {
-                when (view) {
-                    HomeView.ForYou -> ForYouView(current, viewModel)
-                    HomeView.Sources -> SourcesView(current, viewModel)
+                // The control appears with the content: which view is selected is part of the state.
+                TanukiSegmentedControl(
+                    segments =
+                        listOf(
+                            Segment(HomeSegment.ForYou, stringResource(Res.string.home_segment_for_you)),
+                            Segment(HomeSegment.Sources, stringResource(Res.string.home_segment_sources))
+                        ),
+                    selected = current.segment,
+                    onSelect = viewModel::onSelectSegment,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(TanukiTheme.spacing.gutter)
+                )
+                when (current.segment) {
+                    HomeSegment.ForYou -> ForYouView(current, viewModel)
+                    HomeSegment.Sources -> SourcesView(current, viewModel)
                 }
             }
         }

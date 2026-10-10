@@ -56,11 +56,11 @@ network, sources, ViewModels (`StateFlow<UiState>` + action methods) and the `De
 This reverses the earlier "one Compose UI on both platforms" decision.
 
 > **Current state (2026-10):** iOS has a **SwiftUI root** (`iosApp/iosApp/Navigation/RootView.swift`: a
-> `TabView` with a `NavigationStack` of `Route`s per tab), and every destination still renders its Compose
-> `*Route` through `shared/src/iosMain/…/ComposeBridge.kt` (`DestinationContent` is the one
-> Destination → Route mapping, shared with Android's `TanukiNavHost`). The migration is in **Phase 0
-> (foundation)**: SKIE is applied in `:shared`, the ViewModel glue (`ScreenScope` / `ScreenModel`) exists,
-> and no screen is SwiftUI-native yet. **Plan, estimates and
+> `TabView` with a `NavigationStack` of `Route`s per tab). `Navigation/DestinationView.swift` picks each
+> destination's screen: **Home is SwiftUI-native** (`Features/Home/`, over `:features:home:logic`), and
+> every other destination still renders its Compose `*Route` through `shared/src/iosMain/…/ComposeBridge.kt`
+> (`DestinationContent` is the one Destination → Route mapping, shared with Android's `TanukiNavHost`).
+> The migration has finished **Phase 1 (Home)**; Settings is next. **Plan, estimates and
 > progress log: `docs/swiftui-migration.md`. Read it before any migration work, and update its progress
 > log at the end of the session.** Until the split lands:
 > - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.
@@ -303,6 +303,8 @@ language of both platforms. Don't invent ad-hoc colors, type sizes, spacing or c
   `LocalTanukiColors`); iOS renders it natively in `iosApp/DesignSystem` (asset-catalog colors, `Color.tk.*`).
   Components keep the same names and behavior but each platform owns its own implementation. Generate
   `TanukiColors.kt` and the iOS color assets **from `tokens.json`**; never hand-copy hex values.
+  On iOS that's `scripts/generate-ios-tokens.py` over `iosApp/design/tokens.json` (a checked-in copy of the
+  artifact's; refresh it, then re-run). It writes the colorsets, `Color.tk.*` and `TK.Space/Radius/Size`.
 - **Brand at a glance:** dark-first (Night "sumi" + Day "washi"), warm ink/paper neutrals, one
   persimmon `accent` (`kaki` #f2843a; #b0480b on light grounds) for state and the single primary action.
   Display face **Bricolage Grotesque** (wordmark, hero titles, Android large titles); text face is the

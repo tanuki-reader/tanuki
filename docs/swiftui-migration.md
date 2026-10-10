@@ -145,6 +145,14 @@ iOSApp (SwiftUI @main)
   `DataLoading`) replacing its network and no Nuke disk cache (`ImagePipeline.tanuki`). Screens only use
   `TanukiImage(url:headers:placeholder:)`. Never fetch images with `URLSession`: it would bypass the
   Cloudflare solve.
+- **Design tokens (built, Phase 1):** the Tanuki Design System artifact
+  (https://claude.ai/artifact/D6FkueZhdrbViopx1rP1AT) is the authority; the old claude.ai/design project
+  that Phase 0's tokens came from is superseded. `iosApp/design/tokens.json` is a checked-in copy of the
+  artifact's `project/tokens.json`, and `scripts/generate-ios-tokens.py` turns it into the colorsets,
+  `Color.tk.*` and `TK.Space/Radius/Size`. Re-download the json and re-run the script when the design
+  changes; never hand-copy values. Type maps onto the system Dynamic Type styles (`TanukiType.swift`),
+  and motion is hand-written from the README (`TanukiMotion.swift`). Android's `:assets:designSystem`
+  still has the old palette and is migrated separately.
 - **Module split per feature, done when that feature migrates** (`:features:home:logic` first), not
   all at once.
 
@@ -295,3 +303,41 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
   the SwiftUI root are still pending (tab switching, leaf push/back, edge swipe, a Cloudflare reveal).
   Next: **Phase 1 — Home** (split `:features:home:logic`, move the For You/Sources toggle into the VM,
   `MangaCover` + `HomeView` in SwiftUI, add Home's branch to the destination switch).
+- 2026-10-10 — **Phase 1 — Home done** (pending commit and the hand checks below).
+  - **Tokens first:** the iOS tokens were regenerated from the design-system artifact (see the Decisions
+    bullet "Design tokens"). The Phase 0 colorsets and `TanukiSpacing.swift` are gone, replaced by 31
+    generated colorsets, `TanukiColors.swift` and `TanukiTokens.swift`. Type now maps onto system
+    Dynamic Type styles, and `TanukiMotion.swift` holds enter/exit/reduced.
+  - **`:features:home:logic`** (nested under `features/home/logic`) holds `HomeViewModel`, `HomeState`
+    and the test, in the same package. The framework exports it instead of the whole Compose module,
+    which the SKIE spike had done, and the header has `HomeViewModel`, `HomeSegment` and `Elapsed`, with
+    no Home composables.
+  - **Logic moved out of the UI:**
+    - the For You/Sources toggle is `Content.segment` + `onSelectSegment`, replacing `rememberSaveable`.
+      It no longer survives Android process death; add `SavedStateHandle` if that matters.
+    - the relative caption is `NewChapterItem.discoveredAgo: Elapsed`, from
+      `:core:presentation`'s `elapsedSince`, which Activity's `HistoryRow` should adopt in Phase 6.
+    - Android's `HomeScreen`/`NewChapterRow` now read both from state. The segmented control renders
+      with the content, not during loading.
+  - **SwiftUI:**
+    - `Features/Home/HomeScreen.swift`: a large title and one `List` with `Picker(.segmented)`, a
+      continue-reading carousel of `MangaHeroCard`s, New Chapters rows, and language `DisclosureGroup`s
+      bound to the ViewModel.
+    - `DesignSystem/Components/`: `MangaCover` (5:7, a `cover-*` fallback via a port of Kotlin's
+      `String.hashCode`, so slots match Android's), `MangaHeroCard` and `SourceIcon`.
+    - `Navigation/DestinationView.swift` is the destination switch: Home is native, everything else
+      goes through the Compose bridge (which now hides the nav bar itself).
+  - **Verified:**
+    - `:core:presentation` tests (`ElapsedTest` 2/2), `:features:home:logic` tests (6/6 on host and
+      iOS), `:shared:iosSimulatorArm64Test`, the framework link, `:androidApp:assembleDebug`, and a
+      Debug xcodebuild.
+    - Live on the simulator: For You empty state, plus Sources with the first group expanded (driven
+      by a temporary auto-select, since reverted), in dark and light. The real source icons loaded.
+  - **Not verified by hand:**
+    - For You with content (the simulator library is empty);
+    - tapping a source → the Compose browse leaf → back (button and edge swipe);
+    - Android on a device.
+  - **Out of scope, noted:** the artifact's tab set (Library/Updates/History/Browse + search) differs
+    from `TopLevelDestination`; Android's `:assets:designSystem` is still on the old palette.
+
+  Next: **Phase 2 — Settings**.
