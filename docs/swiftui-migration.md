@@ -134,8 +134,13 @@ iOSApp (SwiftUI @main)
 - **Strings:** one source of truth stays `strings.xml`. A small Gradle task generates
   `iosApp/…/Localizable.xcstrings` (en + pt-BR) from it. Until that task exists, Home's ~14 keys are
   copied by hand.
-- **Images:** a Kotlin `ImageBridge.load(url, headers, maxPx): NSData?` backed by the existing Coil
-  loaders (same disk cache, same CF client), plus one SwiftUI `TanukiImage` view. No Nuke/Kingfisher.
+- **Images (built):** Kotlin owns the fetch and the disk cache. `ImageBridge.loadCoverData(url, headers)`
+  goes through Coil's singleton loader: the CF-aware Ktor client, `cover_cache` shared with Compose,
+  success-only caching, and a pass-through decoder that returns the encoded bytes. **Nuke 13** (SPM) owns
+  the memory cache, decoding, coalescing and prefetching, with a `KotlinDataLoader` (Nuke's
+  `DataLoading`) replacing its network and no Nuke disk cache (`ImagePipeline.tanuki`). Screens only use
+  `TanukiImage(url:headers:placeholder:)`. Never fetch images with `URLSession`: it would bypass the
+  Cloudflare solve.
 - **Module split per feature, done when that feature migrates** (`:features:home:logic` first), not
   all at once.
 
@@ -270,4 +275,11 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
     the project's `components/` + `ui_kits/ios/`.
   - **Verified:** a Debug xcodebuild, plus a temporary specimen screen screenshotted on the simulator in
     dark and light (every token resolved and flipped), then reverted.
-  Next: `ImageBridge` + `TanukiImage`, then the strings pipeline, then Home.
+- 2026-10-10 — Phase 0 images done (see the Decisions bullet "Images"). `ImageBridge.kt` +
+  `ImageBridgeTest` (MockEngine + a temporary disk cache: bytes + headers, second load from disk, 404 →
+  `null` and not cached). Nuke 13.2.0 + NukeUI were added via SPM, wired like Sentry. `KotlinDataLoader`,
+  `ImagePipeline.tanuki` and `TanukiImage` are in `iosApp/iosApp/DesignSystem/`. **Verified live** on the
+  simulator with a temporary specimen: a real MangaDex cover rendered, a 404 showed the placeholder, and
+  `cover_cache` held exactly the one fetched cover. Calling the Kotlin suspend function from Nuke's
+  background task works with no main-thread restriction.
+  Next: the strings pipeline (`strings.xml` → `Localizable.xcstrings`), then Phase 1: Home.

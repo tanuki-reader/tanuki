@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		39877067470580001A32FCAB /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = 8EA42584063075BEA457036F /* NukeUI */; };
+		8921F40259050F7F8103D77B /* Nuke in Frameworks */ = {isa = PBXBuildFile; productRef = 2AFD4A5D77F5F4D28A2319BF /* Nuke */; };
 		FA7F8E00304DB2E1008C42C9 /* Sentry-Dynamic in Frameworks */ = {isa = PBXBuildFile; productRef = FA7F8E01304DB2E1008C42C9 /* Sentry-Dynamic */; };
 /* End PBXBuildFile section */
 
@@ -54,6 +56,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				FA7F8E00304DB2E1008C42C9 /* Sentry-Dynamic in Frameworks */,
+				8921F40259050F7F8103D77B /* Nuke in Frameworks */,
+				39877067470580001A32FCAB /* NukeUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -109,6 +113,8 @@
 			name = iosApp;
 			packageProductDependencies = (
 				FA7F8E01304DB2E1008C42C9 /* Sentry-Dynamic */,
+				2AFD4A5D77F5F4D28A2319BF /* Nuke */,
+				8EA42584063075BEA457036F /* NukeUI */,
 			);
 			productName = iosApp;
 			productReference = 7F3FACDF9E86D2D9A4EDE994 /* Tanuki.app */;
@@ -140,6 +146,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				FA7F8DF3304DB2E1008C42C9 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
+				6B6E4EEA48A5AE198F8206AA /* XCRemoteSwiftPackageReference "Nuke" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A502D0676787A4BAEBC6C8D4 /* Products */;
@@ -439,6 +446,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		6B6E4EEA48A5AE198F8206AA /* XCRemoteSwiftPackageReference "Nuke" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kean/Nuke.git";
+			requirement = {
+				kind = exactVersion;
+				version = 13.2.0;
+			};
+		};
 		FA7F8DF3304DB2E1008C42C9 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/getsentry/sentry-cocoa.git";
@@ -450,6 +465,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2AFD4A5D77F5F4D28A2319BF /* Nuke */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6B6E4EEA48A5AE198F8206AA /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = Nuke;
+		};
+		8EA42584063075BEA457036F /* NukeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 6B6E4EEA48A5AE198F8206AA /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = NukeUI;
+		};
 		FA7F8E01304DB2E1008C42C9 /* Sentry-Dynamic */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = FA7F8DF3304DB2E1008C42C9 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;

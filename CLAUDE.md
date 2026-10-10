@@ -83,6 +83,10 @@ This reverses the earlier "one Compose UI on both platforms" decision.
   logic in Swift — if Swift needs to compute it, it belongs in the ViewModel.
 - **What is native per platform:** screens, components, navigation rendering, icons, motion, strings
   presentation, platform chrome. Once a slice is migrated, no composable renders on iOS for it.
+- **Images on iOS** go through `TanukiImage` only (Nuke over the Kotlin `ImageBridge`): Kotlin does the
+  fetch (Cloudflare-aware Ktor client) and the disk cache, and Nuke does decoding and the memory cache.
+  Never load a remote image with `URLSession`/`AsyncImage`: it bypasses the Cloudflare solve and the
+  source's headers.
 - iOS-specific non-UI code (headless `WKWebView`, WASM engine binding) stays in `iosMain` via
   `expect`/`actual`, exactly as before.
 

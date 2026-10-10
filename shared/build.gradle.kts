@@ -114,6 +114,11 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
+        iosTest.dependencies {
+            // ImageBridgeTest drives Coil's fetch and disk cache against a fake network.
+            implementation(libs.ktor.client.mock)
+            implementation(libs.kotlinx.coroutines.test)
+        }
     }
 }
 
