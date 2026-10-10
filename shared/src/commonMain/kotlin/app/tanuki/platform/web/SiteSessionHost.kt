@@ -121,9 +121,16 @@ private const val SLIDE_FRACTION = 24
  * in the platform compositor and is invisible to the page. Hence the rules this composable keeps: while
  * silent the layer is full-size and fully opaque, and *only* its draw order changes. Never fade it, never
  * shrink it, never take it out of the composition to hide it.
+ *
+ * @param onRevealedChange told whether the layer must be on top of the app, for a host that stacks it
+ *   in a separate view (iOS's SwiftUI root). Inside one Compose tree the zIndex does this, and the
+ *   default ignores it.
  */
 @Composable
-fun SiteSessionHost(coordinator: SiteSessionCoordinator) {
+fun SiteSessionHost(
+    coordinator: SiteSessionCoordinator,
+    onRevealedChange: (Boolean) -> Unit = {},
+) {
     DisposableEffect(coordinator) {
         coordinator.attach()
         onDispose { coordinator.detach() }
@@ -169,6 +176,12 @@ fun SiteSessionHost(coordinator: SiteSessionCoordinator) {
             ),
         label = "siteSessionPresence",
     )
+
+    // For a host that stacks this layer itself instead of relying on the zIndex below. iOS's SwiftUI root
+    // keeps the layer in its own view behind the app and needs to know when to bring it to the front.
+    // True from the reveal until the exit animation has finished.
+    val onTop = revealed && (pending != null || presence > 0f)
+    LaunchedEffect(onTop) { onRevealedChange(onTop) }
 
     // Composed while a session is live, and kept for as long as an exit animation is still running. A
     // session dismissed while still silent was never visible, so `presence` is already 0 and it simply goes.

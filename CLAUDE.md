@@ -27,7 +27,8 @@ toward the Mihon feature set incrementally. A previous, more fully-scaffolded at
 ./gradlew :androidApp:assembleDebug
 
 # iOS: open ./iosApp in Xcode and run from there (no gradle run task).
-# Today iosApp still hosts the shared Compose UI (ComposeUIViewController via MainViewController).
+# iosApp has a SwiftUI root (RootView: TabView + NavigationStack per tab); screens not yet migrated render
+# their Compose *Route through ComposeBridge.kt.
 # Target: iosApp is a native SwiftUI app consuming the shared Kotlin framework through SKIE.
 ```
 
@@ -54,10 +55,12 @@ its **Jetpack Compose** UI. What stays shared in Kotlin is everything below the 
 network, sources, ViewModels (`StateFlow<UiState>` + action methods) and the `Destination` contract.
 This reverses the earlier "one Compose UI on both platforms" decision.
 
-> **Current state (2026-10):** iOS still renders the shared Compose UI through
-> `iosApp/iosApp/ContentView.swift` → `MainViewControllerKt.MainViewController()`. The migration is in
-> **Phase 0 (foundation)**: SKIE is applied in `:shared`, which exports the `:core:*` modules to Swift, and
-> the Swift side of the bridge has been verified. No SwiftUI screen ships yet. **Plan, estimates and
+> **Current state (2026-10):** iOS has a **SwiftUI root** (`iosApp/iosApp/Navigation/RootView.swift`: a
+> `TabView` with a `NavigationStack` of `Route`s per tab), and every destination still renders its Compose
+> `*Route` through `shared/src/iosMain/…/ComposeBridge.kt` (`DestinationContent` is the one
+> Destination → Route mapping, shared with Android's `TanukiNavHost`). The migration is in **Phase 0
+> (foundation)**: SKIE is applied in `:shared`, the ViewModel glue (`ScreenScope` / `ScreenModel`) exists,
+> and no screen is SwiftUI-native yet. **Plan, estimates and
 > progress log: `docs/swiftui-migration.md`. Read it before any migration work, and update its progress
 > log at the end of the session.** Until the split lands:
 > - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.

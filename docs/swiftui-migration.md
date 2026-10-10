@@ -5,8 +5,9 @@
 
 ## Context
 
-Today iOS draws the shared Compose UI: `iosApp/iosApp/ContentView.swift` →
-`MainViewControllerKt.MainViewController()` → `App(appGraph)` → `TanukiNavHost`. We're moving iOS to
+When this plan was written, iOS drew the shared Compose UI: `iosApp/iosApp/ContentView.swift` →
+`MainViewControllerKt.MainViewController()` → `App(appGraph)` → `TanukiNavHost`. (Since Phase 0 it has a
+SwiftUI root; see the progress log.) We're moving iOS to
 native SwiftUI (iOS 26, Liquid Glass). Android stays on Compose. **Rule: all presentation logic lives in
 the shared Kotlin ViewModels.** SwiftUI and Compose only render state and forward taps, so neither
 platform duplicates logic.
@@ -227,5 +228,28 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
   (`ScreenModel({ $0.homeViewModel() }, uiState: \.uiState)`, `onEnum(of: model.state)`, `.navEvents`,
   `.navigationDestination(for: Route.self)`), and the Debug app build passes. Runtime behaviour is still
   unexercised: nothing renders it until the SwiftUI root.
-  Next: the SwiftUI root (`TabView` + a `NavigationStack` per tab) + `DestinationContent` + the Compose
-  bridge.
+- 2026-10-10 — Phase 0 SwiftUI root done. iOS now launches `RootView` (SwiftUI `TabView`, Liquid Glass
+  tab bar, one `NavigationStack(path: [Route])` per tab). Every destination renders through
+  `ComposeBridge.DestinationViewController`, a Compose `*Route` in a `UIViewControllerRepresentable`.
+  - `DestinationContent` (`shared/…/navigation/`) is now the one Destination → `*Route` mapping, and
+    `TanukiNavHost` calls it too. `App()` was split into `TanukiComposeHost`, the providers every Compose
+    tree needs, plus Android's own root. The page `ImageLoader` is process-wide (one memo), so several
+    trees don't each open `page_cache`.
+  - Cloudflare/session layer: Compose `SiteSessionHost` in its own non-opaque controller, mounted
+    permanently **behind** the `TabView` and brought to the front through the new `onRevealedChange`.
+    That keeps the silent-solve rule (occluded but painting) without a SwiftUI overlay. **The planned
+    "SwiftUI site-session overlay" Phase 0 item may not be needed;** decide after a real challenge has
+    been tested on device.
+  - Theme: `IosAppKt.observeThemePreference()` → `.preferredColorScheme`, and the Compose screens follow
+    it (checked in dark mode on the simulator). Tab labels come from `iosApp/iosApp/Localizable.xcstrings`
+    (en + pt-BR, copied from `:shared`'s `tab_*`), and `pt-BR` was added to the project's known regions.
+    Icons are SF Symbols. `AccentColor` is set to the tanuki orange `#E8731C`.
+  - `MainViewController()` was deleted, and `MainViewController.kt` renamed to `IosApp.kt` (the Swift call
+    is `IosAppKt.startApp()`).
+  - Leaves hide the SwiftUI nav bar and tab bar. A `UINavigationController` extension re-enables the
+    edge-swipe back gesture that a hidden bar turns off.
+  - **Verified:** Android build + host tests, `:shared` iOS tests, a Debug xcodebuild, and the simulator
+    launch (SwiftUI tab bar + Compose Home, light and dark, no double status-bar inset).
+    **Not verified (no UI automation here):** tab switching, pushing a leaf (tab bar hidden), Compose back
+    and edge-swipe back, the ViewModel cleared on pop, and a live Cloudflare reveal.
+  Next: iOS design tokens, then `ImageBridge`, then the strings pipeline (Phase 0 remainder), then Home.

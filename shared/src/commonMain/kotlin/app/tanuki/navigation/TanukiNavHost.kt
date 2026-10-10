@@ -29,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import app.tanuki.assets.designSystem.TanukiMotion
+import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
@@ -39,26 +40,14 @@ import app.tanuki.core.navigation.SettingsDownloads
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.TopLevelDestination
-import app.tanuki.features.activity.ActivityRoute
-import app.tanuki.features.downloads.DownloadsRoute
-import app.tanuki.features.home.HomeRoute
-import app.tanuki.features.library.LibraryRoute
-import app.tanuki.features.manga.MangaRoute
-import app.tanuki.features.reader.ReaderRoute
-import app.tanuki.features.settings.SettingsRoute
-import app.tanuki.features.settings.appearance.AppearanceRoute
-import app.tanuki.features.settings.privacy.PrivacyRoute
-import app.tanuki.features.settings.categories.CategoriesRoute
-import app.tanuki.features.settings.downloads.DownloadSettingsRoute
-import app.tanuki.features.settings.sources.SourcesRoute
-import app.tanuki.features.source.SourceRoute
 import app.tanuki.platform.rememberReducedMotion
 import kotlin.reflect.typeOf
 import kotlin.uuid.Uuid
 
 /**
- * The one shared Compose navigation graph, rendered identically on Android and iOS (per CLAUDE.md →
- * "Navigation: shared contract, native rendering"). It hosts the [app.tanuki.core.navigation.Destination]
+ * The Compose navigation graph: Android's navigation (CLAUDE.md → "Navigation: shared contract, native
+ * rendering"). iOS renders the same destinations with a SwiftUI `TabView` + `NavigationStack`, through
+ * [DestinationContent] for screens not yet migrated. It hosts the [app.tanuki.core.navigation.Destination]
  * set; each screen's route stays owned by [app.tanuki.core.navigation.Destination] so routes/params
  * cannot drift across platforms.
  *
@@ -129,6 +118,16 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
         }
     }
 
+    // Every destination renders through DestinationContent, the mapping the iOS bridge shares; this host
+    // contributes the back stack and the transitions.
+    val screen: @Composable (Destination) -> Unit = { destination ->
+        DestinationContent(
+            destination = destination,
+            onNavigate = { navController.navigate(it) },
+            onBack = { navController.popBackStack() }
+        )
+    }
+
     val currentEntry by navController.currentBackStackEntryAsState()
     val currentDestination = currentEntry?.destination
     val onTopLevel =
@@ -191,111 +190,66 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
             popEnterTransition = tabEnter,
             popExitTransition = tabExit
         ) {
-            composable<TopLevelDestination.Library> {
-                LibraryRoute(onNavigate = { navController.navigate(it) })
-            }
-            composable<TopLevelDestination.Activity> {
-                ActivityRoute(onNavigate = { navController.navigate(it) })
-            }
-            composable<TopLevelDestination.Home> {
-                HomeRoute(onNavigate = { navController.navigate(it) })
-            }
-            composable<TopLevelDestination.Settings> {
-                SettingsRoute(onNavigate = { navController.navigate(it) })
-            }
+            composable<TopLevelDestination.Library> { screen(TopLevelDestination.Library) }
+            composable<TopLevelDestination.Activity> { screen(TopLevelDestination.Activity) }
+            composable<TopLevelDestination.Home> { screen(TopLevelDestination.Home) }
+            composable<TopLevelDestination.Settings> { screen(TopLevelDestination.Settings) }
             composable<SettingsAppearance>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) {
-                AppearanceRoute(onBack = { navController.popBackStack() })
-            }
+            ) { screen(SettingsAppearance) }
             composable<SettingsPrivacy>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) {
-                PrivacyRoute(onBack = { navController.popBackStack() })
-            }
+            ) { screen(SettingsPrivacy) }
             composable<SettingsCategories>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) {
-                CategoriesRoute(onBack = { navController.popBackStack() })
-            }
+            ) { screen(SettingsCategories) }
             composable<SettingsDownloads>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) {
-                DownloadSettingsRoute(
-                    onNavigate = { navController.navigate(it) },
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            ) { screen(SettingsDownloads) }
             composable<SettingsSources>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) {
-                SourcesRoute(onBack = { navController.popBackStack() })
-            }
+            ) { screen(SettingsSources) }
             composable<Downloads>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) {
-                DownloadsRoute(
-                    onNavigate = { navController.navigate(it) },
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            ) { screen(Downloads) }
             composable<SourceBrowse>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) { entry ->
-                SourceRoute(
-                    sourceId = entry.toRoute<SourceBrowse>().sourceId,
-                    onNavigate = { navController.navigate(it) },
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            ) { entry -> screen(entry.toRoute<SourceBrowse>()) }
             composable<MangaDetail>(
                 typeMap = uuidTypeMap,
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) { entry ->
-                MangaRoute(
-                    mangaId = entry.toRoute<MangaDetail>().mangaId,
-                    onNavigate = { navController.navigate(it) },
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            ) { entry -> screen(entry.toRoute<MangaDetail>()) }
             composable<Reader>(
                 typeMap = uuidTypeMap,
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
-            ) { entry ->
-                val route = entry.toRoute<Reader>()
-                ReaderRoute(
-                    mangaId = route.mangaId,
-                    chapterId = route.chapterId,
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            ) { entry -> screen(entry.toRoute<Reader>()) }
         }
     }
 }

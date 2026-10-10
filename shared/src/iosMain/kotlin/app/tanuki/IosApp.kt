@@ -1,8 +1,9 @@
 package app.tanuki
 
-import androidx.compose.ui.window.ComposeUIViewController
+import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.di.IosAppGraph
 import dev.zacsweers.metro.createGraphFactory
+import kotlinx.coroutines.flow.Flow
 
 /**
  * The app graph, `internal` rather than private because the UI is not its only entry point: iOS can
@@ -13,10 +14,14 @@ internal val appGraph: IosAppGraph by lazy {
     createGraphFactory<IosAppGraph.Factory>().create()
 }
 
-fun MainViewController() = ComposeUIViewController { App(appGraph) }
-
 /**
  * Starts the app's launch jobs ([AppStartup]). Called from the scene's `.task` in `iOSApp.swift` rather
  * than `App.init`, because `init` also runs when iOS launches the app into a background task.
  */
 fun startApp() = appGraph.appStartup.start()
+
+/**
+ * The user's theme choice, for the SwiftUI root's `.preferredColorScheme`. The Compose screens hosted
+ * inside follow it through the trait SwiftUI sets, as `isSystemInDarkTheme()` reads it.
+ */
+fun observeThemePreference(): Flow<ThemePreference> = appGraph.observeThemePreference()
