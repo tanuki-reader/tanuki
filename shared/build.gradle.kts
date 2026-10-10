@@ -8,6 +8,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.metro)
     alias(libs.plugins.sentryKmp)
+    alias(libs.plugins.skie)
 }
 
 kotlin {
@@ -26,6 +27,15 @@ kotlin {
             // Distinct from the app's own id (iosApp/Configuration/Config.xcconfig) — this identifies the
             // Kotlin framework inside it, and mirrors the module's Android namespace.
             binaryOption("bundleId", "app.tanuki.shared")
+            // What Swift sees. Only Compose-free modules belong here (CLAUDE.md → boundary rule 5); a
+            // feature's ViewModels get exported once they move into their `:features:<x>:logic` module
+            // (docs/swiftui-migration.md). Each exported module must also be an `api` dependency below.
+            export(projects.core.domain)
+            export(projects.core.navigation)
+            export(projects.core.presentation)
+            // ponytail: SKIE spike only — exports the Compose feature module whole to prove a concrete
+            // StateViewModel bridges; replace with :features:home:logic in Phase 1.
+            export(projects.features.home)
         }
     }
     
@@ -61,7 +71,8 @@ kotlin {
             implementation(libs.ktor.client.darwin)
         }
         commonMain.dependencies {
-            implementation(projects.core.navigation)
+            api(projects.core.navigation)
+            api(projects.core.presentation)
             // Coil 3 image loading — the singleton loader is configured in App.kt; features render
             // covers with AsyncImage against it.
             implementation(libs.coil.compose)

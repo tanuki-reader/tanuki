@@ -19,12 +19,12 @@ androidx-navigationevent = "1.1.1"
 androidx-testExt = "1.3.0"
 composeMultiplatform = "1.11.1"
 junit = "4.13.2"
-kotlin = "2.4.10"
+kotlin = "2.4.20"
 material3 = "1.11.0-alpha07"
 coroutines = "1.11.0"
 ktor = "3.5.1"
 datetime = "0.8.0"
-metro = "1.3.2"
+metro = "1.4.5"
 navigationCompose = "2.9.2"
 kotlinxSerialization = "1.11.0"
 room = "2.8.4"
@@ -38,6 +38,9 @@ chicory = "1.7.5"
 # Coil 3 — Compose Multiplatform image loading (covers). Network layer via its Ktor 3 integration so
 # the same fetch stack works on Android and iOS.
 coil = "3.5.0"
+# SKIE — Swift-friendly framework API (Flow → AsyncSequence, sealed → enum, suspend → async) for the
+# native SwiftUI iOS app. Must support the Kotlin version above; check its changelog on every Kotlin bump.
+skie = "0.10.15"
 # DataStore — multiplatform key-value preference store (theme + other app-level scalars). The
 # `-core` artifact is engine-agnostic and backs onto okio, so the same store works on Android and iOS.
 datastore = "1.1.7"
@@ -115,4 +118,6 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 room = { id = "androidx.room", version.ref = "room" }
 # Applied in :shared. Needs Sentry Cocoa installed in Xcode via SPM, or the iOS link fails.
 sentryKmp = { id = "io.sentry.kotlin.multiplatform.gradle", version.ref = "sentry" }
+# Applied in :shared, the module that produces the iOS framework.
+skie = { id = "co.touchlab.skie", version.ref = "skie" }
 sentryAndroid = { id = "io.sentry.android.gradle", version.ref = "sentryAndroidGradle" }

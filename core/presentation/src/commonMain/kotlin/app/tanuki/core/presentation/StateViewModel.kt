@@ -29,8 +29,10 @@ import kotlinx.coroutines.flow.StateFlow
  *
  * @param initialState What [uiState] reads before the pipeline has produced anything, and while it is
  *   stopped with nothing yet emitted — normally the screen's `Loading`.
+ * @param S The screen's state. Bounded to [Any] for Swift: an unbounded `S` is nullable, so SKIE would
+ *   hand SwiftUI `uiState` as a flow of *optional* states — a phantom `nil` case in every `switch`.
  */
-abstract class StateViewModel<S>(
+abstract class StateViewModel<S : Any>(
     dispatcher: DispatcherProvider,
     logger: Logger,
     private val initialState: S

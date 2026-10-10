@@ -61,7 +61,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 RELEASE="app.tanuki.$PLATFORM@$VERSION"
-echo "note: [tanuki] creating Sentry release $RELEASE…"
+echo "note: [tanuki] creating Sentry release ${RELEASE}…"
 
 cli() {
     sentry-cli releases --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" "$@"

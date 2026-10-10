@@ -62,7 +62,7 @@ if ! command -v sentry-cli >/dev/null 2>&1; then
     exit 0
 fi
 
-echo "note: [tanuki] uploading dSYMs to $SENTRY_ORG/$SENTRY_PROJECT…"
+echo "note: [tanuki] uploading dSYMs to ${SENTRY_ORG}/${SENTRY_PROJECT}…"
 
 # DWARF_DSYM_FOLDER_PATH is where Xcode has just written this build's dSYMs. Uploading that rather than
 # a search of DerivedData keeps it to the symbols for the binary actually being built.
