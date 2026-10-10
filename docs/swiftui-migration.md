@@ -42,7 +42,8 @@ platform duplicates logic.
 | Covers and pages load through Coil on the shared CF-aware `sourceHttpClient`, with per-image headers | `shared/…/platform/imaging/TanukiImageLoader.kt` | SwiftUI `AsyncImage` can't see the Ktor `cf_clearance` cookies or headers. Needs a Kotlin image bridge |
 | Some screen-local UI state lives in composables (e.g. Home's For You/Sources toggle, `rememberSaveable`) | `HomeScreen.kt:86` | Move it into the ViewModel as an input `MutableStateFlow`, so neither UI holds it |
 | `AppNavigator` / `NavCommand` have **no consumers** (only a KDoc mention in `MangaViewModel`) | `core/navigation/` | Leave as is. Wire it into both roots when deep links arrive |
-| `UuidNavType` (a navigation-compose `NavType`) lives in `:core:navigation` | `core/navigation/…/type/UuidNavType.kt` | Move it to `:shared` (Android/Compose nav only), so exporting `:core:navigation` stays clean |
+| ~~`UuidNavType` lives in `:core:navigation`~~ **Done:** moved to `:shared` as `internal` | `shared/…/navigation/UuidNavType.kt` | `:core:navigation` is Compose-free, and its header has no `NavType` |
+| `:shared`'s **own** public API is always in the framework header (`export` doesn't control it), so `App()`, the image loader builders, `AppGraph`, etc. pull Skiko/Coil/Ktor/Compose-runtime types into Swift | `shared/src/commonMain` | Harmless but noisy, and it slows Swift indexing. Mark Compose-facing `:shared` declarations `internal` as they're touched, and drop them in Phase 9 |
 | Strings are in Compose Resources (~360 keys across modules), and SwiftUI can't read them natively | `features/*/composeResources/values*/strings.xml` | Needs a strings pipeline (see Decisions) |
 | State uses `kotlin.uuid.Uuid` and `kotlin.time.Instant` | e.g. `HomeState.kt` | Uuid reaches Swift as an opaque hashable class, which is fine for ids and navigation. For Instant, expose epoch millis or add one Swift extension to `Date` |
 | Kotlin objects reach Swift as `NSObject` subclasses, with `isEqual`/`hash` → `equals`/`hashCode` | — | Data-class `Destination`s are `Hashable`, so they work directly in `NavigationPath` |
@@ -208,4 +209,8 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
   unchanged. Side effect: Android no longer re-runs the jobs on every Activity recreation. Verified with
   the Android build and tests, the iOS simulator tests, and a fresh install on the iOS simulator (all 5
   bundled sources installed). Android wasn't run on a device; none was available.
-  Next: move `UuidNavType` to `:shared`, then `ScreenScope` + `ScreenModel` + the navEvents modifier.
+- 2026-10-10 — Phase 0 `UuidNavType` move done. It now lives in `shared/…/navigation/UuidNavType.kt` as
+  `internal`, and its two tests moved to `:shared` (`commonTest` + `iosTest`). `:core:navigation` drops
+  navigation-compose and declares `kotlinx-coroutines-core` as `api` (`AppNavigator` exposes `Flow`;
+  it used to come in transitively). The framework header has no `NavType` any more.
+  Next: `ScreenScope` + `ScreenModel` + the navEvents modifier.

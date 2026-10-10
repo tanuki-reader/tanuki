@@ -31,7 +31,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.androidx.navigation.compose)
+            // `api`: AppNavigator's public surface is a `Flow`. This used to arrive transitively through
+            // navigation-compose, which moved out with UuidNavType so this module stays Compose-free.
+            api(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.core)
         }
         commonTest.dependencies {

@@ -39,7 +39,6 @@ import app.tanuki.core.navigation.SettingsDownloads
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.TopLevelDestination
-import app.tanuki.core.navigation.type.UuidNavType
 import app.tanuki.features.activity.ActivityRoute
 import app.tanuki.features.downloads.DownloadsRoute
 import app.tanuki.features.home.HomeRoute

@@ -1,4 +1,4 @@
-package app.tanuki.core.navigation.type
+package app.tanuki.navigation
 
 import androidx.savedstate.savedState
 import kotlin.test.Test

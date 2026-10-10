@@ -1,4 +1,4 @@
-package app.tanuki.core.navigation.type
+package app.tanuki.navigation
 
 import androidx.navigation.NavType
 import androidx.savedstate.SavedState
@@ -21,8 +21,11 @@ internal const val UUID_NAV_TYPE_NAME = "Uuid"
  *
  * The value is carried as its canonical string form ([Uuid.toString]/[Uuid.parse]).
  *
+ * Lives here, `internal`, rather than in `:core:navigation`: it is a Navigation Compose detail of the
+ * Android/Compose NavHost. Keeping it out keeps `:core:navigation` Compose-free and out of the iOS
+ * framework's Swift API, where SwiftUI renders `Destination` with its own `NavigationStack`.
  */
-val UuidNavType: NavType<Uuid> =
+internal val UuidNavType: NavType<Uuid> =
     object : NavType<Uuid>(isNullableAllowed = false) {
         override fun get(
             bundle: SavedState,
