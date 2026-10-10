@@ -20,6 +20,10 @@ struct iOSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                // Scene content only appears for a launch with UI. A background task launch runs init
+                // but never this, which is the point (see AppStartup). Idempotent, so re-appearing is
+                // harmless.
+                .task { MainViewControllerKt.startApp() }
         }
     }
 }

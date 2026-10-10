@@ -199,5 +199,13 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
 ## Progress log
 
 - 2026-10-10 — Findings + plan written.
-- 2026-10-10 — Phase 0 SKIE spike done (see results above). Next: Phase 0 `AppStartup` extraction
-  out of `App.kt`, then move `UuidNavType` to `:shared`.
+- 2026-10-10 — Phase 0 SKIE spike done (see results above).
+- 2026-10-10 — Phase 0 `AppStartup` done. The six launch jobs moved out of `App()` into
+  `shared/…/AppStartup.kt` (`@SingleIn`, once-per-process `start()`), exposed as `AppGraph.appStartup`.
+  The seven graph accessors only `App.kt` used are gone. Callers are the UI entry points, not process
+  start, so WorkManager/BGTask launches don't run a foreground update: `MainActivity.onCreate` on
+  Android, and `.task { MainViewControllerKt.startApp() }` on the iOS scene, which the SwiftUI root keeps
+  unchanged. Side effect: Android no longer re-runs the jobs on every Activity recreation. Verified with
+  the Android build and tests, the iOS simulator tests, and a fresh install on the iOS simulator (all 5
+  bundled sources installed). Android wasn't run on a device; none was available.
+  Next: move `UuidNavType` to `:shared`, then `ScreenScope` + `ScreenModel` + the navEvents modifier.

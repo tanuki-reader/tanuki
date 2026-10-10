@@ -14,3 +14,9 @@ internal val appGraph: IosAppGraph by lazy {
 }
 
 fun MainViewController() = ComposeUIViewController { App(appGraph) }
+
+/**
+ * Starts the app's launch jobs ([AppStartup]). Called from the scene's `.task` in `iOSApp.swift` rather
+ * than `App.init`, because `init` also runs when iOS launches the app into a background task.
+ */
+fun startApp() = appGraph.appStartup.start()

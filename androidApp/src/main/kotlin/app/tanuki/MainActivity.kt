@@ -35,6 +35,9 @@ class MainActivity(
         super.onCreate(savedInstanceState)
 
         requestNotificationPermissionIfNeeded()
+        // Here rather than in TanukiApplication: the jobs are for a launch with UI, and WorkManager can
+        // start the process in the background (see AppStartup). Idempotent across Activity recreation.
+        appGraph.appStartup.start()
 
         setContent {
             App(appGraph)
