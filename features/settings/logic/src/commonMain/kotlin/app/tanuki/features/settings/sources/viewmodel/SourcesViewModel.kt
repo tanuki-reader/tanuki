@@ -42,9 +42,9 @@ import kotlinx.coroutines.launch
  *
  * Uninstalling a source keeps the library, and its downloaded chapters keep reading offline without it —
  * so deleting them is an *offer*, never a consequence. [onRemovalRequested] reads what that source has
- * downloaded so the dialog can ask a question with a real count and size behind it; the answer comes back
- * through [onUninstall]'s `deleteDownloads`. The read is a `suspend` call and the dialog opens
- * immediately, so [SourcesState.pendingUsage] is `null` for the frame or two before it lands — which is
+ * downloaded so the dialog can ask a question with a real count and size behind it; the answer is the
+ * dialog's checkbox ([onRemovalDeleteDownloadsChange]), read when it is confirmed. The read is a
+ * `suspend` call and the dialog opens immediately, so [SourcesState.pendingUsage] is `null` for the frame or two before it lands — which is
  * exactly the state in which the offer is not shown yet.
  */
 @Inject
@@ -63,21 +63,33 @@ class SourcesViewModel(
     private val failedIds = MutableStateFlow<Set<String>>(emptySet())
     private val pendingUsage = MutableStateFlow<SourceDownloadUsage?>(null)
 
+    /** The remove dialog: which source it asks about (`null` = closed), and its downloads checkbox. */
+    private val removal = MutableStateFlow(Removal())
+
+    private data class Removal(
+        val sourceId: String? = null,
+        val deleteDownloads: Boolean = false
+    )
+
     override val state: Flow<SourcesState> =
         combine(
             observeSourceCatalog(),
             busyIds,
             failedIds,
-            pendingUsage
-        ) { catalog, busy, failed, usage ->
+            pendingUsage,
+            removal
+        ) { catalog, busy, failed, usage, removal ->
             val (installed, available) = catalog.partition(CatalogSource::installed)
+            val installedItems = installed.map(CatalogSource::toItem)
             SourcesState(
                 loading = false,
-                installed = installed.map(CatalogSource::toItem),
+                installed = installedItems,
                 available = available.map(CatalogSource::toItem),
                 busyIds = busy,
                 failedIds = failed,
-                pendingUsage = usage
+                pendingUsage = usage,
+                pendingRemoval = installedItems.firstOrNull { it.sourceId == removal.sourceId },
+                removalDeletesDownloads = removal.deleteDownloads
             )
         }
 
@@ -85,8 +97,8 @@ class SourcesViewModel(
     fun onInstall(sourceId: String) = act(sourceId) { installSource(sourceId) }
 
     /**
-     * The remove dialog is opening for [sourceId]: find out what it has downloaded, so the dialog can
-     * offer to delete it.
+     * A source's remove action was tapped: open the dialog for [sourceId], and find out what it has
+     * downloaded so the dialog can offer to delete it. The checkbox starts unticked every time.
      *
      * Cleared by [onRemovalDismissed] rather than left to go stale — a count belonging to the previous
      * source would otherwise be showing the instant the next dialog opened, which is the one moment this
@@ -94,23 +106,38 @@ class SourcesViewModel(
      */
     fun onRemovalRequested(sourceId: String) {
         pendingUsage.value = null
+        removal.value = Removal(sourceId)
         viewModelScope.launch { pendingUsage.value = getSourceDownloadUsage(sourceId) }
     }
 
-    /** The remove dialog closed, confirmed or not. */
+    /** The dialog's "also delete downloads" option was toggled. */
+    fun onRemovalDeleteDownloadsChange(deleteDownloads: Boolean) {
+        removal.update { it.copy(deleteDownloads = deleteDownloads) }
+    }
+
+    /** The remove dialog was dismissed without removing. */
     fun onRemovalDismissed() {
         pendingUsage.value = null
+        removal.value = Removal()
+    }
+
+    /** The remove dialog was confirmed: uninstall its source, with or without its downloads. */
+    fun onRemovalConfirmed() {
+        val (sourceId, deleteDownloads) = removal.value
+        onRemovalDismissed()
+        if (sourceId != null) uninstall(sourceId, deleteDownloads)
     }
 
     /**
-     * Uninstall a source — the confirmed half of the delete flow; the screen owns the confirmation, since
-     * a dialog is a presentation decision, not a domain one.
+     * Uninstall a source — the confirmed half of the delete flow. The confirmation is this ViewModel's
+     * (the dialog is a presentation decision, not a domain one), so this runs only from
+     * [onRemovalConfirmed].
      *
      * @param deleteDownloads whether the user accepted the dialog's offer to remove what this source had
      *   downloaded. Deleted *before* the bundle: the files are found through the source's series, and a
      *   failure to remove the bundle should not leave the user's chapters gone anyway.
      */
-    fun onUninstall(
+    private fun uninstall(
         sourceId: String,
         deleteDownloads: Boolean
     ) = act(sourceId) {

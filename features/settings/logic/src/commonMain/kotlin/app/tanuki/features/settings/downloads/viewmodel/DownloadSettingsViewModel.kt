@@ -14,6 +14,7 @@ import app.tanuki.core.domain.download.usecase.SetDeleteAfterReading
 import app.tanuki.core.domain.download.usecase.SetDownloadOnWifiOnly
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.core.presentation.TanukiViewModel
 import dev.zacsweers.metro.AppScope
@@ -57,6 +58,7 @@ class DownloadSettingsViewModel(
     logger: Logger,
 ) : StateViewModel<DownloadSettingsState>(dispatcher, logger, DownloadSettingsState()) {
     private val busy = MutableStateFlow(false)
+    private val confirmingDeleteAll = MutableStateFlow(false)
 
     override val state: Flow<DownloadSettingsState> =
         combine(
@@ -66,12 +68,14 @@ class DownloadSettingsViewModel(
             // own spinner rather than holding the whole screen behind a directory walk.
             observeDownloadStorageUsage().map<DownloadStorageUsage, DownloadStorageUsage?> { it }.onStart { emit(null) },
             busy,
-        ) { settings, categories, usage, busy ->
+            confirmingDeleteAll,
+        ) { settings, categories, usage, busy, confirming ->
             DownloadSettingsState(
                 settings = settings,
                 categories = categories,
                 usage = usage,
                 busy = busy,
+                confirmingDeleteAll = confirming,
             )
         }
 
@@ -118,13 +122,30 @@ class DownloadSettingsViewModel(
         }
     }
 
+    /** "Open queue" was tapped: show the download queue. */
+    fun onOpenQueue() {
+        navigateTo(Downloads)
+    }
+
+    /** "Delete all downloads" was tapped: ask for confirmation first. */
+    fun onDeleteAllRequested() {
+        confirmingDeleteAll.value = true
+    }
+
+    /** The delete-all confirmation was dismissed. */
+    fun onDeleteAllDismissed() {
+        confirmingDeleteAll.value = false
+    }
+
     /**
-     * Remove every downloaded chapter — the confirmed half of the destructive action.
+     * Remove every downloaded chapter — the confirmed half of the destructive action. Closes the
+     * confirmation.
      *
      * Under [DownloadSettingsState.busy] because it walks every record and every directory: a second tap
      * during the first would issue a duplicate sweep across a store that is already emptying.
      */
     fun onDeleteAllDownloads() {
+        confirmingDeleteAll.value = false
         if (busy.value) return
         viewModelScope.launch {
             busy.value = true

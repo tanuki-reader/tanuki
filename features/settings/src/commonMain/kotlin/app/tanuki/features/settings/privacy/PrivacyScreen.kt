@@ -49,12 +49,11 @@ fun PrivacyRoute(
     modifier: Modifier = Modifier,
     viewModel: PrivacyViewModel = metroViewModel()
 ) {
-    val enabled by viewModel.crashReportingEnabled.collectAsStateWithLifecycle()
-    val identifierReset by viewModel.identifierReset.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     PrivacyScreen(
-        crashReportingEnabled = enabled,
+        crashReportingEnabled = state.crashReportingEnabled,
         onCrashReportingChange = viewModel::onCrashReportingChange,
-        identifierReset = identifierReset,
+        identifierReset = state.identifierReset,
         onResetIdentifier = viewModel::onResetIdentifier,
         onBack = onBack,
         modifier = modifier

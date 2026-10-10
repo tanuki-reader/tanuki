@@ -15,10 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -40,12 +38,12 @@ import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.assets.designSystem.component.TrashIcon
 import app.tanuki.core.domain.download.model.DownloadStorageUsage
-import app.tanuki.core.domain.download.model.SeriesStorage
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.navigation.Destination
-import app.tanuki.core.navigation.Downloads
+import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsState
+import app.tanuki.features.settings.downloads.viewmodel.StorageSeriesItem
 import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsViewModel
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_auto_download_all
@@ -92,8 +90,6 @@ private const val BUSY_ALPHA = 0.5f
 /** The leading glyph size on the storage rows — the settings index's own icon scale. */
 private val RowGlyphSize = 20.dp
 
-/** How many series the breakdown lists before it stops. See [StorageSection]. */
-private const val MAX_LISTED_SERIES = 5
 
 /**
  * Download settings: the rules the subsystem follows on its own, and what it is costing.
@@ -123,15 +119,22 @@ fun DownloadSettingsRoute(
     modifier: Modifier = Modifier,
     viewModel: DownloadSettingsViewModel = metroViewModel()
 ) {
+    LaunchedEffect(viewModel) {
+        viewModel.navEvents.collect { event ->
+            if (event is NavEvent.NavTo) onNavigate(event.destination)
+        }
+    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     DownloadSettingsScreen(
         state = state,
         onBack = onBack,
-        onOpenQueue = { onNavigate(Downloads) },
+        onOpenQueue = viewModel::onOpenQueue,
         onAutoDownloadModeChange = viewModel::onAutoDownloadModeChange,
         onCategoryToggle = viewModel::onAutoDownloadCategoryToggle,
         onWifiOnlyChange = viewModel::onWifiOnlyChange,
         onDeleteAfterReadingChange = viewModel::onDeleteAfterReadingChange,
+        onDeleteAllRequested = viewModel::onDeleteAllRequested,
+        onDeleteAllDismissed = viewModel::onDeleteAllDismissed,
         onDeleteAllDownloads = viewModel::onDeleteAllDownloads,
         modifier = modifier
     )
@@ -146,11 +149,11 @@ internal fun DownloadSettingsScreen(
     onCategoryToggle: (Uuid) -> Unit,
     onWifiOnlyChange: (Boolean) -> Unit,
     onDeleteAfterReadingChange: (DeleteAfterReading) -> Unit,
+    onDeleteAllRequested: () -> Unit,
+    onDeleteAllDismissed: () -> Unit,
     onDeleteAllDownloads: () -> Unit,
     modifier: Modifier = Modifier
-) {
-    var confirmingDeleteAll by remember { mutableStateOf(false) }
-    val spacing = TanukiTheme.spacing
+) {    val spacing = TanukiTheme.spacing
 
     Column(
         modifier =
@@ -187,20 +190,17 @@ internal fun DownloadSettingsScreen(
             StorageSection(
                 state = state,
                 onOpenQueue = onOpenQueue,
-                onDeleteAll = { confirmingDeleteAll = true }
+                onDeleteAll = onDeleteAllRequested
             )
         }
     }
 
-    if (confirmingDeleteAll) {
+    if (state.confirmingDeleteAll) {
         TanukiDialog(
             title = stringResource(Res.string.settings_storage_delete_all_title),
-            onDismiss = { confirmingDeleteAll = false },
+            onDismiss = onDeleteAllDismissed,
             confirmText = stringResource(Res.string.settings_storage_delete_all_confirm),
-            onConfirm = {
-                confirmingDeleteAll = false
-                onDeleteAllDownloads()
-            },
+            onConfirm = onDeleteAllDownloads,
             dismissText = stringResource(Res.string.settings_storage_delete_all_cancel),
             confirmVariant = TanukiButtonVariant.Danger
         ) {
@@ -258,18 +258,18 @@ private fun AutoDownloadSection(
                 horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.sm),
                 verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.sm)
             ) {
-                state.categories.forEach { category ->
+                state.categoryOptions.forEach { option ->
                     TanukiFilterChip(
                         // Content: the user named these, so they are never localized.
-                        text = category.name.value,
-                        selected = category.id in settings.autoDownloadCategories,
-                        onClick = { onCategoryToggle(category.id) }
+                        text = option.name,
+                        selected = option.selected,
+                        onClick = { onCategoryToggle(option.id) }
                     )
                 }
             }
             // Only while the selection would do nothing. A permanent hint is noise; this one appears
             // exactly when the setting is configured into a state that silently downloads nothing.
-            if (settings.autoDownloadCategories.isEmpty()) {
+            if (state.needsCategoryPick) {
                 Hint(stringResource(Res.string.settings_auto_download_pick))
             }
         }
@@ -326,9 +326,7 @@ private fun DeleteAfterReadingSection(
 /**
  * What the downloads cost, and the two things to do about it.
  *
- * The breakdown is capped at [MAX_LISTED_SERIES]. A full list would be a second library grid on a
- * settings screen, and the question here is "what is taking the room" — which the largest few answer.
- * Anything finer is a per-series decision, and the series' own page is where that is made.
+ * The breakdown lists only [DownloadSettingsState.listedSeries], the largest few (see there for why).
  */
 @Composable
 private fun StorageSection(
@@ -362,6 +360,7 @@ private fun StorageSection(
             else ->
                 StorageBreakdown(
                     usage = usage,
+                    listedSeries = state.listedSeries,
                     busy = state.busy,
                     onDeleteAll = onDeleteAll
                 )
@@ -372,6 +371,7 @@ private fun StorageSection(
 @Composable
 private fun StorageBreakdown(
     usage: DownloadStorageUsage,
+    listedSeries: List<StorageSeriesItem>,
     busy: Boolean,
     onDeleteAll: () -> Unit
 ) {
@@ -387,7 +387,7 @@ private fun StorageBreakdown(
             color = MaterialTheme.colorScheme.onSurface
         )
         TanukiSectionGroup {
-            usage.series.take(MAX_LISTED_SERIES).forEachIndexed { index, series ->
+            listedSeries.forEachIndexed { index, series ->
                 if (index > 0) TanukiRowDivider(startInset = TanukiListRowDefaults.dividerInset(0.dp))
                 SeriesStorageRow(series)
             }
@@ -407,10 +407,10 @@ private fun StorageBreakdown(
 }
 
 @Composable
-private fun SeriesStorageRow(series: SeriesStorage) {
+private fun SeriesStorageRow(series: StorageSeriesItem) {
     TanukiListRow(
         // Content from the source, never localized.
-        title = series.manga.title.value,
+        title = series.title,
         subtitle =
             pluralStringResource(
                 Res.plurals.settings_storage_series_chapters,

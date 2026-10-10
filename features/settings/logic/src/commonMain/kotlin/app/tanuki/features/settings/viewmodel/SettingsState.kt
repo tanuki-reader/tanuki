@@ -20,3 +20,6 @@ data class SettingsState(
     val crashReportingEnabled: Boolean = false,
     val downloadQueueCount: Int = 0
 )
+
+/** The index's rows, each opening one sub-screen. */
+enum class SettingsEntry { Appearance, Privacy, Categories, Sources, Downloads }

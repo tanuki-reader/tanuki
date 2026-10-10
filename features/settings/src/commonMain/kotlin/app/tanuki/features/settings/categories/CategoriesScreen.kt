@@ -34,8 +34,9 @@ import app.tanuki.assets.designSystem.component.TanukiDialog
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.assets.designSystem.component.TanukiTextField
 import app.tanuki.assets.designSystem.component.TrashIcon
-import app.tanuki.core.domain.category.model.Category
+import app.tanuki.features.settings.categories.viewmodel.CategoriesState
 import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
+import app.tanuki.features.settings.categories.viewmodel.CategoryItem
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_add_category
 import app.tanuki.features.settings.resources.settings_cancel
@@ -63,11 +64,10 @@ fun CategoriesRoute(
     modifier: Modifier = Modifier,
     viewModel: CategoriesViewModel = metroViewModel()
 ) {
-    val categories by viewModel.categories.collectAsStateWithLifecycle()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     CategoriesScreen(
-        categories = categories,
-        onCreateCategory = viewModel::onCreateCategory,
-        onDeleteCategory = { category -> viewModel.onDeleteCategory(category.id) },
+        state = state,
+        viewModel = viewModel,
         onBack = onBack,
         modifier = modifier
     )
@@ -75,14 +75,12 @@ fun CategoriesRoute(
 
 @Composable
 private fun CategoriesScreen(
-    categories: List<Category>,
-    onCreateCategory: (String) -> Unit,
-    onDeleteCategory: (Category) -> Unit,
+    state: CategoriesState,
+    viewModel: CategoriesViewModel,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var categoryPendingDeletion by remember { mutableStateOf<Category?>(null) }
+    val categories = state.categories
 
     Column(
         modifier =
@@ -114,36 +112,30 @@ private fun CategoriesScreen(
             } else {
                 CategoryList(
                     categories = categories,
-                    onDelete = { categoryPendingDeletion = it }
+                    onDelete = viewModel::onDeleteRequested
                 )
             }
             TanukiButton(
                 text = stringResource(Res.string.settings_add_category),
-                onClick = { showCreateDialog = true },
+                onClick = viewModel::onCreateRequested,
                 variant = TanukiButtonVariant.Tonal,
                 block = true
             )
         }
     }
 
-    if (showCreateDialog) {
+    if (state.creating) {
         CreateCategoryDialog(
-            onDismiss = { showCreateDialog = false },
-            onConfirm = { name ->
-                onCreateCategory(name)
-                showCreateDialog = false
-            }
+            onDismiss = viewModel::onDialogDismissed,
+            onConfirm = viewModel::onCreateCategory
         )
     }
 
-    categoryPendingDeletion?.let { category ->
+    state.pendingDeletion?.let { category ->
         DeleteCategoryDialog(
             category = category,
-            onDismiss = { categoryPendingDeletion = null },
-            onConfirm = {
-                onDeleteCategory(category)
-                categoryPendingDeletion = null
-            }
+            onDismiss = viewModel::onDialogDismissed,
+            onConfirm = viewModel::onDeleteConfirmed
         )
     }
 }
@@ -151,8 +143,8 @@ private fun CategoriesScreen(
 /** The category rows in a single rounded surface, separated by hairline dividers (settings-card look). */
 @Composable
 private fun CategoryList(
-    categories: List<Category>,
-    onDelete: (Category) -> Unit,
+    categories: List<CategoryItem>,
+    onDelete: (CategoryItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -176,7 +168,7 @@ private fun CategoryList(
 
 @Composable
 private fun CategoryRow(
-    category: Category,
+    category: CategoryItem,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -189,7 +181,7 @@ private fun CategoryRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = category.name.value,
+            text = category.name,
             style = TanukiTheme.typography.body,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -231,7 +223,7 @@ private fun CreateCategoryDialog(
 /** Confirmation before deleting a category — deletion cascades to its manga memberships. */
 @Composable
 private fun DeleteCategoryDialog(
-    category: Category,
+    category: CategoryItem,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -244,7 +236,7 @@ private fun DeleteCategoryDialog(
         onConfirm = onConfirm
     ) {
         Text(
-            text = stringResource(Res.string.settings_delete_category_message, category.name.value),
+            text = stringResource(Res.string.settings_delete_category_message, category.name),
             style = TanukiTheme.typography.body,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

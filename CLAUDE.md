@@ -57,10 +57,11 @@ This reverses the earlier "one Compose UI on both platforms" decision.
 
 > **Current state (2026-10):** iOS has a **SwiftUI root** (`iosApp/iosApp/Navigation/RootView.swift`: a
 > `TabView` with a `NavigationStack` of `Route`s per tab). `Navigation/DestinationView.swift` picks each
-> destination's screen: **Home is SwiftUI-native** (`Features/Home/`, over `:features:home:logic`), and
+> destination's screen: **Home and Settings are SwiftUI-native** (`Features/Home/`, `Features/Settings/`, over
+> `:features:home:logic` / `:features:settings:logic`), and
 > every other destination still renders its Compose `*Route` through `shared/src/iosMain/…/ComposeBridge.kt`
 > (`DestinationContent` is the one Destination → Route mapping, shared with Android's `TanukiNavHost`).
-> The migration has finished **Phase 1 (Home)**; Settings is next. **Plan, estimates and
+> The migration has finished **Phase 2 (Settings)**; Library is next. **Plan, estimates and
 > progress log: `docs/swiftui-migration.md`. Read it before any migration work, and update its progress
 > log at the end of the session.** Until the split lands:
 > - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.
@@ -172,7 +173,8 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
   machinery on either side. (Today iOS still runs the Compose screens.)
 - **Keep ViewModel APIs Swift-friendly:** UI state as data classes / sealed interfaces (SKIE turns them
   into enums), actions as plain methods with simple parameters, no Compose types (`Color`, `ImageVector`,
-  `StringResource` resolved to text) in state.
+  `StringResource` resolved to text) in state. **No value classes in Swift-facing state**: `Text` and
+  friends reach Swift as an untyped `id`, so map them to plain `String`s in a feature item type.
 - **Every ViewModel extends `TanukiViewModel`** (`:core:presentation`) rather than `ViewModel` directly.
   The base owns what every screen repeats — don't re-declare any of it:
   - `navEvents` + `navigateTo(destination)` / `navigateBack()` for screen-scoped navigation (a leaf

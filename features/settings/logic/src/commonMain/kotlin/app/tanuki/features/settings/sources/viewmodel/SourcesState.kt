@@ -23,6 +23,8 @@ import app.tanuki.core.domain.download.model.SourceDownloadUsage
  *   answer is still being read (and whenever no dialog is open). The remove dialog offers to delete
  *   those files only once this arrives non-empty, so the offer never appears without the count and size
  *   that make it answerable.
+ * @property pendingRemoval the source the remove dialog is asking about, or `null` when it is closed.
+ * @property removalDeletesDownloads whether the dialog's "also delete downloads" option is ticked.
  */
 data class SourcesState(
     val loading: Boolean = true,
@@ -30,7 +32,9 @@ data class SourcesState(
     val available: List<SourceItem> = emptyList(),
     val busyIds: Set<String> = emptySet(),
     val failedIds: Set<String> = emptySet(),
-    val pendingUsage: SourceDownloadUsage? = null
+    val pendingUsage: SourceDownloadUsage? = null,
+    val pendingRemoval: SourceItem? = null,
+    val removalDeletesDownloads: Boolean = false
 )
 
 /**

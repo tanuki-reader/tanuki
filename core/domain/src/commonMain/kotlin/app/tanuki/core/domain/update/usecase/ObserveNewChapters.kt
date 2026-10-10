@@ -60,6 +60,7 @@ interface ObserveNewChapters {
      * @return A [Flow] of the pending updates, most-recently-discovered first. Empty until a sync finds
      *   a chapter the user doesn't already have.
      */
+    //TODO: Consider replacing a List for a PagingData, so the Home screen can show a large number of new chapters without loading them all into memory at once.
     operator fun invoke(): Flow<List<NewChapter>>
 
     @Inject

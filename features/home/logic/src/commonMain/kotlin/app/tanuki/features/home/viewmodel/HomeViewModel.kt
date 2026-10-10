@@ -90,7 +90,7 @@ class HomeViewModel(
             Content(
                 segment = segment,
                 continueReading = history.toContinueReading(),
-                newChapters = updates.map(NewChapter::toItem),
+                newChapters = updates.map(NewChapter::toItem).take(NEW_CHAPTERS_LIMIT),
                 sourceGroups = installed.toLanguageGroups(expanded)
             )
         }
@@ -193,6 +193,12 @@ class HomeViewModel(
          * as the query's `LIMIT`, so it bounds what is read rather than trimming what was already loaded.
          */
         const val CONTINUE_READING_LIMIT = 15
+
+        /**
+         * How many chapters the New Chapters row shows before it stops being a shortlist. Passed down as
+         * the query's `LIMIT`, so it bounds what is read rather than trimming what was already loaded.
+         */
+        const val NEW_CHAPTERS_LIMIT = 20
     }
 }
 

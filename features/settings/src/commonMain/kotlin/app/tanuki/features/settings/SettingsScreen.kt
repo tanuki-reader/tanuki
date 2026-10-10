@@ -10,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -27,11 +28,7 @@ import app.tanuki.assets.designSystem.component.TanukiRowDivider
 import app.tanuki.assets.designSystem.component.TanukiSectionGroup
 import app.tanuki.assets.designSystem.component.TanukiTopBar
 import app.tanuki.core.navigation.Destination
-import app.tanuki.core.navigation.SettingsAppearance
-import app.tanuki.core.navigation.SettingsCategories
-import app.tanuki.core.navigation.SettingsDownloads
-import app.tanuki.core.navigation.SettingsPrivacy
-import app.tanuki.core.navigation.SettingsSources
+import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_appearance
 import app.tanuki.features.settings.resources.settings_categories
@@ -48,6 +45,7 @@ import app.tanuki.features.settings.resources.settings_section_privacy
 import app.tanuki.features.settings.resources.settings_source_count
 import app.tanuki.features.settings.resources.settings_sources
 import app.tanuki.features.settings.resources.settings_title
+import app.tanuki.features.settings.viewmodel.SettingsEntry
 import app.tanuki.features.settings.viewmodel.SettingsViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import org.jetbrains.compose.resources.pluralStringResource
@@ -58,8 +56,8 @@ import org.jetbrains.compose.resources.stringResource
  * showing its current value and drilling into a focused sub-screen. This drill-down structure is what
  * lets the settings surface grow (Reader, Downloads, Tracking, …) without an endless single scroll.
  *
- * The index itself only reads state (row subtitles); the sub-screens own their controls. Navigation
- * mechanics stay in the host — this route just reports the tapped [Destination] to [onNavigate].
+ * The index itself only reads state (row subtitles); the sub-screens own their controls. A row tap goes
+ * to [SettingsViewModel.onEntryClick]; this route forwards the resulting nav event to [onNavigate].
  *
  * @param onNavigate invoked with the sub-screen [Destination] a row targets.
  * @param modifier the overall modifier for the composable.
@@ -71,6 +69,11 @@ fun SettingsRoute(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = metroViewModel()
 ) {
+    LaunchedEffect(viewModel) {
+        viewModel.navEvents.collect { event ->
+            if (event is NavEvent.NavTo) onNavigate(event.destination)
+        }
+    }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
     Column(
@@ -105,7 +108,7 @@ fun SettingsRoute(
                     title = stringResource(Res.string.settings_appearance),
                     subtitle = stringResource(state.theme.labelRes()),
                     leading = { ContrastIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    onClick = { onNavigate(SettingsAppearance) }
+                    onClick = { viewModel.onEntryClick(SettingsEntry.Appearance) }
                 )
             }
 
@@ -122,7 +125,7 @@ fun SettingsRoute(
                             }
                         ),
                     leading = { ShieldCheckIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    onClick = { onNavigate(SettingsPrivacy) }
+                    onClick = { viewModel.onEntryClick(SettingsEntry.Privacy) }
                 )
             }
 
@@ -137,7 +140,7 @@ fun SettingsRoute(
                             state.categoryCount
                         ),
                     leading = { LabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    onClick = { onNavigate(SettingsCategories) }
+                    onClick = { viewModel.onEntryClick(SettingsEntry.Categories) }
                 )
                 TanukiRowDivider(startInset = RowDividerInset)
                 TanukiListRow(
@@ -149,7 +152,7 @@ fun SettingsRoute(
                             state.sourceCount
                         ),
                     leading = { ExtensionIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-                    onClick = { onNavigate(SettingsSources) }
+                    onClick = { viewModel.onEntryClick(SettingsEntry.Sources) }
                 )
                 TanukiRowDivider(startInset = RowDividerInset)
                 // Opens the *settings*, which carry a row through to the queue. The subtitle still
@@ -174,7 +177,7 @@ fun SettingsRoute(
                             size = SettingsIconSize
                         )
                     },
-                    onClick = { onNavigate(SettingsDownloads) }
+                    onClick = { viewModel.onEntryClick(SettingsEntry.Downloads) }
                 )
             }
         }

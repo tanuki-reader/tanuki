@@ -8,10 +8,23 @@ struct DestinationView: View {
     @Binding var path: [Route]
 
     var body: some View {
-        if case let .topLevelDestination(tab) = onEnum(of: destination), case .home = onEnum(of: tab) {
-            HomeScreen(path: $path)
-        } else {
-            ComposeDestinationView(destination: destination, path: $path)
+        switch onEnum(of: destination) {
+        case let .topLevelDestination(tab):
+            switch onEnum(of: tab) {
+            case .home: HomeScreen(path: $path)
+            case .settings: SettingsScreen(path: $path)
+            case .library, .activity: bridge
+            }
+        case .settingsAppearance: AppearanceScreen()
+        case .settingsPrivacy: PrivacyScreen()
+        case .settingsCategories: CategoriesScreen()
+        case .settingsSources: SourcesScreen()
+        case .settingsDownloads: DownloadSettingsScreen(path: $path)
+        case .downloads, .mangaDetail, .reader, .sourceBrowse: bridge
         }
+    }
+
+    private var bridge: some View {
+        ComposeDestinationView(destination: destination, path: $path)
     }
 }

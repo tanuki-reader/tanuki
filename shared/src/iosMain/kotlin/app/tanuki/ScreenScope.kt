@@ -4,6 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import app.tanuki.features.home.viewmodel.HomeViewModel
+import app.tanuki.features.settings.appearance.viewmodel.AppearanceViewModel
+import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
+import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsViewModel
+import app.tanuki.features.settings.privacy.viewmodel.PrivacyViewModel
+import app.tanuki.features.settings.sources.viewmodel.SourcesViewModel
+import app.tanuki.features.settings.viewmodel.SettingsViewModel
 import dev.zacsweers.metrox.viewmodel.MetroViewModelFactory
 import kotlin.reflect.KClass
 
@@ -38,3 +44,15 @@ class ScreenScope internal constructor(
 // `viewModelFactory { addInitializer(kClass) { factory.createManuallyAssistedFactory(F::class)().create(…) } }`.
 
 fun ScreenScope.homeViewModel(): HomeViewModel = viewModel(HomeViewModel::class)
+
+fun ScreenScope.settingsViewModel(): SettingsViewModel = viewModel(SettingsViewModel::class)
+
+fun ScreenScope.appearanceViewModel(): AppearanceViewModel = viewModel(AppearanceViewModel::class)
+
+fun ScreenScope.privacyViewModel(): PrivacyViewModel = viewModel(PrivacyViewModel::class)
+
+fun ScreenScope.categoriesViewModel(): CategoriesViewModel = viewModel(CategoriesViewModel::class)
+
+fun ScreenScope.downloadSettingsViewModel(): DownloadSettingsViewModel = viewModel(DownloadSettingsViewModel::class)
+
+fun ScreenScope.sourcesViewModel(): SourcesViewModel = viewModel(SourcesViewModel::class)

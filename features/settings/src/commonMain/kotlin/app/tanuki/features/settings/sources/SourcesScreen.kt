@@ -17,9 +17,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -91,7 +88,8 @@ fun SourcesRoute(
         onInstall = viewModel::onInstall,
         onRemovalRequested = viewModel::onRemovalRequested,
         onRemovalDismissed = viewModel::onRemovalDismissed,
-        onUninstall = viewModel::onUninstall,
+        onRemovalDeleteDownloadsChange = viewModel::onRemovalDeleteDownloadsChange,
+        onRemovalConfirmed = viewModel::onRemovalConfirmed,
         onBack = onBack,
         modifier = modifier
     )
@@ -103,14 +101,11 @@ private fun SourcesScreen(
     onInstall: (String) -> Unit,
     onRemovalRequested: (String) -> Unit,
     onRemovalDismissed: () -> Unit,
-    onUninstall: (String, Boolean) -> Unit,
+    onRemovalDeleteDownloadsChange: (Boolean) -> Unit,
+    onRemovalConfirmed: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Screen-local, not ViewModel state: which row is awaiting confirmation is a property of this
-    // dialog being open, and it should not survive the screen the way an in-flight install does.
-    var sourcePendingRemoval by remember { mutableStateOf<SourceItem?>(null) }
-
     Column(
         modifier =
             modifier
@@ -135,27 +130,19 @@ private fun SourcesScreen(
                 SourceSections(
                     state = state,
                     onInstall = onInstall,
-                    onRemoveRequest = {
-                        sourcePendingRemoval = it
-                        onRemovalRequested(it.sourceId)
-                    }
+                    onRemoveRequest = { onRemovalRequested(it.sourceId) }
                 )
         }
     }
 
-    sourcePendingRemoval?.let { source ->
+    state.pendingRemoval?.let { source ->
         RemoveSourceDialog(
             source = source,
             usage = state.pendingUsage,
-            onDismiss = {
-                sourcePendingRemoval = null
-                onRemovalDismissed()
-            },
-            onConfirm = { deleteDownloads ->
-                onUninstall(source.sourceId, deleteDownloads)
-                sourcePendingRemoval = null
-                onRemovalDismissed()
-            }
+            deleteDownloads = state.removalDeletesDownloads,
+            onDeleteDownloadsChange = onRemovalDeleteDownloadsChange,
+            onDismiss = onRemovalDismissed,
+            onConfirm = onRemovalConfirmed
         )
     }
 }
@@ -348,18 +335,18 @@ private fun SourceRow(
 private fun RemoveSourceDialog(
     source: SourceItem,
     usage: SourceDownloadUsage?,
+    deleteDownloads: Boolean,
+    onDeleteDownloadsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
-    onConfirm: (Boolean) -> Unit
+    onConfirm: () -> Unit
 ) {
-    var deleteDownloads by remember(source.sourceId) { mutableStateOf(false) }
-
     TanukiDialog(
         title = stringResource(Res.string.settings_remove_source_title, source.name),
         onDismiss = onDismiss,
         dismissText = stringResource(Res.string.settings_cancel),
         confirmText = stringResource(Res.string.settings_remove),
         confirmVariant = TanukiButtonVariant.Danger,
-        onConfirm = { onConfirm(deleteDownloads) }
+        onConfirm = onConfirm
     ) {
         Text(
             text = stringResource(Res.string.settings_remove_source_message),
@@ -376,7 +363,7 @@ private fun RemoveSourceDialog(
                     ),
                 subtitle = stringResource(Res.string.settings_remove_source_downloads_hint, usage.bytes.asFileSize()),
                 checked = deleteDownloads,
-                onCheckedChange = { deleteDownloads = it }
+                onCheckedChange = onDeleteDownloadsChange
             )
         }
     }

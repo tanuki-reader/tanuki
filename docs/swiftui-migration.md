@@ -47,6 +47,7 @@ platform duplicates logic.
 | `:shared`'s **own** public API is always in the framework header (`export` doesn't control it), so `App()`, the image loader builders, `AppGraph`, etc. pull Skiko/Coil/Ktor/Compose-runtime types into Swift | `shared/src/commonMain` | Harmless but noisy, and it slows Swift indexing. Mark Compose-facing `:shared` declarations `internal` as they're touched, and drop them in Phase 9 |
 | Strings are in Compose Resources (~360 keys across modules), and SwiftUI can't read them natively | `features/*/composeResources/values*/strings.xml` | Needs a strings pipeline (see Decisions) |
 | State uses `kotlin.uuid.Uuid` and `kotlin.time.Instant` | e.g. `HomeState.kt` | Uuid reaches Swift as an opaque hashable class, which is fine for ids and navigation. For Instant, expose epoch millis or add one Swift extension to `Date` |
+| **Value classes reach Swift as an untyped `id`** (found in Phase 2): `Text` (`Category.name`, `Manga.title`, `SourceMeta.name`) can't be read from Swift | `:core:domain` models | Swift-facing state carries plain `String`s: map to a feature item type in the ViewModel (`CategoryItem`, `StorageSeriesItem`), as Home's items already did |
 | Kotlin objects reach Swift as `NSObject` subclasses, with `isEqual`/`hash` → `equals`/`hashCode` | — | Data-class `Destination`s are `Hashable`, so they work directly in `NavigationPath` |
 
 ## Target architecture (iOS side)
@@ -341,3 +342,43 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
     from `TopLevelDestination`; Android's `:assets:designSystem` is still on the old palette.
 
   Next: **Phase 2 — Settings**.
+- 2026-10-10 — **Phase 2 — Settings done** (pending commit and the hand checks below).
+  - **`:features:settings:logic`** holds all six ViewModels (index, Appearance, Privacy, Categories,
+    Downloads settings, Sources), in their existing packages, and is exported. `ScreenScope` has an
+    accessor for each.
+  - **State moved out of the UI:**
+    - the index's row taps are `SettingsEntry` + `onEntryClick` (`navigateTo`), and "open queue" is
+      `onOpenQueue`;
+    - every dialog is ViewModel state: Categories' create and delete dialogs, Sources' remove dialog and
+      its "also delete downloads" option, and Downloads' delete-all confirm;
+    - Privacy became a `StateViewModel<PrivacyState>`, so Swift observes one flow;
+    - Downloads derives `categoryOptions` (selected or not), `needsCategoryPick` and `listedSeries`
+      (the top-5 cap), so no UI does set membership or caps lists.
+
+    Android's screens read the same state. Only the category-name text buffer stays local.
+  - **Value-class finding:** `Text` reaches Swift as `id` (see Findings), hence `CategoryItem` and
+    `StorageSeriesItem`.
+  - **SwiftUI** (`Features/Settings/`):
+    - the index has accent symbol tiles, value subtitles and chevrons;
+    - Appearance is a segmented picker; Privacy is a `Toggle` plus a reset button with footers;
+    - Categories uses swipe-to-delete, a `+` toolbar button and alerts;
+    - Sources has sections with install/remove and busy/failed rows. iOS alerts can't hold a switch, so
+      Android's "also delete downloads" switch is a second destructive button;
+    - Downloads settings uses inline pickers with hints, category checkmarks, Wi-Fi only, storage via
+      `ByteCountFormatter` (decimal like Android) and a separate `danger` delete-all group;
+    - alert bindings are state-driven only: every button calls the ViewModel itself, because SwiftUI's
+      write-back could clear a pending item before the confirm action reads it;
+    - `DestinationView` is now an exhaustive switch: Home + Settings native, the rest on the bridge.
+  - **Verified:**
+    - `:features:settings:logic` tests (`CategoriesViewModelTest` 3, `DownloadSettingsStateTest` 2, on
+      host and iOS), the framework link, `:androidApp:assembleDebug`, and a Debug xcodebuild.
+    - Live on the simulator: the index in dark and light, and every leaf pushed through
+      `onEntryClick` → `navEvents` (temporary auto-push, reverted). Appearance, Privacy, Sources (real
+      installed sources) and Downloads settings rendered correctly.
+  - **Not covered:**
+    - ViewModel tests for Sources, Downloads and the index: their use cases are `sealed` and would need
+      about eight repository fakes. Categories covers the dialog pattern end to end.
+    - By hand: create/delete a category, install/remove a source (both buttons), delete all downloads,
+      a theme switch flipping the app, and Android on a device.
+
+  Next: **Phase 3 — Library**.
