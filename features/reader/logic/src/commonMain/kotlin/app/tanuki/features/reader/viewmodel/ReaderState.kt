@@ -34,9 +34,11 @@ sealed interface ReaderState {
      * describe the chapter the visible page belongs to, updating as the window slides past a boundary.
      *
      * @property items The window's pages and the transition slides between them, in reading order.
-     * @property initialItemIndex Where the pager/list should park on first composition (the resume page,
-     *   offset by any leading transition). Read once: later window shifts re-index [items] under the
-     *   viewport, and both layouts hold their place through that by item [ReaderItem.key], not by index.
+     * @property initialItemKey The item a layout parks on when first composed: the resume page, or after a
+     *   reading-mode switch the page that was on screen.
+     * @property initialItemIndex [initialItemKey]'s index in *these* [items] — resolved per emission, since
+     *   the list can change (the previous chapter warmed in above) before a layout parks. Read once, at
+     *   first composition; later shifts are held by item [ReaderItem.key] and [ReaderCommand].
      * @property readingMode How pages are laid out (paged L→R / R→L / single-vertical, or a strip).
      * @property chromeVisible Whether the top/bottom reader chrome is shown; toggled by tapping.
      * @property currentChapterId Local id of the chapter the visible page belongs to — changes as the
@@ -59,6 +61,7 @@ sealed interface ReaderState {
      */
     data class Content(
         val items: List<ReaderItem>,
+        val initialItemKey: String?,
         val initialItemIndex: Int,
         val readingMode: ReadingMode,
         val chromeVisible: Boolean,

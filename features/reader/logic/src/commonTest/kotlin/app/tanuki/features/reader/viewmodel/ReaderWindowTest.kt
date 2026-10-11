@@ -136,7 +136,7 @@ private fun session(count: Int): ReaderSession =
             },
         mangaTitle = "Berserk",
         readingMode = ReadingMode.RIGHT_TO_LEFT,
-        initialItemIndex = 0
+        initialItemKey = null
     )
 
 private fun ReaderSession.ids(range: IntRange): Set<Uuid> = range.mapTo(mutableSetOf()) { siblings[it].id }

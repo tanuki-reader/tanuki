@@ -395,11 +395,13 @@ class ReaderViewModel(
 
             // Seed the window inputs and the re-anchor bookkeeping BEFORE publishing the session, so the
             // first [Content] the pipeline builds already parks on the resume page with no stray re-anchor.
-            val resolved = ReaderSession(siblings, spine?.mangaTitle.orEmpty(), readingMode, initialItemIndex)
+            val unparked = ReaderSession(siblings, spine?.mangaTitle.orEmpty(), readingMode, initialItemKey = null)
             val seeded = ReaderWindow(initialChapterId, mapOf(initialChapterId to pages), emptySet())
+            val parkKey = buildItems(unparked, seeded).getOrNull(initialItemIndex)?.key
+            val resolved = unparked.copy(initialItemKey = parkKey)
             window.value = seeded
             currentPageInChapter.value = resumePage
-            focusedItemKey = buildItems(resolved, seeded).getOrNull(initialItemIndex)?.key
+            focusedItemKey = parkKey
             lastAnchoredIndex = initialItemIndex
 
             // Record the open itself: a chapter read on its single/first page never fires a page change, so
@@ -755,25 +757,17 @@ class ReaderViewModel(
      * care at all — [ReaderWindow] names its chapter by id, so a list that shifted under it re-resolves
      * through the new session's positions with nothing to remap.
      *
-     * A new reading mode means a new layout, which parks on [ReaderSession.initialItemIndex] when it is
-     * first composed — so that index moves to the page on screen, and the switch keeps the page.
+     * A new reading mode means a new layout, which parks on [ReaderSession.initialItemKey] when it is
+     * first composed — so that key moves to the page on screen, and the switch keeps the page.
      */
     private fun reproject(spine: Spine) {
         val current = session ?: return
         val reading = window.value.currentChapterId ?: return
         val siblings = siblingsOf(spine)
         if (siblings.none { it.id == reading }) return
-        val initialItemIndex =
-            if (spine.readingMode == current.readingMode) {
-                current.initialItemIndex
-            } else {
-                (uiState.value as? Content)
-                    ?.items
-                    ?.indexOfFirst { it.key == focusedItemKey }
-                    ?.takeIf { it >= 0 }
-                    ?: current.initialItemIndex
-            }
-        val next = ReaderSession(siblings, spine.mangaTitle, spine.readingMode, initialItemIndex)
+        val initialItemKey =
+            if (spine.readingMode == current.readingMode) current.initialItemKey else focusedItemKey ?: current.initialItemKey
+        val next = ReaderSession(siblings, spine.mangaTitle, spine.readingMode, initialItemKey)
         if (next != current) bootstrap.value = Bootstrap.Ready(next)
     }
 
@@ -846,7 +840,8 @@ class ReaderViewModel(
                     }
                 },
             items = frame.items,
-            initialItemIndex = session.initialItemIndex,
+            initialItemKey = session.initialItemKey,
+            initialItemIndex = frame.items.indexOfFirst { it.key == session.initialItemKey }.coerceAtLeast(0),
             readingMode = session.readingMode,
             chromeVisible = chromeVisible,
             currentChapterId = curr.id,

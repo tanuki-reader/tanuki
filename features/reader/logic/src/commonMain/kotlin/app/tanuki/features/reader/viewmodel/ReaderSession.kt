@@ -16,15 +16,17 @@ import kotlin.uuid.Uuid
  *   scanlator groups the user filtered out already removed.
  * @property mangaTitle The series' title, for the chrome.
  * @property readingMode How pages are laid out.
- * @property initialItemIndex Where the pager/list parks on first composition (the resume page, offset by
- *   a leading transition). Fixed for the session — it is read once, at first composition, and later
- *   window shifts are handled by item-key anchoring and [ReaderCommand].
+ * @property initialItemKey The item a layout parks on when it is first composed: the resume page (or, after
+ *   a reading-mode switch, the page that was on screen). A key rather than an index because the list can
+ *   change before a layout parks — the previous chapter warmed in above it — and an index taken against
+ *   the first list would then name a page of the wrong chapter. `Content.initialItemIndex` resolves it
+ *   against the list being shown.
  */
 internal data class ReaderSession(
     val siblings: List<Chapter>,
     val mangaTitle: String,
     val readingMode: ReadingMode,
-    val initialItemIndex: Int
+    val initialItemKey: String?
 ) {
     /**
      * Sibling position by chapter id. Built once with the session rather than scanned per event: every

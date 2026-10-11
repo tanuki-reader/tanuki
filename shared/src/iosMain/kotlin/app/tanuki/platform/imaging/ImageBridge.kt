@@ -47,6 +47,18 @@ suspend fun loadCoverData(
 ): NSData? = loadEncodedImage(coverImageLoader(), url, headers)?.toNSData()
 
 /**
+ * A reader page at [url] with [headers] (a source's Referer, say), as encoded image data, or `null` when
+ * it can't be had. Through the reader's own page loader — the same one, and the same `page_cache`, as
+ * the Compose reader (see [sharedPageImageLoader]) — so a page prefetched by either is a hit for both.
+ * A downloaded page is a local file, and Swift reads it itself; this is for source pages only.
+ */
+suspend fun loadPageData(
+    url: String,
+    headers: Map<String, String>
+): NSData? =
+    loadEncodedImage(sharedPageImageLoader(PlatformContext.INSTANCE, appGraph.sourceHttpClient), url, headers)?.toNSData()
+
+/**
  * Coil's singleton loader, built by [newTanukiImageLoader] over the shared source client. It's the same
  * factory the Compose host (`TanukiComposeHost`) registers, so whichever side asks first creates it, and
  * there is only ever one `DiskCache` over `cover_cache`. Two over one directory would corrupt each other.

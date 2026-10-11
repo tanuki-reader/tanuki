@@ -169,7 +169,7 @@ iOSApp (SwiftUI @main)
 | 5. Manga detail | hero, chapter list, selection, 4 sheets, download menu; one-scroll redesign (see "UI/UX redesign") | 8–12 |
 | 6. Activity | stats charts (Swift Charts), history with swipe; merged history rows (see "UI/UX redesign") | 5–8 |
 | 7. Downloads | queue screen | 3–5 |
-| 8. Reader | paged + webtoon, prefetch, decode sizing, scrubber, scroll commands. Some layout logic must move into the VM first | 12–20 |
+| 8. Reader | paged + webtoon, prefetch, decode sizing, scrubber, scroll commands. Some layout logic must move into the VM first — **done 2026-10-11** (with the nav-bug fixes, sheets and page bookmarks) | 12–20 |
 | 9. Cleanup | delete the Compose bridge, drop Compose from the iOS framework, update CLAUDE.md | 2–4 |
 | **Total** | | **≈58–91** |
 
@@ -832,5 +832,48 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Not verified by hand:** any of B on a device (Android chrome/sheets/swipe, iOS Bookmarks screen and
     filter), a local (downloaded) page as a thumbnail, the Room v15→v16 migration on a real database.
 
-  Next: **Phase 8, part C** (SwiftUI reader).
+- 2026-10-11 — **Phase 8, part C: SwiftUI reader** — the last destination on the Compose bridge.
+  - **Measured before building** (temporary harness, removed): a 200-page synthetic webtoon strip as
+    SwiftUI `ScrollView` + `LazyVStack` + `ScrollPosition` vs a `UICollectionView` (diffable, manual
+    re-anchor), on the iPhone 17 Pro simulator, two runs each.
+
+    | | prepend 60 above | heights change above | fling (120 steps) |
+    |---|---|---|---|
+    | SwiftUI | top item kept (100) | kept | 0 dropped frames, worst 16 ms |
+    | UICollectionView | kept | kept | 2 dropped, worst 39 ms |
+
+    → SwiftUI for both layouts; no UIKit representable. Synthetic pages (no decode), on a simulator: a
+    device run with real long chapters is still owed.
+  - **Kotlin:** `:features:reader:logic` exported; `ScreenScope.readerViewModel(mangaId:chapterId:page:)`;
+    the page `ImageLoader` memo moved out of `App.kt` into an atomic `sharedPageImageLoader` (one
+    `page_cache` for Compose and Swift); `ImageBridge.loadPageData`. **Parking by key:** the session
+    now holds the initial item's *key* (`Content.initialItemKey`, and `initialItemIndex` resolved per
+    emission). Found live: a layout that parks after the previous chapter was prepended parked on an
+    index from the old list — opening 56 landed on its last page. Test added with the fix (not watched
+    failing first).
+  - **iOS (`Features/Reader/`):** `ReaderScreen` (state, commands by key with a ≤1 s wait for the key,
+    park on `initialItemKey`, focus ignored until parked); `WebtoonStrip` (whole-strip pinch/double-tap
+    zoom, sideways pan while zoomed) and `PagedReader` (L→R, R→L via layout direction, vertical; per-page
+    zoom that stops paging while zoomed). Focus is the **topmost visible key** —
+    `onScrollTargetVisibilityChange` lists keys in no particular order, and using its first one sent the
+    strip into the next chapter. `scrollTargetLayout` sits on the lazy stack itself (on an `if` wrapper
+    the pager reported nothing). Pages load through `TanukiImage`'s sibling pipeline
+    `ImagePipeline.tanukiPages` (`PageDataLoader` → `loadPageData`, downloaded pages read from disk;
+    `ImageProcessors.Resize` to screen pixels; `ImagePrefetcher` sized by `prefetchBudget`). Chrome: clear
+    Liquid Glass over the page (`GlassEffectContainer`, `.glassEffect(.clear)`, `.buttonStyle(.glass)`),
+    fading with `TK.Motion`, status bar hidden with it; bookmark `bookmark`/`bookmark.fill` with
+    `.symbolEffect(.bounce)`. System sheets for Chapters/Bookmarks and Reader settings.
+  - **Verified:** reader 53 + window 9 (host + iOS), `PageWarmerTest` 7, `:androidApp:assembleDebug`,
+    Debug xcodebuild. Live on the simulator (scripted hook, removed; data restored): opens 56 (Sniper
+    Lord) on page 1; previous → 55 page 1; next → 56 page 1; chrome hides after 3 s; bookmark toggles,
+    lists in the Bookmarks tab and in Library ⋯ → Bookmarks with its page thumbnail; opening the bookmark
+    lands on its page; switching to webtoon keeps the page; settings sheet, sepia ground.
+  - **Not verified by hand:** gestures (swipes, flings, pinch zoom, the scrubber drag, swipe-back) —
+    no gesture automation here; long webtoon chapters with real images; prefetch on a metered link;
+    the bookmark marker on a Manga detail row (below the fold in the capture); Android on a device for
+    all of Phase 8.
+  - **Left:** `ComposeBridge`/`ComposeDestinationView` are now unused on iOS; Phase 9 deletes them and
+    drops Compose from the iOS framework.
+
+  Next: **Phase 9 — Cleanup**.
 

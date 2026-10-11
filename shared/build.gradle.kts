@@ -42,6 +42,7 @@ kotlin {
             export(projects.features.activity.logic)
             export(projects.features.downloads.logic)
             export(projects.features.bookmarks.logic)
+            export(projects.features.reader.logic)
         }
     }
     
@@ -96,6 +97,7 @@ kotlin {
             api(projects.features.library)
             api(projects.features.manga)
             api(projects.features.reader)
+            api(projects.features.reader.logic)
             api(projects.features.activity)
             api(projects.features.activity.logic)
             api(projects.features.downloads)

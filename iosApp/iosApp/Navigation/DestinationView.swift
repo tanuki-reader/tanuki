@@ -29,7 +29,7 @@ struct DestinationView: View {
         case let .mangaDetail(manga): MangaScreen(mangaId: manga.mangaId, path: $path)
         case .downloads: DownloadsScreen(path: $path)
         case .bookmarks: BookmarksScreen(path: $path)
-        case .reader: bridge
+        case let .reader(reader): ReaderScreen(mangaId: reader.mangaId, chapterId: reader.chapterId, page: reader.page, path: $path)
         }
     }
 

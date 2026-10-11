@@ -20,7 +20,7 @@ import app.tanuki.platform.rememberReducedMotion
 import app.tanuki.platform.imaging.newTanukiImageLoader
 import app.tanuki.platform.web.SiteSessionHost
 import app.tanuki.platform.web.WebEngineWarmupEffect
-import app.tanuki.platform.imaging.newTanukiPageImageLoader
+import app.tanuki.platform.imaging.sharedPageImageLoader
 import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.compose.LocalPlatformContext
@@ -110,12 +110,3 @@ fun TanukiComposeHost(
     }
 }
 
-// ponytail: unsynchronized memo — compositions run on the main thread, so it is only ever read and set
-// there. Needs a lock if anything off-main ever asks for the page loader. Holding it process-wide doesn't
-// leak an Android Activity: Coil's ImageLoader.Builder keeps only the application context.
-private var pageImageLoader: ImageLoader? = null
-
-private fun sharedPageImageLoader(
-    context: PlatformContext,
-    httpClient: HttpClient
-): ImageLoader = pageImageLoader ?: newTanukiPageImageLoader(context, httpClient).also { pageImageLoader = it }

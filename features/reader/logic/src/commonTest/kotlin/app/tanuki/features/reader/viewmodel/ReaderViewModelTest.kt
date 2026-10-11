@@ -911,6 +911,22 @@ class ReaderViewModelTest {
         assertEquals(ReaderBackground.Sepia, viewModel.content().background)
     }
 
+    @Test
+    fun `the parking item is still the resume page after the previous chapter lands above it`() = runTest {
+        // A layout that parks after the list has already changed (SwiftUI parks on appear, and the
+        // previous chapter is warmed in once the reader settles) must still park on the resume page.
+        val world = World(resumePageOfStart = 2)
+        val viewModel = world.viewModel()
+        runCurrent()
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
+        runCurrent()
+        val content = viewModel.content()
+        assertTrue(world.chapterIds[START - 1] in content.loadedChapterIds, "the previous chapter never landed")
+
+        assertEquals(pageKey(world.chapterIds[START], 2), content.items[content.initialItemIndex].key)
+        assertEquals(pageKey(world.chapterIds[START], 2), content.initialItemKey)
+    }
+
     // ---- Helpers --------------------------------------------------------------------------------
 
     private fun ReaderViewModel.content(): Content {

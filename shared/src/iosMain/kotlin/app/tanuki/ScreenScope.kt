@@ -11,6 +11,7 @@ import app.tanuki.features.downloads.viewmodel.DownloadsViewModel
 import app.tanuki.features.home.viewmodel.HomeViewModel
 import app.tanuki.features.library.viewmodel.LibraryViewModel
 import app.tanuki.features.manga.viewmodel.MangaViewModel
+import app.tanuki.features.reader.viewmodel.ReaderViewModel
 import app.tanuki.features.search.viewmodel.GlobalSearchViewModel
 import app.tanuki.features.settings.appearance.viewmodel.AppearanceViewModel
 import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
@@ -61,7 +62,7 @@ class ScreenScope internal constructor(
 }
 
 // One accessor per SwiftUI screen. An assisted ViewModel (route args) takes those args and goes through
-// [ScreenScope.assistedViewModel]; Manga and Reader get theirs when they migrate.
+// [ScreenScope.assistedViewModel].
 
 fun ScreenScope.homeViewModel(): HomeViewModel = viewModel(HomeViewModel::class)
 
@@ -108,4 +109,13 @@ fun ScreenScope.sourceCatalogViewModel(
 fun ScreenScope.mangaViewModel(mangaId: Uuid): MangaViewModel =
     assistedViewModel(MangaViewModel::class) {
         createManuallyAssistedFactory(MangaViewModel.Factory::class)().create(mangaId)
+    }
+
+fun ScreenScope.readerViewModel(
+    mangaId: Uuid,
+    chapterId: Uuid,
+    page: Int?
+): ReaderViewModel =
+    assistedViewModel(ReaderViewModel::class) {
+        createManuallyAssistedFactory(ReaderViewModel.Factory::class)().create(mangaId, chapterId, page)
     }
