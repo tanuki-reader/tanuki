@@ -39,6 +39,7 @@ import app.tanuki.core.navigation.SettingsCategories
 import app.tanuki.core.navigation.SettingsDownloads
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
+import app.tanuki.core.navigation.SourceCatalogGrid
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.platform.rememberReducedMotion
 import kotlin.reflect.typeOf
@@ -236,6 +237,12 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
             ) { entry -> screen(entry.toRoute<SourceBrowse>()) }
+            composable<SourceCatalogGrid>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) { entry -> screen(entry.toRoute<SourceCatalogGrid>()) }
             composable<MangaDetail>(
                 typeMap = uuidTypeMap,
                 enterTransition = leafEnter,

@@ -110,6 +110,39 @@ object Wire {
         val description: String? = null,
         /** Publication status name matching [app.tanuki.core.domain.manga.model.PublishStatus]; unknown → UNKNOWN. */
         val status: String? = null,
+        /**
+         * Number of the newest chapter, when the listing shows it (`222`, `10.5`). Optional and additive
+         * within [SourceAbi.VERSION], like everything below: it feeds the "Ch. 222" captions on a
+         * source's Latest rail. Negative or non-finite values are treated as absent.
+         */
+        val latestChapter: Double? = null,
+        /** The newest chapter's own name, for sources that don't number chapters. */
+        val latestChapterName: String? = null,
+        /** When the series last got a chapter, Unix epoch **milliseconds**; non-positive = unknown. */
+        val updatedAt: Long? = null,
+        /** Genre/tag names as the source shows them; empty when none. */
+        val genres: List<String> = emptyList(),
+    )
+
+    /** Request for [SourceAbi.Exports.SOURCE_HOME]; empty today, an object so it can grow optional fields. */
+    @Serializable
+    class SourceHomeRequest
+
+    /**
+     * Output of the optional [SourceAbi.Exports.SOURCE_HOME]: the first page of several listings in one
+     * call. A section is keyed by a [app.tanuki.core.domain.source.model.SourceListing.wireName]; an
+     * unknown name is dropped by the mapper, the same way [SourceMetaWire.listings] treats one.
+     */
+    @Serializable
+    data class SourceHomeWire(
+        val sections: List<SourceHomeSectionWire> = emptyList(),
+    )
+
+    /** One [SourceHomeWire] section. */
+    @Serializable
+    data class SourceHomeSectionWire(
+        val listing: String,
+        val entries: List<MangaWire> = emptyList(),
     )
 
     /** Request for [SourceAbi.Exports.MANGA_LIST]. */

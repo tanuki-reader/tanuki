@@ -235,6 +235,16 @@ interface MangaDao {
     @Query("SELECT id FROM manga WHERE source = :sourceId")
     suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid>
 
+    /** Source-native keys of the library series from source [sourceId]; keys only, for a membership set. */
+    @Query(
+        """
+        SELECT manga.source_manga_key FROM library
+        JOIN manga ON manga.id = library.id
+        WHERE manga.source = :sourceId AND manga.source_manga_key IS NOT NULL
+        """,
+    )
+    fun observeLibraryKeys(sourceId: Uuid): Flow<List<String>>
+
     /**
      * The local id of the manga keyed [sourceMangaKey] within source [sourceId], or `null` if none is
      * cached yet. Used to dedupe when caching a browsed manga — a second tap reuses the existing row

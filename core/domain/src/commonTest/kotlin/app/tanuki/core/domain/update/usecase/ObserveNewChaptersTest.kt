@@ -225,6 +225,8 @@ private class LiveMangaRepository(manga: Manga) : MangaRepository {
         listOf(held.value).filter { it.id in mangaIds }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = error("unused")
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
     override fun observeLibrary(): Flow<List<LibraryManga>> = error("unused")
     override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")
 

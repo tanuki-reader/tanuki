@@ -911,6 +911,9 @@ internal class FakeMangaRepository(
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
         held.map { all -> all.filter { it.id in mangaIds } }
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
+
     override fun observeLibrary(): Flow<List<LibraryManga>> =
         held.map { all ->
             all.map {

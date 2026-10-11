@@ -11,6 +11,7 @@ import app.tanuki.core.navigation.SettingsDownloads
 import app.tanuki.core.navigation.SettingsPrivacy
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
+import app.tanuki.core.navigation.SourceCatalogGrid
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.features.activity.ActivityRoute
 import app.tanuki.features.downloads.DownloadsRoute
@@ -24,6 +25,7 @@ import app.tanuki.features.settings.categories.CategoriesRoute
 import app.tanuki.features.settings.downloads.DownloadSettingsRoute
 import app.tanuki.features.settings.privacy.PrivacyRoute
 import app.tanuki.features.settings.sources.SourcesRoute
+import app.tanuki.features.source.SourceHomeRoute
 import app.tanuki.features.source.SourceRoute
 
 /**
@@ -55,7 +57,15 @@ fun DestinationContent(
         SettingsDownloads -> DownloadSettingsRoute(onNavigate = onNavigate, onBack = onBack)
         SettingsSources -> SourcesRoute(onBack = onBack)
         Downloads -> DownloadsRoute(onNavigate = onNavigate, onBack = onBack)
-        is SourceBrowse -> SourceRoute(sourceId = destination.sourceId, onNavigate = onNavigate, onBack = onBack)
+        is SourceBrowse -> SourceHomeRoute(sourceId = destination.sourceId, onNavigate = onNavigate, onBack = onBack)
+        is SourceCatalogGrid ->
+            SourceRoute(
+                sourceId = destination.sourceId,
+                listing = destination.listing,
+                query = destination.query,
+                onNavigate = onNavigate,
+                onBack = onBack
+            )
         is MangaDetail -> MangaRoute(mangaId = destination.mangaId, onNavigate = onNavigate, onBack = onBack)
         is Reader -> ReaderRoute(mangaId = destination.mangaId, chapterId = destination.chapterId, onBack = onBack)
     }

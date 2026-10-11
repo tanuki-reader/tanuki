@@ -30,7 +30,7 @@ import kotlin.uuid.Uuid
  * **not** rewritten — that would risk clobbering an existing library membership. So re-tapping a title
  * in browse always resolves to the same row, whether or not it's a favorite.
  */
-sealed interface CacheSourceManga {
+interface CacheSourceManga {
     /**
      * @param sourceId source-native id the [listing] came from (e.g. `"mangadex"`).
      * @param listing the browsed entry to persist.

@@ -96,6 +96,9 @@ class MangaRepositoryImp(
     override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> =
         mangaDao.getMangaIdsBySource(sourceId)
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> =
+        mangaDao.observeLibraryKeys(sourceId).map(List<String>::toSet).distinctUntilChanged()
+
     override suspend fun getMangaIdBySourceAndKey(sourceId: Uuid, sourceMangaKey: String): Uuid? =
         mangaDao.findMangaIdBySourceAndKey(sourceId, sourceMangaKey)
 

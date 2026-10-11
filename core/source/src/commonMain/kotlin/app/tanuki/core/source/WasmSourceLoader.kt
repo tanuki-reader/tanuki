@@ -14,10 +14,12 @@ import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.MangaPage
 import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.domain.source.model.Source
+import app.tanuki.core.domain.source.model.SourceHome
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
 import app.tanuki.core.source.abi.SourceAbi
+import app.tanuki.core.source.abi.SourceAbiException
 import app.tanuki.core.source.abi.SourceCodec
 import app.tanuki.core.source.abi.Wire
 import app.tanuki.core.source.abi.Wire.SourceMetaWire
@@ -173,6 +175,22 @@ class WasmSourceLoader(
             callModule(sourceId, SourceAbi.Exports.MANGA_LIST, request),
         ).toDomain()
     }
+
+    override suspend fun fetchSourceHome(sourceId: String): SourceHome? =
+        withContext(dispatchers.io) {
+            requireConnection(sourceId, SourceAbi.Exports.SOURCE_HOME)
+            val request = SourceCodec.encode(Wire.SourceHomeRequest())
+            try {
+                SourceCodec.decodeEnvelope<Wire.SourceHomeWire>(
+                    callModule(sourceId, SourceAbi.Exports.SOURCE_HOME, request),
+                ).toDomain()
+            } catch (e: SourceAbiException) {
+                // The SDK's default answer for a source that doesn't implement it. Anything else (a bundle
+                // built before the export existed traps on the missing symbol) propagates, and the caller
+                // falls back to per-listing fetches either way.
+                if (e.code == UNSUPPORTED) null else throw e
+            }
+        }
 
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing =
         withContext(dispatchers.io) {
@@ -425,6 +443,9 @@ class WasmSourceLoader(
     private companion object {
         /** Reused empty payload for no-argument exports (e.g. SOURCE_META). */
         val EMPTY = ByteArray(0)
+
+        /** [Wire.AbiError.code] the SDK answers with for an export a source doesn't implement. */
+        const val UNSUPPORTED = "unsupported"
 
         /**
          * How many sources the fetch path may keep instantiated — one idle instance each, so in steady

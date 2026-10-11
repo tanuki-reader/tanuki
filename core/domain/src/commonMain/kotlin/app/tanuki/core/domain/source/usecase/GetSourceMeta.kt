@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.first
  *
  * `null` is the caller's cue to show a hard error: a source that can't describe itself can't be browsed.
  */
-sealed interface GetSourceMeta {
+interface GetSourceMeta {
     suspend operator fun invoke(sourceId: String): SourceMeta?
 
     @Inject

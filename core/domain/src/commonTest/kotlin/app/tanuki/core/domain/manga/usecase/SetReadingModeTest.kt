@@ -49,6 +49,8 @@ private class RecordingMangaRepository : MangaRepository {
 
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<Manga> = error("unused")
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> = error("unused")
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
     override fun observeLibrary(): Flow<List<LibraryManga>> = flowOf(emptyList())
     override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")
 

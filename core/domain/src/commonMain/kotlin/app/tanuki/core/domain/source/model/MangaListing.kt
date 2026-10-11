@@ -1,7 +1,9 @@
 package app.tanuki.core.domain.source.model
 
+import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.manga.model.PublishStatus
+import kotlin.time.Instant
 
 /**
  * A single catalog/search result as a source provides it — the **pre-persistence** shape of a manga.
@@ -30,6 +32,10 @@ import app.tanuki.core.domain.manga.model.PublishStatus
  * @property description Synopsis, or `null` when the source provides none.
  * @property status Publication status as reported by the source; [PublishStatus.UNKNOWN] when absent or
  *   unrecognised.
+ * @property latestChapter Number of the newest chapter when the listing shows it; `null` otherwise.
+ * @property latestChapterName The newest chapter's own name, for sources that don't number chapters.
+ * @property updatedAt When the series last got a chapter, when the source says.
+ * @property genres Genre/tag names as the source shows them; empty when none.
  */
 data class MangaListing(
     val sourceMangaKey: String,
@@ -41,4 +47,8 @@ data class MangaListing(
     val author: String? = null,
     val description: String? = null,
     val status: PublishStatus = PublishStatus.UNKNOWN,
+    val latestChapter: ChapterNumber? = null,
+    val latestChapterName: String? = null,
+    val updatedAt: Instant? = null,
+    val genres: List<String> = emptyList(),
 )

@@ -2,6 +2,7 @@ package app.tanuki.features.source.viewmodel
 
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.SourceListing
+import kotlin.time.Clock
 
 /**
  * The screen's persistent chrome — the top bar's title and the listing tab row. Derived from the
@@ -54,6 +55,13 @@ sealed interface SourceBrowseState {
     sealed interface Results : SourceBrowseState {
         val items: List<MangaListing>
         val append: Append
+
+        /** [items] in plain values for Swift (the domain's `Url` reaches it untyped). */
+        val tiles: List<CatalogItem>
+            get() {
+                val now = Clock.System.now()
+                return items.map { it.toItem(inLibrary = false, now = now) }
+            }
     }
 
     /** Browsing one of the source's listings — the default state, with the tab row visible. */

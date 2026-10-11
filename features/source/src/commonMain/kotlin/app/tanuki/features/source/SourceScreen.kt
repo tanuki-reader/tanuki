@@ -32,6 +32,7 @@ import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.source.composable.SourceGrid
 import app.tanuki.features.source.resources.Res
 import app.tanuki.features.source.resources.listing_latest
+import app.tanuki.features.source.resources.listing_new
 import app.tanuki.features.source.resources.listing_popular
 import app.tanuki.features.source.resources.source_load_error
 import app.tanuki.features.source.resources.source_results_empty
@@ -56,12 +57,16 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 fun SourceRoute(
     sourceId: String,
+    listing: String?,
+    query: String?,
     onNavigate: (Destination) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel =
-        assistedMetroViewModel<SourceBrowseViewModel, SourceBrowseViewModel.Factory> { create(sourceId) }
+        assistedMetroViewModel<SourceBrowseViewModel, SourceBrowseViewModel.Factory> {
+            create(sourceId, listing?.let(SourceListing::fromWireName), query)
+        }
 
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
@@ -72,13 +77,21 @@ fun SourceRoute(
         }
     }
 
-    SourceScreen(modifier = modifier, fallbackTitle = sourceId, viewModel = viewModel, onBack = onBack)
+    SourceScreen(
+        modifier = modifier,
+        fallbackTitle = sourceId,
+        viewModel = viewModel,
+        // Opened from the Source home's search: start on the search field.
+        startSearching = query != null,
+        onBack = onBack
+    )
 }
 
 @Composable
 private fun SourceScreen(
     fallbackTitle: String,
     viewModel: SourceBrowseViewModel,
+    startSearching: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -95,7 +108,7 @@ private fun SourceScreen(
     // Null until metadata lands; only then is there a real name to title the bar and search with.
     val title = chrome.title ?: fallbackTitle
     // Search now lives inside the top bar (same toggle as the Library), not a persistent pill below it.
-    var searchActive by rememberSaveable { mutableStateOf(false) }
+    var searchActive by rememberSaveable { mutableStateOf(startSearching) }
 
     Column(
         modifier =
@@ -195,10 +208,11 @@ private fun SourceScreen(
  * could only ever arrive in one language.
  */
 @Composable
-private fun listingLabel(listing: SourceListing): String =
+internal fun listingLabel(listing: SourceListing): String =
     stringResource(
         when (listing) {
             SourceListing.POPULAR -> Res.string.listing_popular
             SourceListing.LATEST -> Res.string.listing_latest
+            SourceListing.NEW -> Res.string.listing_new
         }
     )

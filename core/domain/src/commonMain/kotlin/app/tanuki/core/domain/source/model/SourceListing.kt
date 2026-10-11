@@ -25,7 +25,10 @@ enum class SourceListing(
     POPULAR("popular"),
 
     /** The source's most recently updated series. */
-    LATEST("latest");
+    LATEST("latest"),
+
+    /** Series most recently added to the source. Optional; only sources that can sort by creation date declare it. */
+    NEW("new");
 
     companion object {
         /**

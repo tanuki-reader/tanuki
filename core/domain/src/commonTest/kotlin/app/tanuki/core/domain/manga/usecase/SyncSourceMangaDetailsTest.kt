@@ -341,6 +341,9 @@ private class DetailsMangaRepository(
 
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> = error("unused")
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
+
     override fun observeLibrary(): Flow<List<LibraryManga>> = error("unused")
 
     override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")

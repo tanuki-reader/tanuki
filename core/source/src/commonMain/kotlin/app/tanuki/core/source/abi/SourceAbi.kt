@@ -61,6 +61,14 @@ object SourceAbi {
         const val MANGA_LIST = "manga_list"
 
         /**
+         * **Optional.** `source_home(ptr,len) -> (ptr,len)`. Input [Wire.SourceHomeRequest], output a
+         * [Wire.Envelope] of [Wire.SourceHomeWire] — the first page of several listings in one call.
+         * A source without it (an older bundle, or one answering `unsupported`) gets the app's
+         * fallback: one [MANGA_LIST] per declared listing.
+         */
+        const val SOURCE_HOME = "source_home"
+
+        /**
          * `manga_details(ptr,len) -> (ptr,len)`. Input [Wire.MangaDetailsRequest], output a
          * [Wire.Envelope] of [Wire.MangaWire] (JSON) — the full record for one series. Same shape as a
          * catalog entry, just more of it filled in (description, author, status).

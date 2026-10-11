@@ -30,7 +30,7 @@ import dev.zacsweers.metro.Inject
  * @param query free-text search; `null` or blank browses instead of searching.
  * @param page 1-based page index; page forward only while [MangaPage.hasNextPage].
  */
-sealed interface BrowseSource {
+interface BrowseSource {
     suspend operator fun invoke(
         sourceId: String,
         listing: SourceListing? = null,

@@ -195,13 +195,14 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
 - **"In library"** marker (glyph + words) on covers already in the library.
 - "See all" / search push today's paged grid as its own destination.
 - Shared work, before the SwiftUI screen:
-  - [ ] `SourceListing`: add values (e.g. `TRENDING`, `NEW`) + ABI wire names (`wire.rs`) +
-        `listing_*` strings in en and pt-BR; sources opt in via `SourceMeta.listings`.
-  - [ ] `MangaListing`: optional `latestChapter` and `updatedAt` (needed for the Latest rail labels).
-  - [ ] New `SourceHomeViewModel` (`StateViewModel`): page 1 of each declared listing in parallel, one
-        section state per rail, plus an in-library flag per item. `SourceBrowseViewModel` stays as the
-        "See all"/search grid behind a new `Destination`.
-  - [ ] Android: M3 carousel / `LazyRow` rails over the new state.
+  - [x] `SourceListing.NEW` (`"new"`) + `listing_new` in en and pt-BR; MangaDex declares it.
+        (`TRENDING` not added: no source can sort that way yet.)
+  - [x] `MangaListing`: optional `latestChapter`, `latestChapterName`, `updatedAt`, `genres`.
+  - [x] Optional `source_home` export (one call for several listings), with a per-listing fallback.
+  - [x] New `SourceHomeViewModel` (`StateViewModel`): one rail per declared listing + the default
+        catalog, each loading/failing/retrying on its own, plus an in-library flag per item.
+        `SourceBrowseViewModel` stays as the "See all"/search grid behind `SourceCatalogGrid`.
+  - [x] Android: snapping hero `LazyRow` + cover `LazyRow` rails over the new state.
 
 ### Manga detail (Phase 5)
 
@@ -507,3 +508,41 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     Android on a device.
 
   Next: **Phase 4 — Source browse**.
+- 2026-10-11 — **Phase 4 — Source browse → Source home done** (pending commit and the hand checks below).
+  - **ABI (additive, `ABI_VERSION` stays 4; `wire.rs` ↔ `Wire.kt` changed together):**
+    - `Manga` gains optional `latest_chapter`, `latest_chapter_name`, `updated_at` (epoch ms) and
+      `genres`; unknown/invalid values degrade to absent in `Mappers.kt`.
+    - `Listing::New` / `SourceListing.NEW` (`"new"`).
+    - Optional `source_home` export → `SourceHomeWire { sections: [{ listing, entries }] }`. The SDK's
+      default answers `unsupported`; `SourceLoader.fetchSourceHome` (default `null`) returns `null` for
+      that, and `GetSourceHome` falls back to one `manga_list` per declared listing (plus the default
+      catalog for "All series"), each rail failing on its own. An older bundle without the export
+      traps, which also falls back.
+    - Sources: MangaDex declares `New` (`order[createdAt]`) and sends genres (its `lastChapter` is the
+      *final* chapter, so no latest-chapter field). Manhastro sends genres, `updated_at`
+      (`ultimo_capitulo`) and, on `/lancamentos`, the release's chapter. MangaFire is untouched (its
+      list API is signed; field names unverified). `hello` implements `home()` as the conformance
+      fixture. Every source's `version` was bumped so installed bundles update.
+  - **Domain/data:** `GetSourceHome`, `ObserveLibraryKeys` (Room: library ⋈ manga by source →
+    `source_manga_key`), `MangaRepository.observeLibraryKeys`. `GetSourceMeta`, `BrowseSource` and
+    `CacheSourceManga` are plain interfaces now, so ViewModels can be tested with fakes.
+  - **`:features:source:logic`** (exported): `SourceHomeViewModel` (assisted) and the moved
+    `SourceBrowseViewModel` (now assisted with an initial listing/query, plus Swift-friendly `tiles` and
+    `onItemClick`). `ScreenScope.assistedViewModel` + accessors `sourceHomeViewModel`,
+    `sourceCatalogViewModel`. New destination `SourceCatalogGrid(sourceId, listing, query)`
+    (`SourceCatalog` is taken by a domain interface in Swift). `SourceBrowse` now renders Source home.
+  - **SwiftUI** (`Features/Source/`): `SourceHomeScreen` (large title + "en · 3 listings" subtitle,
+    `.searchable` submitting to the catalog, Popular as a snapping `MangaHeroCard` carousel, cover
+    rails with "Ch. N · 15 h ago" on Latest, an All series preview, per-rail retry) and
+    `SourceCatalogScreen` (adaptive grid, infinite scroll, search). `LibraryCoverTile` became the
+    shared `DesignSystem/Components/CoverTile` (unread badge, "In library" pill).
+  - **Swift naming gotchas:** Kotlin `SourceListing.NEW` reaches Swift as `.theNew`; a second Kotlin
+    `SourceItem` (settings) forced `CatalogItem`.
+  - **Verified:** `GetSourceHomeTest` 3, `SourceHomeViewModelTest` 5 (host + iOS), the `hello`
+    `source_home` engine test on Chicory and wasmi, `:androidApp:assembleDebug`, the framework link,
+    a Debug xcodebuild. Live on the simulator with real MangaDex: Popular hero carousel with genres,
+    Latest rail, All series grid, and the "New series" catalog.
+  - **Not verified by hand:** the "In library" pill (empty simulator library), Manhastro's chapter
+    captions, search submit, tapping into a manga, per-rail retry, and Android on a device.
+
+  Next: **Phase 5 — Manga detail**.

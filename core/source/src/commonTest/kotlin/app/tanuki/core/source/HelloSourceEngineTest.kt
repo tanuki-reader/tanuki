@@ -3,12 +3,15 @@ package app.tanuki.core.source
 import app.tanuki.core.source.abi.SourceAbi
 import app.tanuki.core.source.abi.SourceCodec
 import app.tanuki.core.source.abi.Wire
+import app.tanuki.core.source.abi.toDomain
+import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.source.fixture.HELLO_WASM
 import app.tanuki.core.source.runtime.SourceHost
 import app.tanuki.core.source.runtime.provideWasmEngine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /**
  * The Phase 0 proof: run the **real** `hello.wasm` through the **real** engine and confirm the whole
@@ -50,10 +53,32 @@ class HelloSourceEngineTest {
         assertEquals("hello", meta.id)
         assertEquals("Hello", meta.name)
         assertEquals("en", meta.lang)
-        assertEquals(2, meta.version)
+        assertEquals(3, meta.version)
         // The contract's listing vocabulary, declared as bare names — no source-supplied labels.
-        assertEquals(listOf("popular", "latest"), meta.listings)
+        assertEquals(listOf("popular", "latest", "new"), meta.listings)
 
+        module.close()
+    }
+
+    @Test
+    fun `the optional source home round-trips every new field`() {
+        if (HELLO_WASM.isEmpty()) return
+
+        val module = provideWasmEngine().instantiate("hello", HELLO_WASM, NoOpHost)
+
+        val home =
+            SourceCodec
+                .decodeEnvelope<Wire.SourceHomeWire>(
+                    module.call(SourceAbi.Exports.SOURCE_HOME, SourceCodec.encode(Wire.SourceHomeRequest()))
+                ).toDomain()
+
+        val section = home.sections.single()
+        assertEquals(SourceListing.POPULAR, section.listing)
+        val manga = section.entries.single()
+        assertEquals(12.5, manga.latestChapter?.value)
+        assertEquals("The Twelfth and a Half", manga.latestChapterName)
+        assertEquals(Instant.fromEpochMilliseconds(1_760_000_000_000), manga.updatedAt)
+        assertEquals(listOf("Comedy", "Slice of Life"), manga.genres)
         module.close()
     }
 

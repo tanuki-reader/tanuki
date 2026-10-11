@@ -6,4 +6,32 @@
     <string name="source_search_empty">No results for “%1$s”</string>
     <string name="listing_popular">Popular</string>
     <string name="listing_latest">Latest</string>
+    <string name="listing_new">New series</string>
+    <string name="source_all_series">All series</string>
+    <string name="source_see_all">See all</string>
+    <string name="source_browse_all">Browse</string>
+    <string name="source_in_library">In library</string>
+    <string name="source_rail_failed">Couldn’t load this list.</string>
+    <string name="source_latest_chapter">Ch. %1$s</string>
+    <plurals name="source_listing_count">
+        <item quantity="one">%1$d listing</item>
+        <item quantity="other">%1$d listings</item>
+    </plurals>
+    <string name="source_time_just_now">Just now</string>
+    <plurals name="source_time_minutes">
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
+    </plurals>
+    <plurals name="source_time_hours">
+        <item quantity="one">%1$d h ago</item>
+        <item quantity="other">%1$d h ago</item>
+    </plurals>
+    <plurals name="source_time_days">
+        <item quantity="one">%1$d day ago</item>
+        <item quantity="other">%1$d days ago</item>
+    </plurals>
+    <plurals name="source_time_weeks">
+        <item quantity="one">%1$d week ago</item>
+        <item quantity="other">%1$d weeks ago</item>
+    </plurals>
 </resources>

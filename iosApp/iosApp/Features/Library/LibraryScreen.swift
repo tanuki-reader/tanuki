@@ -65,7 +65,14 @@ struct LibraryScreen: View {
             ) {
                 ForEach(content.items, id: \.mangaId) { item in
                     Button { model.vm.onMangaClick(mangaId: item.mangaId) } label: {
-                        LibraryCoverTile(item: item)
+                        CoverTile(
+                            seed: "\(item.mangaId)",
+                            title: item.title,
+                            coverUrl: item.coverUrl,
+                            coverHeaders: item.coverHeaders,
+                            unread: Int(item.unreadCount),
+                            accessibilityLabel: tr("library_cover_content_description", item.title, table: .library)
+                        )
                     }
                     .buttonStyle(.plain)
                     .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))

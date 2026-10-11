@@ -8,6 +8,8 @@ import app.tanuki.core.domain.source.model.ChapterListing
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.MangaPage
 import app.tanuki.core.domain.source.model.Page
+import app.tanuki.core.domain.source.model.SourceHome
+import app.tanuki.core.domain.source.model.SourceHomeSection
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import kotlin.time.Instant
@@ -69,6 +71,25 @@ fun Wire.MangaWire.toDomain(): MangaListing =
         author = author,
         description = description,
         status = publishStatusOf(status),
+        latestChapter = ChapterNumber.orNull(latestChapter),
+        latestChapterName = latestChapterName?.takeIf(String::isNotBlank),
+        updatedAt = updatedAt?.takeIf { it > 0 }?.let(Instant::fromEpochMilliseconds),
+        genres = genres.map(String::trim).filter(String::isNotEmpty).distinct(),
+    )
+
+/**
+ * Maps the optional one-call home. Sections naming a listing this build doesn't know are dropped, and
+ * the rest come back in [SourceListing] order, like [sourceListingsOf] does for the declared listings.
+ */
+fun Wire.SourceHomeWire.toDomain(): SourceHome =
+    SourceHome(
+        sections =
+            sections
+                .mapNotNull { section ->
+                    SourceListing.fromWireName(section.listing)?.let { listing ->
+                        SourceHomeSection(listing, section.entries.map(Wire.MangaWire::toDomain))
+                    }
+                }.sortedBy { it.listing?.ordinal },
     )
 
 /** Maps a page of wire catalog entries to the browse-facing [MangaPage], preserving source order. */

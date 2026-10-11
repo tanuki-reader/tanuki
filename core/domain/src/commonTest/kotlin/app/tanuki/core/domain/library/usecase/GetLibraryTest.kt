@@ -163,6 +163,9 @@ private class FakeMangaRepository(
     var subscriptions: Int = 0
         private set
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
+
     override fun observeLibrary(): Flow<List<LibraryManga>> = library.onStart { subscriptions++ }
 
     override fun observeManga(mangaId: Uuid): Flow<Manga?> = error("unused")

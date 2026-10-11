@@ -205,6 +205,9 @@ private class FakeMangaRepository(private val manga: Manga) : MangaRepository {
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
         flowOf(listOf(manga).filter { it.id in mangaIds })
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
+
     override fun observeLibrary(): Flow<List<LibraryManga>> = flowOf(emptyList())
     override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")
 

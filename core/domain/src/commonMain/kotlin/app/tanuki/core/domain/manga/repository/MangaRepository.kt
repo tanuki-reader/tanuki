@@ -95,6 +95,12 @@ interface MangaRepository {
     suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid>
 
     /**
+     * The source-native keys of every library series from the source with local id [sourceId], live —
+     * what a source's browse screens test membership against for their "In library" marker.
+     */
+    fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>>
+
+    /**
      * The local id of the manga keyed [sourceMangaKey] within source [sourceId], or `null` if it isn't
      * cached.
      *

@@ -66,6 +66,18 @@ data class SourceBrowse(
     val sourceId: String
 ) : Destination
 
+/**
+ * One source's full, paged catalog — what a Source home rail's "See all" or a search opens. [listing] is
+ * a [app.tanuki.core.domain.source.model.SourceListing.wireName] (`null` = the default catalog) and
+ * [query] a search to run; a string rather than the enum so the route stays a plain serializable value.
+ */
+@Serializable
+data class SourceCatalogGrid(
+    val sourceId: String,
+    val listing: String? = null,
+    val query: String? = null
+) : Destination
+
 /** The reader for a specific chapter. [mangaId] is carried so the reader can page across chapters. */
 @Serializable
 data class Reader(

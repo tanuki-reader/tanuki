@@ -6,4 +6,32 @@
     <string name="source_search_empty">Nenhum resultado para “%1$s”</string>
     <string name="listing_popular">Populares</string>
     <string name="listing_latest">Recentes</string>
+    <string name="listing_new">Novas séries</string>
+    <string name="source_all_series">Todas as séries</string>
+    <string name="source_see_all">Ver tudo</string>
+    <string name="source_browse_all">Explorar</string>
+    <string name="source_in_library">Na biblioteca</string>
+    <string name="source_rail_failed">Não foi possível carregar esta lista.</string>
+    <string name="source_latest_chapter">Cap. %1$s</string>
+    <plurals name="source_listing_count">
+        <item quantity="one">%1$d lista</item>
+        <item quantity="other">%1$d listas</item>
+    </plurals>
+    <string name="source_time_just_now">Agora mesmo</string>
+    <plurals name="source_time_minutes">
+        <item quantity="one">há %1$d min</item>
+        <item quantity="other">há %1$d min</item>
+    </plurals>
+    <plurals name="source_time_hours">
+        <item quantity="one">há %1$d h</item>
+        <item quantity="other">há %1$d h</item>
+    </plurals>
+    <plurals name="source_time_days">
+        <item quantity="one">há %1$d dia</item>
+        <item quantity="other">há %1$d dias</item>
+    </plurals>
+    <plurals name="source_time_weeks">
+        <item quantity="one">há %1$d semana</item>
+        <item quantity="other">há %1$d semanas</item>
+    </plurals>
 </resources>

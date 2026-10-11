@@ -562,6 +562,9 @@ private class FakeMangaRepository(
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<Manga>> =
         flowOf(listOfNotNull(manga).filter { it.id in mangaIds })
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<Set<String>> = flowOf(emptySet())
+
+
     override fun observeLibrary(): Flow<List<LibraryManga>> = flowOf(emptyList())
 
     override suspend fun getLibraryUpdateTargets(): List<LibraryUpdateTarget> = error("unused")

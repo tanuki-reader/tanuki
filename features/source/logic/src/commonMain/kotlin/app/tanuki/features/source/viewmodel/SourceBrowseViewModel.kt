@@ -80,6 +80,8 @@ import kotlinx.coroutines.launch
 @AssistedInject
 class SourceBrowseViewModel(
     @Assisted private val sourceId: String,
+    @Assisted initialListing: SourceListing?,
+    @Assisted initialQuery: String?,
     private val getSourceMeta: GetSourceMeta,
     private val browseSource: BrowseSource,
     private val cacheSourceManga: CacheSourceManga,
@@ -104,14 +106,14 @@ class SourceBrowseViewModel(
      * from the resolved metadata) keeps the default correct without one pipeline writing another's input,
      * mirroring `HomeViewModel.expandedLangs`.
      */
-    private val selectedListing = MutableStateFlow<SourceListing?>(null)
+    private val selectedListing = MutableStateFlow(initialListing)
 
     /**
      * The search text, debounced to avoid a flood of first-page reloads. The UI binds to this and
      * calls [onQueryChange] to update it.
      */
     val searchQuery: StateFlow<String>
-        field = MutableStateFlow("")
+        field = MutableStateFlow(initialQuery.orEmpty())
 
     /**
      * The screen's persistent chrome (title + tab row), derived from metadata × the picked tab — never
@@ -235,6 +237,11 @@ class SourceBrowseViewModel(
      * in `io` (unlike the browse calls above) because this one *does* write: the repository's suspend
      * methods don't dispatch, only its Flows do — same as [MangaViewModel]'s library actions.
      */
+    /** [onMangaClick] by key, for Swift, which renders [Results.tiles] rather than the listings. */
+    fun onItemClick(key: String) {
+        (uiState.value as? Results)?.items?.firstOrNull { it.sourceMangaKey == key }?.let(::onMangaClick)
+    }
+
     fun onMangaClick(listing: MangaListing) {
         viewModelScope.launch {
             val mangaId = io { cacheSourceManga(sourceId, listing) }
@@ -305,7 +312,11 @@ class SourceBrowseViewModel(
     @ManualViewModelAssistedFactoryKey
     @ContributesIntoMap(AppScope::class)
     fun interface Factory : ManualViewModelAssistedFactory {
-        fun create(sourceId: String): SourceBrowseViewModel
+        fun create(
+            sourceId: String,
+            initialListing: SourceListing?,
+            initialQuery: String?
+        ): SourceBrowseViewModel
     }
 
     private companion object {

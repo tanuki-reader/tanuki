@@ -5,6 +5,7 @@ import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.MangaPage
 import app.tanuki.core.domain.source.model.Page
 import app.tanuki.core.domain.source.model.Source
+import app.tanuki.core.domain.source.model.SourceHome
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import kotlinx.coroutines.flow.Flow
@@ -64,6 +65,13 @@ interface SourceLoader {
         query: String? = null,
         page: Int = 1
     ): MangaPage
+
+    /**
+     * The source's own one-call home (the first page of several listings), or `null` when the source
+     * doesn't offer one — callers then build it from [fetchMangaList], one call per declared listing.
+     * Optional in the source contract, so most sources answer `null`.
+     */
+    suspend fun fetchSourceHome(sourceId: String): SourceHome? = null
 
     /**
      * Fetches the full detail record for one series, addressed by its source-native [mangaKey].
