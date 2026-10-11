@@ -7,6 +7,7 @@ import SwiftUI
 struct LibrarySheet: View {
     let content: LibraryStateContent
     let vm: LibraryViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NavigationStack {
@@ -19,14 +20,19 @@ struct LibrarySheet: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
 
-                    switch content.sheetTab {
-                    case .sort: sortPane
-                    case .filter: filterPane
+                    // The panes overlap while they swap, sliding the way Android's AnimatedContent does:
+                    // Filter in from the trailing edge, Sort back from the leading one.
+                    ZStack(alignment: .topLeading) {
+                        switch content.sheetTab {
+                        case .sort: sortPane.transition(paneTransition(from: .leading))
+                        case .filter: filterPane.transition(paneTransition(from: .trailing))
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, TK.Space.s5)
                 .padding(.bottom, TK.Space.s5)
-                .animation(.default, value: content.sheetTab)
+                .animation(reduceMotion ? TK.Motion.reduced : TK.Motion.enter, value: content.sheetTab)
             }
             .navigationTitle(tr("library_sheet_title", table: .library))
             .navigationBarTitleDisplayMode(.inline)
@@ -44,6 +50,11 @@ struct LibrarySheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    /// Slide + fade from `edge`; a plain crossfade under Reduce Motion.
+    private func paneTransition(from edge: Edge) -> AnyTransition {
+        reduceMotion ? .opacity : .move(edge: edge).combined(with: .opacity)
     }
 
     private var tab: Binding<LibrarySheetTab> {

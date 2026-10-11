@@ -7,6 +7,7 @@ import SwiftUI
 struct LibraryScreen: View {
     @Binding var path: [Route]
     @State private var model = ScreenModel({ $0.libraryViewModel() }, uiState: \.uiState)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         content
@@ -39,25 +40,41 @@ struct LibraryScreen: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case let .content(content):
-            if let empty = content.empty {
-                emptyView(empty, query: content.searchQuery)
-            } else {
-                ScrollView {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: content.gridSize.minCoverWidth), spacing: TK.Space.s2)],
-                        spacing: TK.Space.s2
-                    ) {
-                        ForEach(content.items, id: \.mangaId) { item in
-                            Button { model.vm.onMangaClick(mangaId: item.mangaId) } label: {
-                                LibraryCoverTile(item: item)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, TK.Space.s5)
-                    .padding(.vertical, TK.Space.s4)
+            // Like Android's LibraryGrid: the grid and the empty state crossfade, and covers slide to
+            // their new places (and fade in or out) as a filter, sort, search or cover size changes them.
+            Group {
+                if let empty = content.empty {
+                    emptyView(empty, query: content.searchQuery)
+                        .transition(.opacity)
+                } else {
+                    grid(content)
+                        .transition(.opacity)
                 }
             }
+            .animation(motion, value: content.empty)
+        }
+    }
+
+    private var motion: Animation { reduceMotion ? TK.Motion.reduced : TK.Motion.enter }
+
+    private func grid(_ content: LibraryStateContent) -> some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: content.gridSize.minCoverWidth), spacing: TK.Space.s2)],
+                spacing: TK.Space.s2
+            ) {
+                ForEach(content.items, id: \.mangaId) { item in
+                    Button { model.vm.onMangaClick(mangaId: item.mangaId) } label: {
+                        LibraryCoverTile(item: item)
+                    }
+                    .buttonStyle(.plain)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.9).combined(with: .opacity))
+                }
+            }
+            .padding(.horizontal, TK.Space.s5)
+            .padding(.vertical, TK.Space.s4)
+            .animation(motion, value: content.items.map(\.mangaId))
+            .animation(motion, value: content.gridSize)
         }
     }
 
