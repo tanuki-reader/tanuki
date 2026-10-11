@@ -4,6 +4,7 @@ import app.tanuki.core.domain.library.model.LibraryPreferences
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.domain.settings.model.ReaderBackground
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import kotlinx.coroutines.flow.Flow
@@ -211,6 +212,11 @@ interface SettingsRepository {
     fun observeLibraryGridSize(): Flow<LibraryGridSize>
 
     suspend fun setLibraryGridSize(size: LibraryGridSize)
+
+    /** The reader's page ground; [ReaderBackground.Black] when unset. */
+    fun observeReaderBackground(): Flow<ReaderBackground>
+
+    suspend fun setReaderBackground(background: ReaderBackground)
 
     /**
      * Whether the user allows sensitive (adult) content: sources that are adult-only, and adult titles

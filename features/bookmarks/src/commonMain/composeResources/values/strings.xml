@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bookmarks_title">Bookmarks</string>
+    <string name="bookmarks_empty">No bookmarks yet. In the reader, use the bookmark at the top of a page to keep it here.</string>
+    <!-- A bookmarked page. %1$s is the chapter title ("Chapter 12" or the source's name), %2$d the page from 1. -->
+    <string name="bookmarks_row">%1$s · page %2$d</string>
+    <string name="bookmarks_chapter_number">Chapter %1$s</string>
+    <string name="bookmarks_chapter_untitled">Untitled chapter</string>
+    <string name="bookmarks_delete">Delete bookmark</string>
+</resources>

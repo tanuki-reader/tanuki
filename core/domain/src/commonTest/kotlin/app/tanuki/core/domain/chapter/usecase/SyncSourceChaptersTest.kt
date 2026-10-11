@@ -522,7 +522,6 @@ private class FakeChapterRepository(
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(existing)
 
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
     override suspend fun getChapter(chapterId: Uuid): Chapter? = existing.firstOrNull { it.id == chapterId }
 

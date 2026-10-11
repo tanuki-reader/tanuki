@@ -1,5 +1,8 @@
 package app.tanuki.core.domain.download.usecase
 
+import app.tanuki.core.domain.bookmark.model.PageBookmark
+import app.tanuki.core.domain.bookmark.model.PageBookmarkEntry
+import app.tanuki.core.domain.bookmark.repository.PageBookmarkRepository
 import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.category.repository.CategoryRepository
 import app.tanuki.core.domain.chapter.model.Chapter
@@ -39,6 +42,7 @@ import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.domain.settings.model.ReaderBackground
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -154,8 +158,10 @@ internal class DownloadWorld(
     val autoDownload: AutoDownloadNewChapters =
         AutoDownloadNewChapters.Default(downloadSettings, categories, enqueue, RecordingLogger())
 
+    val bookmarks = FakePageBookmarkRepository()
+
     val deleteReadDownloads: DeleteReadChapterDownloads =
-        DeleteReadChapterDownloads.Default(settings, chapterRepository, downloads, deleteChapters, RecordingLogger())
+        DeleteReadChapterDownloads.Default(settings, chapterRepository, downloads, bookmarks, deleteChapters, RecordingLogger())
 
     val verify: VerifyDownloads = VerifyDownloads.Default(downloads, store, RecordingLogger())
 
@@ -189,9 +195,10 @@ internal class DownloadWorld(
     ) {
         chapterRepository.replace(
             chapter.copy(
-                progress = ReadingProgress(hasBookmark = bookmarked, lastPageRead = 0u, alreadyRead = true),
+                progress = ReadingProgress(hasBookmark = false, lastPageRead = 0u, alreadyRead = true),
             ),
         )
+        if (bookmarked) bookmarks.bookmarked += chapter.id
     }
 
     /** Downloads [chapter] for real and then marks it read — where the delete-after-reading rule starts. */
@@ -647,6 +654,10 @@ internal class FakeSettingsRepository : SettingsRepository {
 
     override fun observeLibraryGridSize(): Flow<LibraryGridSize> = error("unused")
 
+    override fun observeReaderBackground(): Flow<ReaderBackground> = error("unused")
+
+    override suspend fun setReaderBackground(background: ReaderBackground) = error("unused")
+
 
 
 
@@ -877,7 +888,6 @@ internal class FakeChapterRepository(
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(held.values.toList())
 
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
     override suspend fun updateProgress(
         chapterId: Uuid,
@@ -1067,3 +1077,23 @@ internal fun inertDeleteChapterDownloads(): DeleteChapterDownloads =
 /** The same, for [DeleteMangaDownloads] — for the tests of `RemoveMangaFromLibrary`. */
 internal fun inertDeleteMangaDownloads(): DeleteMangaDownloads =
     DownloadWorld(TestDispatchers(Dispatchers.Unconfined)).deleteManga
+
+/** Answers which chapters are bookmarked; the rest of the repository is out of these tests' reach. */
+class FakePageBookmarkRepository : PageBookmarkRepository {
+    val bookmarked = mutableSetOf<Uuid>()
+
+    override fun observeForManga(mangaId: Uuid): Flow<List<PageBookmark>> = error("unused")
+
+    override fun observeAll(): Flow<List<PageBookmarkEntry>> = error("unused")
+
+    override suspend fun bookmarkedChapterIds(mangaId: Uuid): Set<Uuid> = bookmarked.toSet()
+
+    override suspend fun add(bookmark: PageBookmark) = error("unused")
+
+    override suspend fun removeAt(
+        chapterId: Uuid,
+        page: Int,
+    ): Boolean = error("unused")
+
+    override suspend fun remove(id: Uuid) = error("unused")
+}

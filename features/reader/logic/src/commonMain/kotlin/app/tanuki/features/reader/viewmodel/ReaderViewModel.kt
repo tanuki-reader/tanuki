@@ -1,7 +1,19 @@
 package app.tanuki.features.reader.viewmodel
 
 import androidx.lifecycle.viewModelScope
+import app.tanuki.core.domain.bookmark.model.PageBookmark
+import app.tanuki.core.domain.bookmark.usecase.ObservePageBookmarks
+import app.tanuki.core.domain.bookmark.usecase.TogglePageBookmark
+import app.tanuki.core.domain.common.model.Url
+import app.tanuki.core.domain.download.usecase.ObserveChapterDownloads
+import app.tanuki.core.domain.manga.usecase.SetReadingMode
+import app.tanuki.core.domain.settings.model.ReaderBackground
+import app.tanuki.core.domain.settings.usecase.ObserveReaderBackground
+import app.tanuki.core.domain.settings.usecase.SetReaderBackground
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.core.domain.chapter.model.PageImage
 import app.tanuki.core.domain.chapter.model.ReaderPage
 import app.tanuki.core.domain.chapter.model.isHiddenBy
 import app.tanuki.core.domain.chapter.usecase.GetReaderPages
@@ -136,6 +148,12 @@ class ReaderViewModel(
     private val updateReadingProgress: UpdateReadingProgress,
     private val observeChapters: ObserveChapters,
     private val observeManga: ObserveManga,
+    private val observeChapterDownloads: ObserveChapterDownloads,
+    private val observePageBookmarks: ObservePageBookmarks,
+    private val togglePageBookmark: TogglePageBookmark,
+    private val setReadingMode: SetReadingMode,
+    private val observeReaderBackground: ObserveReaderBackground,
+    private val setReaderBackground: SetReaderBackground,
     connectionObserver: ConnectionObserver,
     dispatcher: DispatcherProvider,
     logger: Logger
@@ -190,6 +208,21 @@ class ReaderViewModel(
     /** Whether the reader chrome (top/bottom bars) is shown; toggled by tapping the page area. */
     private val chromeVisible = MutableStateFlow(true)
 
+    /** The sheet open over the reader, if any. */
+    private val sheet = MutableStateFlow<ReaderSheet?>(null)
+
+    /** Which list the Chapters sheet shows. */
+    private val chaptersTab = MutableStateFlow(ReaderChaptersTab.Chapters)
+
+    /** Whether a finger is on the scrubber, which holds the chrome open. */
+    private val scrubbing = MutableStateFlow(false)
+
+    /**
+     * This series' page bookmarks. Small, and read on every page turn (is *this* page bookmarked?), so it
+     * is held for the reader's life rather than only while the sheet is open.
+     */
+    private val bookmarks: StateFlow<List<PageBookmark>> = observePageBookmarks(mangaId).asState(emptyList())
+
     /** Key of the item the viewport is on, so a window shift can re-anchor to the same page/slide. */
     private var focusedItemKey: String? = null
 
@@ -222,9 +255,10 @@ class ReaderViewModel(
                         combine(
                             stage.session.frames(),
                             currentPageInChapter,
-                            chromeVisible
-                        ) { frame, pageInChapter, chrome ->
-                            buildContent(stage.session, frame, pageInChapter, chrome)
+                            chromeVisible,
+                            extras()
+                        ) { frame, pageInChapter, chrome, extras ->
+                            buildContent(stage.session, frame, pageInChapter, chrome, extras)
                         }
                 }
             }.onEach { state ->
@@ -283,6 +317,19 @@ class ReaderViewModel(
         spines()
             .onEach(::reproject)
             .launchIn(viewModelScope)
+
+        // Chrome auto-hide: shown chrome fades after [CHROME_HIDE_MS] of nothing, unless a sheet is open
+        // or the scrubber is held. `collectLatest` restarts the wait on every change, so any of those
+        // (a tap, opening a sheet) resets it.
+        viewModelScope.launch {
+            combine(chromeVisible, sheet, scrubbing) { visible, open, held -> visible && open == null && !held }
+                .collectLatest { hide ->
+                    if (hide) {
+                        delay(CHROME_HIDE_MS)
+                        chromeVisible.value = false
+                    }
+                }
+        }
 
         load()
     }
@@ -348,7 +395,7 @@ class ReaderViewModel(
 
             // Seed the window inputs and the re-anchor bookkeeping BEFORE publishing the session, so the
             // first [Content] the pipeline builds already parks on the resume page with no stray re-anchor.
-            val resolved = ReaderSession(siblings, readingMode, initialItemIndex)
+            val resolved = ReaderSession(siblings, spine?.mangaTitle.orEmpty(), readingMode, initialItemIndex)
             val seeded = ReaderWindow(initialChapterId, mapOf(initialChapterId to pages), emptySet())
             window.value = seeded
             currentPageInChapter.value = resumePage
@@ -480,8 +527,65 @@ class ReaderViewModel(
         if (position > 0) jumpTo(active.siblings[position - 1].id, page = 0)
     }
 
-    /** Open any chapter of the series at its first page (the chapter list). */
-    fun onChapterSelected(chapterId: Uuid) = jumpTo(chapterId, page = 0)
+    /** Open any chapter of the series at its first page (the chapter list); closes the sheet. */
+    fun onChapterSelected(chapterId: Uuid) {
+        sheet.value = null
+        jumpTo(chapterId, page = 0)
+    }
+
+    /** Open a bookmarked page (the Bookmarks list); closes the sheet. */
+    fun onBookmarkSelected(bookmarkId: Uuid) {
+        val bookmark = bookmarks.value.firstOrNull { it.id == bookmarkId } ?: return
+        sheet.value = null
+        jumpTo(bookmark.chapterId, bookmark.page)
+    }
+
+    fun onOpenSheet(sheet: ReaderSheet) {
+        this.sheet.value = sheet
+    }
+
+    fun onDismissSheet() {
+        sheet.value = null
+    }
+
+    fun onChaptersTabChange(tab: ReaderChaptersTab) {
+        chaptersTab.value = tab
+    }
+
+    /** The scrubber was grabbed or let go; the chrome stays up while it is held. */
+    fun onScrubbingChange(active: Boolean) {
+        scrubbing.value = active
+    }
+
+    /**
+     * Bookmark the page on screen, or remove its bookmark. The page's image goes with it, for the
+     * bookmark's thumbnail.
+     */
+    fun onToggleBookmark() {
+        val content = uiState.value as? Content ?: return
+        val chapterId = content.currentChapterId
+        val page = content.currentPage
+        val item = content.items.firstOrNull { it.key == pageKey(chapterId, page) } as? PageItem
+        val image =
+            item?.localPath?.let(PageImage::Local)
+                ?: item?.imageUrl?.let { PageImage.Remote(Url(it), item.imageHeaders) }
+        viewModelScope.launch {
+            tryIo("Could not toggle a bookmark") { togglePageBookmark(mangaId, chapterId, page, image) }
+        }
+    }
+
+    /**
+     * Lay the series out another way. Saved on the series as the user's choice, which suggestions never
+     * override; the spine pipeline picks it up and the layout switches in place, on the same page (see
+     * [reproject]).
+     */
+    fun onReadingModeChange(mode: ReadingMode) {
+        viewModelScope.launch { tryIo("Could not change the reading mode") { setReadingMode(mangaId, mode) } }
+    }
+
+    fun onBackgroundChange(background: ReaderBackground) {
+        viewModelScope.launch { tryIo("Could not change the reader background") { setReaderBackground(background) } }
+    }
 
     /** The back affordance was tapped. */
     fun onBack() {
@@ -589,6 +693,7 @@ class ReaderViewModel(
     private fun spines(): Flow<Spine> =
         combine(observeManga(mangaId), observeChapters(mangaId)) { manga, chapters ->
             Spine(
+                mangaTitle = manga?.title?.value.orEmpty(),
                 readingMode = manga?.readingMode ?: RIGHT_TO_LEFT,
                 hidden = manga?.filteredScanlators.orEmpty(),
                 chapters = chapters
@@ -605,7 +710,7 @@ class ReaderViewModel(
         old: Spine,
         new: Spine
     ): Boolean {
-        if (old.readingMode != new.readingMode || old.hidden != new.hidden) return false
+        if (old.readingMode != new.readingMode || old.hidden != new.hidden || old.mangaTitle != new.mangaTitle) return false
         if (old.chapters.size != new.chapters.size) return false
         return old.chapters.indices.all { index ->
             val a = old.chapters[index]
@@ -649,13 +754,26 @@ class ReaderViewModel(
      * the source has since delisted, so the session is kept until they leave. Everything else needs no
      * care at all — [ReaderWindow] names its chapter by id, so a list that shifted under it re-resolves
      * through the new session's positions with nothing to remap.
+     *
+     * A new reading mode means a new layout, which parks on [ReaderSession.initialItemIndex] when it is
+     * first composed — so that index moves to the page on screen, and the switch keeps the page.
      */
     private fun reproject(spine: Spine) {
         val current = session ?: return
         val reading = window.value.currentChapterId ?: return
         val siblings = siblingsOf(spine)
         if (siblings.none { it.id == reading }) return
-        val next = ReaderSession(siblings, spine.readingMode, current.initialItemIndex)
+        val initialItemIndex =
+            if (spine.readingMode == current.readingMode) {
+                current.initialItemIndex
+            } else {
+                (uiState.value as? Content)
+                    ?.items
+                    ?.indexOfFirst { it.key == focusedItemKey }
+                    ?.takeIf { it >= 0 }
+                    ?: current.initialItemIndex
+            }
+        val next = ReaderSession(siblings, spine.mangaTitle, spine.readingMode, initialItemIndex)
         if (next != current) bootstrap.value = Bootstrap.Ready(next)
     }
 
@@ -678,21 +796,63 @@ class ReaderViewModel(
         session: ReaderSession,
         frame: Frame,
         pageInChapter: Int,
-        chromeVisible: Boolean
+        chromeVisible: Boolean,
+        extras: Extras
     ): Content {
         val siblings = session.siblings
         val index = session.positionOf(frame.window.currentChapterId)
         val curr = siblings[index]
         val pageCount = frame.window.pages[curr.id]?.size ?: 0
+        val currentPage = pageInChapter.coerceIn(0, (pageCount - 1).coerceAtLeast(0))
+        val byChapter = extras.bookmarks.groupingBy { it.chapterId }.eachCount()
         return Content(
+            mangaTitle = session.mangaTitle,
+            chapterUrl = curr.url.value,
+            background = extras.background,
+            sheet = extras.sheet,
+            chaptersTab = extras.chaptersTab,
+            isCurrentPageBookmarked = extras.bookmarks.any { it.chapterId == curr.id && it.page == currentPage },
+            chapters =
+                extras.chapterState?.let { state ->
+                    siblings.asReversed().map { chapter ->
+                        ReaderChapterItem(
+                            id = chapter.id,
+                            numberLabel = chapter.chapterNumber?.display,
+                            name = chapter.name?.value,
+                            scanlator = chapter.scanlator?.value,
+                            isRead = chapter.id in state.readIds,
+                            isDownloaded = chapter.id in state.downloadedIds,
+                            isCurrent = chapter.id == curr.id,
+                            bookmarkCount = byChapter[chapter.id] ?: 0
+                        )
+                    }
+                }.orEmpty(),
+            bookmarks =
+                if (extras.sheet != ReaderSheet.Chapters) {
+                    emptyList()
+                } else {
+                    extras.bookmarks.map { bookmark ->
+                        val chapter = siblings.getOrNull(session.positionOf(bookmark.chapterId))
+                        ReaderBookmarkItem(
+                            id = bookmark.id,
+                            chapterId = bookmark.chapterId,
+                            chapterNumberLabel = chapter?.chapterNumber?.display,
+                            chapterName = chapter?.name?.value,
+                            page = bookmark.page,
+                            imageUrl = (bookmark.image as? PageImage.Remote)?.url?.value,
+                            imageHeaders = (bookmark.image as? PageImage.Remote)?.headers.orEmpty(),
+                            localPath = (bookmark.image as? PageImage.Local)?.path
+                        )
+                    }
+                },
             items = frame.items,
             initialItemIndex = session.initialItemIndex,
             readingMode = session.readingMode,
             chromeVisible = chromeVisible,
             currentChapterId = curr.id,
-            currentPage = pageInChapter.coerceIn(0, (pageCount - 1).coerceAtLeast(0)),
+            currentPage = currentPage,
             currentPageCount = pageCount,
-            chapterNumber = curr.chapterNumber,
+            chapterNumberLabel = curr.chapterNumber?.display,
             chapterName = curr.name?.value,
             hasPreviousChapter = index > 0,
             hasNextChapter = index < siblings.lastIndex
@@ -784,7 +944,7 @@ class ReaderViewModel(
             val chapter = siblings[index]
             val chapterPages = cache.getValue(chapter.id)
             chapterPages.forEachIndexed { page, source ->
-                result.add(PageItem(chapter.id, page, chapterPages.size, source))
+                result.add(source.toPageItem(chapter.id, page, chapterPages.size))
             }
             // Boundary to the next loaded chapter (both sides present, so never loading).
             if (index < hi) {
@@ -848,7 +1008,43 @@ class ReaderViewModel(
             .onFailure { logger.warn(tag, "Failed to persist progress for chapter $chapterId", it) }
     }
 
-    private fun Chapter.ref() = ChapterRef(id, chapterNumber, name?.value)
+    private fun Chapter.ref() = ChapterRef(id, chapterNumber?.display, name?.value)
+
+    private fun ReaderPage.toPageItem(
+        chapterId: Uuid,
+        page: Int,
+        pageCount: Int
+    ): PageItem =
+        when (val source = image) {
+            is PageImage.Remote -> PageItem(chapterId, page, pageCount, source.url.value, source.headers, localPath = null)
+            is PageImage.Local -> PageItem(chapterId, page, pageCount, imageUrl = null, emptyMap(), source.path)
+        }
+
+    /**
+     * Everything [Content] shows besides the pages: the sheet and its lists, the bookmarks, the background.
+     *
+     * The chapter list's read and downloaded marks come from live queries — the session's chapters are a
+     * snapshot that ignores progress (see [sameSpine]) — and those queries run only while the Chapters
+     * sheet is open, so a page turn never wakes them.
+     */
+    private fun extras(): Flow<Extras> {
+        val chapterState =
+            sheet.flatMapLatest { open ->
+                if (open != ReaderSheet.Chapters) {
+                    flowOf(null)
+                } else {
+                    combine(observeChapters(mangaId), observeChapterDownloads(mangaId)) { chapters, downloads ->
+                        ChapterState(
+                            readIds = chapters.filter { it.progress?.alreadyRead == true }.mapTo(HashSet()) { it.id },
+                            downloadedIds = downloads.filterValues { it.isComplete }.keys
+                        )
+                    }
+                }
+            }
+        return combine(sheet, chaptersTab, observeReaderBackground(), bookmarks, chapterState) { open, tab, background, marks, state ->
+            Extras(open, tab, background, marks, state)
+        }
+    }
 
     /**
      * The window paired with the item list built from it — one value, so the two can never be combined out
@@ -909,6 +1105,20 @@ class ReaderViewModel(
         val page: Int
     )
 
+    /** See [extras]. [chapterState] is `null` while the Chapters sheet is closed. */
+    private data class Extras(
+        val sheet: ReaderSheet?,
+        val chaptersTab: ReaderChaptersTab,
+        val background: ReaderBackground,
+        val bookmarks: List<PageBookmark>,
+        val chapterState: ChapterState?
+    )
+
+    private data class ChapterState(
+        val readIds: Set<Uuid>,
+        val downloadedIds: Set<Uuid>
+    )
+
     /** One pending progress write, queued through [pendingProgress]. */
     private data class ProgressWrite(
         val chapterId: Uuid,
@@ -921,6 +1131,7 @@ class ReaderViewModel(
      * as the database holds it (unsorted and unfiltered — [siblingsOf] does that).
      */
     private data class Spine(
+        val mangaTitle: String,
         val readingMode: ReadingMode,
         val hidden: Set<String>,
         val chapters: List<Chapter>
@@ -958,6 +1169,9 @@ class ReaderViewModel(
          * about to need again.
          */
         const val EVICT_QUIET_MS = 750L
+
+        /** How long the chrome stays up untouched before it fades. */
+        const val CHROME_HIDE_MS = 3_000L
     }
 }
 /**

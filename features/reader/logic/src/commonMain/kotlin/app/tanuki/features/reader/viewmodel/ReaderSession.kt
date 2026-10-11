@@ -14,6 +14,7 @@ import kotlin.uuid.Uuid
  *
  * @property siblings All sibling chapters the reader may page through, ascending by number, with the
  *   scanlator groups the user filtered out already removed.
+ * @property mangaTitle The series' title, for the chrome.
  * @property readingMode How pages are laid out.
  * @property initialItemIndex Where the pager/list parks on first composition (the resume page, offset by
  *   a leading transition). Fixed for the session — it is read once, at first composition, and later
@@ -21,6 +22,7 @@ import kotlin.uuid.Uuid
  */
 internal data class ReaderSession(
     val siblings: List<Chapter>,
+    val mangaTitle: String,
     val readingMode: ReadingMode,
     val initialItemIndex: Int
 ) {

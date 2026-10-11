@@ -214,10 +214,11 @@ fun MangaContentView(
             chapterList(
                 chapters = state.chapters,
                 ascending = state.chapterSortAscending,
-                canFilter = state.canFilterScanlators,
+                canFilter = state.canFilterChapters,
                 filterActive = state.isChapterFilterActive,
                 selectedIds = state.selection.ids,
                 downloads = state.downloads,
+                bookmarkCounts = state.bookmarkCounts,
                 onToggleSort = onToggleSort,
                 onOpenFilter = onOpenChapterFilter,
                 onChapterClick = onChapterClick,

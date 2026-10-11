@@ -59,4 +59,6 @@
     <string name="library_downloaded_any">Any</string>
     <string name="library_downloaded_yes">Downloaded</string>
     <string name="library_downloaded_no">Not downloaded</string>
+    <string name="library_more">More options</string>
+    <string name="library_menu_bookmarks">Bookmarks</string>
 </resources>

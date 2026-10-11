@@ -35,12 +35,6 @@ class ChapterRepositoryImp(
             .map(List<ChapterWithProgress>::toDomain)
             .flowOn(dispatcherProvider.io)
 
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> =
-        chapterDao
-            .observeBookmarkedChapters(mangaId)
-            .map(List<ChapterWithProgress>::toDomain)
-            .flowOn(dispatcherProvider.io)
-
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> =
         withContext(dispatcherProvider.io) { chapterDao.getChapters(mangaId).toDomain() }
 

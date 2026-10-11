@@ -1,5 +1,6 @@
 package app.tanuki.features.manga.viewmodel
 
+import app.tanuki.core.domain.bookmark.model.PageBookmark
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.chapter.model.ReadingProgress
@@ -19,7 +20,9 @@ import app.tanuki.core.domain.metadata.model.TrackerLink
 import app.tanuki.core.domain.metadata.usecase.MangaMetadata
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -90,6 +93,24 @@ class MangaContentProjectionTest {
         assertEquals(DownloadState.Downloading, rows[2].download)
         assertEquals(0.25f, rows[2].downloadProgress)
         assertNull(rows[0].download)
+    }
+
+    @Test
+    fun `rows mark bookmarked chapters and the bookmarked filter opens the first bookmarked page`() {
+        val one = chapter(1.0)
+        val two = chapter(2.0)
+        val marks = listOf(bookmark(two.id, page = 9), bookmark(two.id, page = 4))
+
+        val plain = content(listOf(one, two)).copy(bookmarks = marks)
+        val filtered = plain.copy(bookmarkedOnly = true)
+
+        assertEquals(listOf(0, 2), plain.rows.map { it.bookmarkCount })
+        assertTrue(plain.canFilterChapters, "a series with bookmarks offers the filter even with one group")
+        assertFalse(plain.isChapterFilterActive)
+        assertNull(plain.openPageOf(two.id), "outside the filter a tap resumes as usual")
+        assertTrue(filtered.isChapterFilterActive)
+        assertEquals(4, filtered.openPageOf(two.id))
+        assertFalse(content(listOf(one)).canFilterChapters)
     }
 
     @Test
@@ -190,4 +211,9 @@ class MangaContentProjectionTest {
         source = null,
         downloads = downloads
     )
+
+    private fun bookmark(
+        chapterId: Uuid,
+        page: Int
+    ) = PageBookmark(Uuid.random(), mangaId, chapterId, page, Instant.DISTANT_PAST, image = null)
 }

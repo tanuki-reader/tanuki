@@ -21,7 +21,7 @@ import kotlin.uuid.Uuid
  * that makes scrolling it expensive. Chapters with no record are simply absent — "never queued" is the
  * overwhelmingly common case and does not deserve a row of its own.
  */
-sealed interface ObserveChapterDownloads {
+interface ObserveChapterDownloads {
     operator fun invoke(mangaId: Uuid): Flow<Map<Uuid, ChapterDownload>>
 
     @Inject

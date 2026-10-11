@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,6 +43,7 @@ import app.tanuki.features.manga.resources.manga_chapter_date
 import app.tanuki.features.manga.resources.manga_chapter_meta
 import app.tanuki.features.manga.resources.manga_chapter_number
 import app.tanuki.features.manga.resources.manga_chapter_page
+import app.tanuki.features.manga.resources.manga_chapter_bookmarks
 import app.tanuki.features.manga.resources.manga_chapter_selected
 import app.tanuki.features.manga.resources.manga_chapter_untitled
 import app.tanuki.features.manga.resources.manga_chapters_filter
@@ -109,6 +113,7 @@ internal fun LazyListScope.chapterList(
     filterActive: Boolean,
     selectedIds: Set<Uuid>,
     downloads: Map<Uuid, ChapterDownload>,
+    bookmarkCounts: Map<Uuid, Int>,
     onToggleSort: () -> Unit,
     onOpenFilter: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
@@ -135,6 +140,7 @@ internal fun LazyListScope.chapterList(
                 chapter = chapter,
                 selected = chapter.id in selectedIds,
                 download = downloads[chapter.id],
+                bookmarkCount = bookmarkCounts[chapter.id] ?: 0,
                 onClick = { onChapterClick(chapter) },
                 onLongClick = { onChapterLongClick(chapter) },
                 onDownloadClick = { onChapterDownloadClick(chapter) },
@@ -232,6 +238,7 @@ private fun ChapterRow(
     chapter: Chapter,
     selected: Boolean,
     download: ChapterDownload?,
+    bookmarkCount: Int,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDownloadClick: () -> Unit,
@@ -331,6 +338,7 @@ private fun ChapterRow(
                 )
             }
         } else {
+            if (bookmarkCount > 0) BookmarkMark(bookmarkCount)
             resumePage?.let { page ->
                 Text(
                     text = stringResource(Res.string.manga_chapter_page, page),
@@ -347,6 +355,24 @@ private fun ChapterRow(
         }
     }
 }
+
+/** The chapter has bookmarked pages: a small filled bookmark and how many, in words for TalkBack. */
+@Composable
+private fun BookmarkMark(count: Int) {
+    val description = pluralStringResource(Res.plurals.manga_chapter_bookmarks, count, count)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description }
+    ) {
+        Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = TanukiTheme.colors.accent, modifier = Modifier.size(BookmarkMarkSize))
+        if (count > 1) {
+            Text(text = count.toString(), style = TanukiTheme.typography.caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** The bookmark mark's glyph, caption-sized so it sits on the row's text line. */
+private val BookmarkMarkSize = 16.dp
 
 /**
  * Row title: "Chapter 4" when the number is known, otherwise the source's chapter name — and when the

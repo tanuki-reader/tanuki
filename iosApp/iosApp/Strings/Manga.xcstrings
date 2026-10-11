@@ -120,6 +120,47 @@
         }
       }
     },
+    "manga_chapter_bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld bookmarked page"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld bookmarked pages"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld página marcada"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld páginas marcadas"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "manga_chapter_count": {
       "extractionState": "manual",
       "localizations": {
@@ -692,6 +733,23 @@
         }
       }
     },
+    "manga_filter_bookmarked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarked"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Com marcador"
+          }
+        }
+      }
+    },
     "manga_filter_scanlators_help": {
       "extractionState": "manual",
       "localizations": {
@@ -705,6 +763,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vários grupos traduzem o mesmo capítulo. Desative um para ocultar os capítulos dele."
+          }
+        }
+      }
+    },
+    "manga_filter_section_bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bookmarks"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores"
           }
         }
       }

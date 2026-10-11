@@ -8,9 +8,11 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.core.domain.manga.model.ReadingMode
@@ -23,7 +25,9 @@ import app.tanuki.features.reader.resources.reader_no_pages
 import app.tanuki.features.reader.viewmodel.PagePrefetchBudget
 import app.tanuki.features.reader.viewmodel.ReaderCommand
 import app.tanuki.features.reader.viewmodel.ReaderItem
+import app.tanuki.features.reader.viewmodel.ReaderSheet
 import app.tanuki.features.reader.viewmodel.ReaderState
+import app.tanuki.features.reader.viewmodel.ReaderViewModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -49,15 +53,12 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun ReaderContent(
     content: ReaderState.Content,
-    commands: Flow<ReaderCommand>,
-    prefetchBudget: PagePrefetchBudget,
-    onItemFocused: (String) -> Unit,
-    onToggleChrome: () -> Unit,
-    onBack: () -> Unit,
-    onPreviousChapter: () -> Unit,
-    onNextChapter: () -> Unit,
-    onScrubToPage: (Int) -> Unit
+    viewModel: ReaderViewModel,
+    prefetchBudget: PagePrefetchBudget
 ) {
+    val commands = viewModel.commands
+    val onItemFocused: (String) -> Unit = viewModel::onItemFocused
+    val onToggleChrome: () -> Unit = viewModel::onToggleChrome
     if (content.items.isEmpty()) {
         TanukiEmptyState(
             message = stringResource(Res.string.reader_no_pages),
@@ -77,83 +78,105 @@ internal fun ReaderContent(
     val items by rememberUpdatedState(content.items)
 
     Box(Modifier.fillMaxSize()) {
-        if (paged) {
-            val pagerState = rememberPagerState(initialPage = content.initialItemIndex) { content.items.size }
-            LaunchedEffect(pagerState) {
-                snapshotFlow {
-                    pagerState.layoutInfo.visiblePagesInfo
-                        .firstOrNull { it.index == pagerState.currentPage }
-                        ?.key as? String
-                }.filterNotNull().collect(onItemFocused)
-            }
-            // The pager anchors by key during measure (see [PagedReader]), so a re-anchor is usually a no-op
-            // — skipped when the page on screen is already the one named — and otherwise the guard against
-            // a shift too large for Compose's key→index window. Explicit jumps always have to be applied.
-            LaunchedEffect(pagerState, commands) {
-                commands.collect { command ->
-                    val index = awaitIndexOf(command.key) { items } ?: return@collect
-                    when (command) {
-                        is ReaderCommand.Jump -> pagerState.scrollToPage(index)
-                        is ReaderCommand.Reanchor -> if (pagerState.currentPage != index) pagerState.requestScrollToPage(index)
+        // Keyed on the mode so a switch builds a fresh pager/strip, which parks on `initialItemIndex` —
+        // the page that was on screen (the ViewModel moves it there on a mode change).
+        key(content.readingMode) {
+            if (paged) {
+                val pagerState = rememberPagerState(initialPage = content.initialItemIndex) { content.items.size }
+                LaunchedEffect(pagerState) {
+                    snapshotFlow {
+                        pagerState.layoutInfo.visiblePagesInfo
+                            .firstOrNull { it.index == pagerState.currentPage }
+                            ?.key as? String
+                    }.filterNotNull().collect(onItemFocused)
+                }
+                // The pager anchors by key during measure (see [PagedReader]), so a re-anchor is usually a no-op
+                // — skipped when the page on screen is already the one named — and otherwise the guard against
+                // a shift too large for Compose's key→index window. Explicit jumps always have to be applied.
+                LaunchedEffect(pagerState, commands) {
+                    commands.collect { command ->
+                        val index = awaitIndexOf(command.key) { items } ?: return@collect
+                        when (command) {
+                            is ReaderCommand.Jump -> pagerState.scrollToPage(index)
+                            is ReaderCommand.Reanchor -> if (pagerState.currentPage != index) pagerState.requestScrollToPage(index)
+                        }
                     }
                 }
-            }
-            PagePrefetch(content.items, pagerState.currentPage, prefetchBudget, ratios)
-            PagedReader(
-                items = content.items,
-                pagerState = pagerState,
-                vertical = content.readingMode == ReadingMode.VERTICAL,
-                reverse = content.readingMode == ReadingMode.RIGHT_TO_LEFT,
-                onToggleChrome = onToggleChrome
-            )
-        } else {
-            val listState = rememberLazyListState(initialFirstVisibleItemIndex = content.initialItemIndex)
-            LaunchedEffect(listState) {
-                snapshotFlow { listState.layoutInfo.visibleItemsInfo.firstOrNull()?.key as? String }
-                    .filterNotNull()
-                    .collect(onItemFocused)
-            }
-            // The strip keeps its visible item anchored by key when the list changes above it, but only
-            // within Compose's ~100-item key window; a long webtoon chapter leaving or arriving shifts
-            // further than that. So a re-anchor is applied when the first visible item isn't the one named
-            // — with `requestScrollToItem`, which keeps the offset into the page and, unlike
-            // `scrollToItem`, doesn't cancel a fling in progress.
-            LaunchedEffect(listState, commands) {
-                commands.collect { command ->
-                    val index = awaitIndexOf(command.key) { items } ?: return@collect
-                    when (command) {
-                        is ReaderCommand.Jump -> listState.scrollToItem(index)
-                        is ReaderCommand.Reanchor ->
-                            if (listState.firstVisibleItemIndex != index) {
-                                listState.requestScrollToItem(index, listState.firstVisibleItemScrollOffset)
-                            }
+                PagePrefetch(content.items, pagerState.currentPage, prefetchBudget, ratios)
+                PagedReader(
+                    items = content.items,
+                    pagerState = pagerState,
+                    vertical = content.readingMode == ReadingMode.VERTICAL,
+                    reverse = content.readingMode == ReadingMode.RIGHT_TO_LEFT,
+                    onToggleChrome = onToggleChrome
+                )
+            } else {
+                val listState = rememberLazyListState(initialFirstVisibleItemIndex = content.initialItemIndex)
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.layoutInfo.visibleItemsInfo.firstOrNull()?.key as? String }
+                        .filterNotNull()
+                        .collect(onItemFocused)
+                }
+                // The strip keeps its visible item anchored by key when the list changes above it, but only
+                // within Compose's ~100-item key window; a long webtoon chapter leaving or arriving shifts
+                // further than that. So a re-anchor is applied when the first visible item isn't the one named
+                // — with `requestScrollToItem`, which keeps the offset into the page and, unlike
+                // `scrollToItem`, doesn't cancel a fling in progress.
+                LaunchedEffect(listState, commands) {
+                    commands.collect { command ->
+                        val index = awaitIndexOf(command.key) { items } ?: return@collect
+                        when (command) {
+                            is ReaderCommand.Jump -> listState.scrollToItem(index)
+                            is ReaderCommand.Reanchor ->
+                                if (listState.firstVisibleItemIndex != index) {
+                                    listState.requestScrollToItem(index, listState.firstVisibleItemScrollOffset)
+                                }
+                        }
                     }
                 }
+                PagePrefetch(content.items, listState.firstVisibleItemIndex, prefetchBudget, ratios)
+                WebtoonReader(
+                    items = content.items,
+                    listState = listState,
+                    ratios = ratios,
+                    onToggleChrome = onToggleChrome
+                )
             }
-            PagePrefetch(content.items, listState.firstVisibleItemIndex, prefetchBudget, ratios)
-            WebtoonReader(
-                items = content.items,
-                listState = listState,
-                ratios = ratios,
-                onToggleChrome = onToggleChrome
-            )
         }
 
+        val uriHandler = LocalUriHandler.current
         ReaderChrome(
             visible = content.chromeVisible,
-            chapterNumber = content.chapterNumber,
+            chapterNumberLabel = content.chapterNumberLabel,
             chapterName = content.chapterName,
+            mangaTitle = content.mangaTitle,
+            isBookmarked = content.isCurrentPageBookmarked,
             currentPage = content.currentPage,
             pageCount = content.currentPageCount,
             readingMode = content.readingMode,
             hasPreviousChapter = content.hasPreviousChapter,
             hasNextChapter = content.hasNextChapter,
-            onBack = onBack,
-            onPreviousChapter = onPreviousChapter,
-            onNextChapter = onNextChapter,
-            onScrubToPage = onScrubToPage
+            onBack = viewModel::onBack,
+            onToggleBookmark = viewModel::onToggleBookmark,
+            onOpenInBrowser = { uriHandler.openUri(content.chapterUrl) },
+            onPreviousChapter = viewModel::onPreviousChapter,
+            onNextChapter = viewModel::onNextChapter,
+            onScrubToPage = viewModel::onScrubToPage,
+            onScrubbingChange = viewModel::onScrubbingChange,
+            onOpenChapters = { viewModel.onOpenSheet(ReaderSheet.Chapters) },
+            onOpenSettings = { viewModel.onOpenSheet(ReaderSheet.Settings) }
         )
     }
+
+    ReaderSheets(
+        content = content,
+        onDismiss = viewModel::onDismissSheet,
+        onChaptersTabChange = viewModel::onChaptersTabChange,
+        onChapterSelected = viewModel::onChapterSelected,
+        onBookmarkSelected = viewModel::onBookmarkSelected,
+        onReadingModeChange = viewModel::onReadingModeChange,
+        onBackgroundChange = viewModel::onBackgroundChange
+    )
 }
 
 /** How long a command waits for its item to reach the rendered list before it is dropped. */

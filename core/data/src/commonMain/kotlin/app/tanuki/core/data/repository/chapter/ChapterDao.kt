@@ -31,18 +31,6 @@ interface ChapterDao {
                reading_progress.has_bookmark, reading_progress.last_page_read, reading_progress.already_read
         FROM chapters
         LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
-        WHERE chapters.manga_id = :mangaId AND reading_progress.has_bookmark = 1
-        ORDER BY chapters.chapter_number
-        """,
-    )
-    fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<ChapterWithProgress>>
-
-    @Query(
-        """
-        SELECT chapters.*,
-               reading_progress.has_bookmark, reading_progress.last_page_read, reading_progress.already_read
-        FROM chapters
-        LEFT JOIN reading_progress ON reading_progress.chapter_id = chapters.id
         WHERE chapters.manga_id = :mangaId
         ORDER BY chapters.chapter_number
         """,

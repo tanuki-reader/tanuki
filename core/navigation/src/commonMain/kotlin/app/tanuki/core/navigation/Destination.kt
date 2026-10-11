@@ -134,6 +134,10 @@ data object SettingsCategories : Destination
  * from the Settings index and from a series' own download menu while it has something queued, so it is
  * pushed onto whichever tab the user was already in rather than belonging to one.
  */
+/** Every page bookmark across the library, grouped by series — from Library's ⋯ menu. */
+@Serializable
+data object Bookmarks : Destination
+
 @Serializable
 data object Downloads : Destination
 

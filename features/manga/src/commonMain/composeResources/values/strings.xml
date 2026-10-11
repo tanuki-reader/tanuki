@@ -173,4 +173,11 @@
     </plurals>
     <string name="manga_read_chapter_short">Read Ch. %1$s</string>
     <string name="manga_about_rating">AniList rating</string>
+    <!-- Chapter filter: page bookmarks -->
+    <string name="manga_filter_section_bookmarks">Bookmarks</string>
+    <string name="manga_filter_bookmarked">Bookmarked</string>
+    <plurals name="manga_chapter_bookmarks">
+        <item quantity="one">%1$d bookmarked page</item>
+        <item quantity="other">%1$d bookmarked pages</item>
+    </plurals>
 </resources>

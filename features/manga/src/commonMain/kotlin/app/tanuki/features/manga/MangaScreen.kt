@@ -301,8 +301,10 @@ private fun MangaScreen(
         }
         if (content?.sheet == MangaSheet.ChapterFilter) {
             ChapterFilterSheet(
-                scanlators = content.scanlators,
+                scanlators = content.scanlators.takeIf { content.canFilterScanlators }.orEmpty(),
+                bookmarked = content.bookmarkedOnly.takeIf { content.canFilterBookmarked },
                 visibleChapterCount = content.chapters.size,
+                onToggleBookmarked = viewModel::onToggleBookmarkedOnly,
                 onToggle = viewModel::onToggleScanlator,
                 onReset = viewModel::onResetChapterFilter,
                 onDismiss = viewModel::onDismissSheet

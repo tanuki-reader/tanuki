@@ -171,4 +171,11 @@
     </plurals>
     <string name="manga_read_chapter_short">Ler cap. %1$s</string>
     <string name="manga_about_rating">Nota no AniList</string>
+    <!-- Chapter filter: page bookmarks -->
+    <string name="manga_filter_section_bookmarks">Marcadores</string>
+    <string name="manga_filter_bookmarked">Com marcador</string>
+    <plurals name="manga_chapter_bookmarks">
+        <item quantity="one">%1$d página marcada</item>
+        <item quantity="other">%1$d páginas marcadas</item>
+    </plurals>
 </resources>

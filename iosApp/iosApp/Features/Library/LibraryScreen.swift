@@ -15,13 +15,21 @@ struct LibraryScreen: View {
             .navigationTitle(tr("library_title", table: .library))
             .searchable(text: search, prompt: tr("library_search_hint", table: .library))
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { model.vm.onFilterClick() } label: {
                         Image(systemName: filterActive
                             ? "line.3.horizontal.decrease.circle.fill"
                             : "line.3.horizontal.decrease")
                     }
                     .accessibilityLabel(tr("library_sheet_title", table: .library))
+                    Menu {
+                        Button(tr("library_menu_bookmarks", table: .library), systemImage: "bookmark") {
+                            model.vm.onOpenBookmarks()
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .accessibilityLabel(tr("library_more", table: .library))
                 }
             }
             .sheet(isPresented: sheetPresented) {

@@ -30,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.core.navigation.Destination
+import app.tanuki.core.navigation.Bookmarks
 import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
@@ -233,6 +234,12 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
             ) { screen(Downloads) }
+            composable<Bookmarks>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) { screen(Bookmarks) }
             composable<SourceBrowse>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,

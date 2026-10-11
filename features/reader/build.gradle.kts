@@ -42,6 +42,7 @@ kotlin {
             implementation(libs.metrox.android)
         }
         commonMain.dependencies {
+            api(projects.features.reader.logic)
             implementation(projects.core.presentation)
             implementation(projects.core.navigation)
             implementation(projects.core.domain)
@@ -53,6 +54,7 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.compose.foundation)
             implementation(libs.compose.material3)
+            implementation(libs.compose.materialIconsExtended)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
             // Page images, loaded through the app's singleton ImageLoader configured in App.kt.
@@ -79,4 +81,7 @@ compose.resources {
 
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+composeCompiler {
+    stabilityConfigurationFiles.add(layout.projectDirectory.file("compose-stability.conf"))
 }

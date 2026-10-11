@@ -18,7 +18,7 @@ import kotlin.uuid.Uuid
  * The write targets only the reading-mode column (see [MangaRepository.setReadingMode]) rather than a
  * whole-row upsert, so a concurrent detail sync ([SyncSourceMangaDetails]) can't clobber the user's choice.
  */
-sealed interface SetReadingMode {
+interface SetReadingMode {
     /**
      * @param mangaId Local id of the manga.
      * @param mode The reading mode to record for this series.

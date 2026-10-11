@@ -17,6 +17,7 @@ import app.tanuki.core.domain.library.usecase.ObserveLibraryPreferences
 import app.tanuki.core.domain.library.usecase.UpdateLibraryPreferences
 import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.settings.usecase.ObserveLibraryGridSize
+import app.tanuki.core.navigation.Bookmarks
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.presentation.StateViewModel
 import app.tanuki.features.library.viewmodel.LibraryState.Content
@@ -112,6 +113,11 @@ class LibraryViewModel(
 
     fun onSearchQueryChange(query: String) {
         searchQuery.value = query
+    }
+
+    /** The ⋯ menu's "Bookmarks" — every page bookmark across the library. */
+    fun onOpenBookmarks() {
+        navigateTo(Bookmarks)
     }
 
     /**

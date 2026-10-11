@@ -1,14 +1,17 @@
 package app.tanuki.features.reader.viewmodel
 
-import androidx.compose.runtime.Immutable
-import app.tanuki.core.domain.chapter.model.ChapterNumber
-import app.tanuki.core.domain.chapter.model.ReaderPage
 import app.tanuki.core.domain.manga.model.ReadingMode
+import app.tanuki.core.domain.settings.model.ReaderBackground
 import kotlin.uuid.Uuid
 
 /**
- * Immutable UI state for the reader, collected by `ReaderScreen`. Compose-free (per CLAUDE.md → MVVM):
- * every field is data the UI renders, never a Compose type.
+ * Immutable UI state for the reader, collected by `ReaderScreen` (Compose) and `ReaderScreen.swift`.
+ * Compose-free (per CLAUDE.md → MVVM), and Swift-friendly: plain strings and numbers, no domain value
+ * classes (`ChapterNumber`, `Url` reach Swift as an untyped `id`).
+ *
+ * Compose stability is declared in `features/reader/compose-stability.conf` rather than with
+ * `@Immutable` here, which would put a Compose dependency in this module. The promise is the same: the
+ * item list comes from `ReaderViewModel.buildItems`, which never mutates it after handing it over.
  *
  * Deliberately three states rather than one struct with nullable everything: the reader is either
  * fetching its first page list, showing content, or reporting that the fetch failed, and those are
@@ -27,7 +30,7 @@ sealed interface ReaderState {
      * The reader reads *continuously* across chapters: [items] is the pages of a sliding window of
      * chapters (previous · current · next) concatenated into one scroll, with a [ReaderItem.Transition]
      * slide between each. Reaching the end of the current chapter is therefore just "one more page" into
-     * the next — no navigation, no reload. The chrome fields ([currentPage], [chapterNumber], …) always
+     * the next — no navigation, no reload. The chrome fields ([currentPage], [chapterNumberLabel], …) always
      * describe the chapter the visible page belongs to, updating as the window slides past a boundary.
      *
      * @property items The window's pages and the transition slides between them, in reading order.
@@ -40,12 +43,20 @@ sealed interface ReaderState {
      *   reader flows across a boundary, so the UI can confirm the crossing (a pill, a haptic tick).
      * @property currentPage Zero-based index of the visible page **within its chapter** (drives the scrubber).
      * @property currentPageCount Page count of the chapter the visible page belongs to.
-     * @property chapterNumber Recognized number of the current chapter; `null` when unnumbered.
+     * @property chapterNumberLabel The current chapter's number for display ("12", "10.5"); `null` when
+     *   unnumbered. Each platform words it ("Chapter 12").
      * @property chapterName The current chapter's title, or `null` (the UI falls back to "Chapter N").
      * @property hasPreviousChapter Whether a lower-numbered sibling chapter exists.
      * @property hasNextChapter Whether a higher-numbered sibling chapter exists.
+     * @property mangaTitle The series' title, under the chapter title in the top bar.
+     * @property chapterUrl The current chapter on the source's site (the ⋯ menu's "Open in browser").
+     * @property background The page ground the user picked.
+     * @property sheet The sheet open over the reader, if any.
+     * @property chaptersTab Which list the Chapters sheet shows.
+     * @property isCurrentPageBookmarked Whether the page on screen is bookmarked (the top bar's toggle).
+     * @property chapters The Chapters sheet's rows; empty while that sheet is closed.
+     * @property bookmarks This series' bookmarks for the sheet; empty while it is closed.
      */
-    @Immutable
     data class Content(
         val items: List<ReaderItem>,
         val initialItemIndex: Int,
@@ -54,25 +65,73 @@ sealed interface ReaderState {
         val currentChapterId: Uuid,
         val currentPage: Int,
         val currentPageCount: Int,
-        val chapterNumber: ChapterNumber?,
+        val chapterNumberLabel: String?,
         val chapterName: String?,
         val hasPreviousChapter: Boolean,
-        val hasNextChapter: Boolean
+        val hasNextChapter: Boolean,
+        val mangaTitle: String,
+        val chapterUrl: String,
+        val background: ReaderBackground,
+        val sheet: ReaderSheet?,
+        val chaptersTab: ReaderChaptersTab,
+        val isCurrentPageBookmarked: Boolean,
+        val chapters: List<ReaderChapterItem>,
+        val bookmarks: List<ReaderBookmarkItem>
     ) : ReaderState
 }
+
+/** The sheets the reader's chrome opens. */
+enum class ReaderSheet { Chapters, Settings }
+
+/** The two lists of the Chapters sheet. */
+enum class ReaderChaptersTab { Chapters, Bookmarks }
+
+/**
+ * One row of the Chapters sheet: the series' chapters, newest first like Manga detail, one per number
+ * (the chapters the reader pages through).
+ *
+ * @property numberLabel "12", "10.5"; `null` when unnumbered (the row then uses [name]).
+ * @property isCurrent the chapter on screen, which the sheet scrolls to and marks.
+ * @property bookmarkCount how many of its pages are bookmarked.
+ */
+data class ReaderChapterItem(
+    val id: Uuid,
+    val numberLabel: String?,
+    val name: String?,
+    val scanlator: String?,
+    val isRead: Boolean,
+    val isDownloaded: Boolean,
+    val isCurrent: Boolean,
+    val bookmarkCount: Int
+)
+
+/**
+ * One row of the Bookmarks list, in reading order. [page] is zero-based (the UI shows it plus one). The
+ * thumbnail is [imageUrl] + [imageHeaders] or [localPath]; a source URL may have expired, and the UI then
+ * shows the cover.
+ */
+data class ReaderBookmarkItem(
+    val id: Uuid,
+    val chapterId: Uuid,
+    val chapterNumberLabel: String?,
+    val chapterName: String?,
+    val page: Int,
+    val imageUrl: String?,
+    val imageHeaders: Map<String, String>,
+    val localPath: String?
+)
 
 /**
  * The bare identity of a chapter — enough to title a transition slide ("Up next: Chapter 12") without
  * pulling the whole chapter into UI state.
  *
  * @property id Local chapter id.
- * @property number Recognized chapter number, or `null` when the source didn't number it.
+ * @property numberLabel The chapter number for display, or `null` when the source didn't number it.
  * @property name The chapter's source title, or `null` (the slide falls back to "Chapter N").
  */
-@Immutable
 data class ChapterRef(
     val id: Uuid,
-    val number: ChapterNumber?,
+    val numberLabel: String?,
     val name: String?
 )
 
@@ -83,13 +142,13 @@ data class ChapterRef(
  * page. [key] is stable per slot for lazy-list reuse and for re-anchoring the viewport when the window
  * slides.
  *
- * `@Immutable` throughout, including on [ReaderState.Content] which holds a `List` of these. That is a
- * promise the compiler does not verify, and the code keeps it: the list comes from `ReaderViewModel`'s
- * `buildItems`, which owns it and never mutates it after handing it over, and every field below is an
- * immutable scalar or a data class of them. Without the promise Compose infers `List<ReaderItem>` — and
- * so `Content` — as **unstable**, and nothing in the reader's page tree can ever skip a recomposition.
+ * Declared stable to Compose (see `features/reader/compose-stability.conf`), including [ReaderState.Content]
+ * which holds a `List` of these. That is a promise the compiler does not verify, and the code keeps it:
+ * the list comes from `ReaderViewModel`'s `buildItems`, which owns it and never mutates it after handing
+ * it over, and every field below is an immutable scalar or a data class of them. Without the promise
+ * Compose infers `List<ReaderItem>` — and so `Content` — as **unstable**, and nothing in the reader's page
+ * tree can ever skip a recomposition.
  */
-@Immutable
 sealed interface ReaderItem {
     val key: String
 
@@ -99,14 +158,17 @@ sealed interface ReaderItem {
      * @property chapterId The chapter this page belongs to (the window holds several).
      * @property pageNumber Zero-based index of this page **within its chapter**.
      * @property pageCount Total pages in that chapter (so a focused page can tell if it's the last).
-     * @property page Where this page's image comes from — the source, or a downloaded copy on disk. The
-     *   reader does not distinguish the two beyond building the image request; see [ReaderPage].
+     * @property imageUrl Where a source page is fetched from, with [imageHeaders]; `null` for a
+     *   downloaded page, which is read from [localPath] instead. Exactly one of the two is set. The
+     *   reader does not otherwise distinguish them (see `PageImage`).
      */
     data class PageItem(
         val chapterId: Uuid,
         val pageNumber: Int,
         val pageCount: Int,
-        val page: ReaderPage
+        val imageUrl: String?,
+        val imageHeaders: Map<String, String>,
+        val localPath: String?
     ) : ReaderItem {
         override val key: String get() = pageKey(chapterId, pageNumber)
     }

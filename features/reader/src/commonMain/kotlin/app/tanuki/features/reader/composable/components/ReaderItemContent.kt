@@ -21,15 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.EmptyLibraryIcon
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
-import app.tanuki.core.domain.chapter.model.PageImage
-import app.tanuki.core.domain.chapter.model.ReaderPage
+import app.tanuki.features.reader.LocalReaderInk
 import app.tanuki.features.reader.LocalPageImageLoader
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_end_subtitle
@@ -65,7 +63,7 @@ internal fun ReaderItemContent(
 ) {
     when (item) {
         is ReaderItem.PageItem -> {
-            ReaderPageImage(item.page, item.key, onToggleChrome, fillHeight, zoomable, ratios)
+            ReaderPageImage(item, onToggleChrome, fillHeight, zoomable, ratios)
         }
 
         is ReaderItem.Transition -> {
@@ -82,7 +80,7 @@ internal fun ReaderItemContent(
  * A single page's image. Fetched through the reader's dedicated page [LocalPageImageLoader] (not the
  * singleton cover loader) from wherever the page's bytes live — the source over the network, or a
  * downloaded file on disk. Which of the two is settled upstream, in `GetReaderPages`, and everything
- * from here down is identical: see [PageImage] and `toImageRequest`.
+ * from here down is identical: see `toImageRequest`.
  *
  * When [zoomable] (the paged modes), the image is wrapped in Telephoto's [zoomable] gesture layer, so the
  * page gets pinch-to-zoom, double-tap-to-zoom, and pan. Telephoto owns the fit transform
@@ -107,8 +105,7 @@ internal fun ReaderItemContent(
  */
 @Composable
 private fun ReaderPageImage(
-    page: ReaderPage,
-    key: String,
+    page: ReaderItem.PageItem,
     onToggleChrome: () -> Unit,
     fillHeight: Boolean = true,
     zoomable: Boolean = true,
@@ -136,7 +133,7 @@ private fun ReaderPageImage(
             ?.takeIf { it.width > 0f && it.height > 0f }
     LaunchedEffect(decoded, zoomable) {
         if (decoded == null) return@LaunchedEffect
-        ratios?.record(key, decoded.width, decoded.height)
+        ratios?.record(page.key, decoded.width, decoded.height)
         if (zoomable) {
             zoomState.setContentLocation(ZoomableContentLocation.scaledInsideAndCenterAligned(decoded))
         }
@@ -158,7 +155,7 @@ private fun ReaderPageImage(
 
     val ratio =
         decoded?.let { it.width / it.height }
-            ?: ratios?.of(key)
+            ?: ratios?.of(page.key)
             ?: DEFAULT_PAGE_ASPECT_RATIO
     Image(
         painter = painter,
@@ -195,12 +192,12 @@ private fun ChapterTransition(
     ) {
         TransitionSection(
             label = stringResource(Res.string.reader_transition_finished),
-            title = chapterTitle(item.from.number, item.from.name),
+            title = chapterTitle(item.from.numberLabel, item.from.name),
             emphasized = false
         )
         TransitionSection(
             label = stringResource(Res.string.reader_transition_up_next),
-            title = chapterTitle(item.to.number, item.to.name),
+            title = chapterTitle(item.to.numberLabel, item.to.name),
             emphasized = true
         )
         Spacer(Modifier.height(TanukiTheme.spacing.xs))
@@ -210,7 +207,7 @@ private fun ChapterTransition(
             Text(
                 text = stringResource(Res.string.reader_transition_swipe_hint),
                 style = TanukiTheme.typography.caption,
-                color = TanukiTheme.colors.textFaint,
+                color = LocalReaderInk.current.copy(alpha = FAINT_INK),
                 textAlign = TextAlign.Center
             )
         }
@@ -238,17 +235,17 @@ private fun EndOfSeries(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.md, Alignment.CenterVertically)
     ) {
-        EmptyLibraryIcon(tint = TanukiTheme.colors.textFaint, size = 56.dp)
+        EmptyLibraryIcon(tint = LocalReaderInk.current.copy(alpha = FAINT_INK), size = 56.dp)
         Text(
             text = stringResource(Res.string.reader_end_title),
             style = TanukiTheme.typography.headline,
-            color = Color.White,
+            color = LocalReaderInk.current,
             textAlign = TextAlign.Center
         )
         Text(
             text = stringResource(Res.string.reader_end_subtitle),
             style = TanukiTheme.typography.caption,
-            color = TanukiTheme.colors.textFaint,
+            color = LocalReaderInk.current.copy(alpha = FAINT_INK),
             textAlign = TextAlign.Center
         )
     }
@@ -272,14 +269,17 @@ private fun TransitionSection(
         Text(
             text = label,
             style = TanukiTheme.typography.label,
-            color = if (emphasized) TanukiTheme.colors.accent else TanukiTheme.colors.textFaint,
+            color = if (emphasized) TanukiTheme.colors.accent else LocalReaderInk.current.copy(alpha = FAINT_INK),
             textAlign = TextAlign.Center
         )
         Text(
             text = title,
             style = if (emphasized) TanukiTheme.typography.headline else TanukiTheme.typography.title,
-            color = if (emphasized) Color.White else Color.White.copy(alpha = 0.6f),
+            color = if (emphasized) LocalReaderInk.current else LocalReaderInk.current.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
     }
 }
+
+/** Secondary text on the reader's ground. */
+private const val FAINT_INK = 0.55f

@@ -280,7 +280,6 @@ private class LiveChapterRepository(chapter: Chapter) : ChapterRepository {
         listOf(held.value).filter { it.id in chapterIds }
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = error("unused")
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = error("unused")
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> = error("unused")
     override suspend fun getChapter(chapterId: Uuid): Chapter? = error("unused")
     override suspend fun updateProgress(chapterId: Uuid, progress: ReadingProgress) = error("unused")

@@ -86,7 +86,7 @@ internal fun PagePrefetch(
         for (item in window) {
             warmer.warm(item.key) {
                 val request =
-                    item.page
+                    item
                         .toImageRequest(context, decodeSize)
                         .newBuilder()
                         .listener(

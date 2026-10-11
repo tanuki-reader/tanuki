@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.RoomDatabaseConstructor
 import androidx.room.TypeConverters
+import app.tanuki.core.data.repository.bookmark.PageBookmarkDao
+import app.tanuki.core.data.repository.bookmark.PageBookmarkEntity
 import app.tanuki.core.data.repository.category.CategoryDao
 import app.tanuki.core.data.repository.category.CategoryEntity
 import app.tanuki.core.data.repository.category.MangaCategoryEntity
@@ -46,9 +48,10 @@ import app.tanuki.core.data.repository.update.ChapterUpdateEntity
         CategoryEntity::class,
         MangaCategoryEntity::class,
         TrackerLinkEntity::class,
-        SeriesMetadataEntity::class
+        SeriesMetadataEntity::class,
+        PageBookmarkEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -69,6 +72,8 @@ abstract class TanukiDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
 
     abstract fun metadataDao(): MetadataDao
+
+    abstract fun pageBookmarkDao(): PageBookmarkDao
 }
 
 /**

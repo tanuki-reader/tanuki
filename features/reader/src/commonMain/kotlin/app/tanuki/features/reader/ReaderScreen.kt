@@ -4,11 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.core.navigation.NavEvent
@@ -59,7 +59,9 @@ private fun ReaderScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val prefetchBudget by viewModel.prefetchBudget.collectAsStateWithLifecycle()
 
-    Box(modifier.fillMaxSize().background(Color.Black)) {
+    val background = (state as? ReaderState.Content)?.background
+    CompositionLocalProvider(LocalReaderInk provides background.ink()) {
+    Box(modifier.fillMaxSize().background(background.ground())) {
         when (val current = state) {
             ReaderState.Loading -> {
                 TanukiLoadingIndicator(Modifier.align(Alignment.Center))
@@ -70,18 +72,9 @@ private fun ReaderScreen(
             }
 
             is ReaderState.Content -> {
-                ReaderContent(
-                    content = current,
-                    commands = viewModel.commands,
-                    prefetchBudget = prefetchBudget,
-                    onItemFocused = viewModel::onItemFocused,
-                    onToggleChrome = viewModel::onToggleChrome,
-                    onBack = viewModel::onBack,
-                    onPreviousChapter = viewModel::onPreviousChapter,
-                    onNextChapter = viewModel::onNextChapter,
-                    onScrubToPage = viewModel::onScrubToPage
-                )
+                ReaderContent(content = current, viewModel = viewModel, prefetchBudget = prefetchBudget)
             }
         }
+    }
     }
 }

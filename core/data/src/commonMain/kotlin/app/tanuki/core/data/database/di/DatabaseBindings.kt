@@ -3,6 +3,7 @@ package app.tanuki.core.data.database.di
 import app.tanuki.core.data.database.DatabaseBuilderFactory
 import app.tanuki.core.data.database.TanukiDatabase
 import app.tanuki.core.data.database.buildDatabase
+import app.tanuki.core.data.repository.bookmark.PageBookmarkDao
 import app.tanuki.core.data.repository.category.CategoryDao
 import app.tanuki.core.data.repository.chapter.ChapterDao
 import app.tanuki.core.data.repository.download.ChapterDownloadDao
@@ -55,6 +56,9 @@ object DatabaseBindings {
 
     @Provides
     fun provideHistoryDao(database: TanukiDatabase): HistoryDao = database.historyDao()
+
+    @Provides
+    fun providePageBookmarkDao(database: TanukiDatabase): PageBookmarkDao = database.pageBookmarkDao()
 
     @Provides
     fun provideCategoryDao(database: TanukiDatabase): CategoryDao = database.categoryDao()

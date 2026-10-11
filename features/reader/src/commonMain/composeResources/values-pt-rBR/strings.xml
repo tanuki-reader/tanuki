@@ -17,4 +17,38 @@
     <string name="reader_end_title">Não há mais capítulos</string>
     <!-- Terminal slide subtitle: reassures the reader they've read everything available. -->
     <string name="reader_end_subtitle">Você está em dia</string>
+    <!-- Reader chrome -->
+    <string name="reader_back">Voltar</string>
+    <string name="reader_bookmark_add">Marcar esta página</string>
+    <string name="reader_bookmark_remove">Remover marcador</string>
+    <string name="reader_more">Mais opções</string>
+    <string name="reader_open_in_browser">Abrir no navegador</string>
+    <string name="reader_previous_chapter">Capítulo anterior</string>
+    <string name="reader_next_chapter">Próximo capítulo</string>
+    <string name="reader_chapters">Capítulos</string>
+    <string name="reader_settings">Ajustes de leitura</string>
+    <!-- Chapters sheet -->
+    <string name="reader_tab_chapters">Capítulos</string>
+    <string name="reader_tab_bookmarks">Marcadores</string>
+    <string name="reader_bookmarks_empty">Nenhum marcador ainda. Use o marcador no topo de uma página para guardar onde parou.</string>
+    <!-- A bookmarked page. %1$d is the page number, from 1. -->
+    <string name="reader_bookmark_page">Página %1$d</string>
+    <plurals name="reader_chapter_bookmarks">
+        <item quantity="one">%1$d marcador</item>
+        <item quantity="other">%1$d marcadores</item>
+    </plurals>
+    <string name="reader_chapter_downloaded">Baixado</string>
+    <string name="reader_chapter_read">Lido</string>
+    <string name="reader_chapter_current">Lendo agora</string>
+    <!-- Reader settings sheet -->
+    <string name="reader_mode_title">Modo de leitura</string>
+    <string name="reader_mode_ltr">Esquerda para a direita</string>
+    <string name="reader_mode_rtl">Direita para a esquerda</string>
+    <string name="reader_mode_vertical">Páginas na vertical</string>
+    <string name="reader_mode_webtoon">Rolagem contínua (webtoon)</string>
+    <string name="reader_mode_hint">Salvo para esta obra.</string>
+    <string name="reader_background_title">Fundo</string>
+    <string name="reader_background_black">Preto</string>
+    <string name="reader_background_paper">Branco</string>
+    <string name="reader_background_sepia">Sépia</string>
 </resources>

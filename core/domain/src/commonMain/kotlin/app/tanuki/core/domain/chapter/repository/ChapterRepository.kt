@@ -24,14 +24,6 @@ interface ChapterRepository {
     fun observeChapters(mangaId: Uuid): Flow<List<Chapter>>
 
     /**
-     * Observes only the bookmarked chapters of a manga.
-     *
-     * @param mangaId Local id of the owning manga.
-     * @return A [Flow] of the manga's bookmarked chapters.
-     */
-    fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>>
-
-    /**
      * Every chapter of a manga, read once rather than observed — what a source sync matches its
      * remote chapters against before writing.
      *

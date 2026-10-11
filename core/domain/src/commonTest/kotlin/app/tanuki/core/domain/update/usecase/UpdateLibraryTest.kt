@@ -25,6 +25,7 @@ import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.domain.settings.model.ReaderBackground
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -595,7 +596,6 @@ private class HeldChapterRepository(
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(byManga[mangaId].orEmpty())
 
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
     override suspend fun getChapter(chapterId: Uuid): Chapter? = null
 
@@ -813,6 +813,10 @@ private class FakeSettingsRepository(
 
 
     override fun observeLibraryGridSize(): Flow<LibraryGridSize> = error("unused")
+
+    override fun observeReaderBackground(): Flow<ReaderBackground> = error("unused")
+
+    override suspend fun setReaderBackground(background: ReaderBackground) = error("unused")
 
 
 

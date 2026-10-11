@@ -1,5 +1,6 @@
 package app.tanuki.core.domain.download.usecase
 
+import app.tanuki.core.domain.bookmark.repository.PageBookmarkRepository
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.repository.ChapterRepository
 import app.tanuki.core.domain.common.service.Logger
@@ -47,6 +48,7 @@ sealed interface DeleteReadChapterDownloads {
         private val settingsRepository: SettingsRepository,
         private val chapterRepository: ChapterRepository,
         private val downloadRepository: DownloadRepository,
+        private val bookmarkRepository: PageBookmarkRepository,
         private val deleteChapterDownloads: DeleteChapterDownloads,
         private val logger: Logger,
     ) : DeleteReadChapterDownloads {
@@ -63,10 +65,11 @@ sealed interface DeleteReadChapterDownloads {
                     .keys
             if (downloaded.isEmpty()) return 0
 
+            val bookmarked = bookmarkRepository.bookmarkedChapterIds(mangaId)
             val expendable =
                 chapterRepository
                     .getChapters(mangaId)
-                    .filter { it.isExpendable(downloaded) }
+                    .filter { it.isExpendable(downloaded, bookmarked) }
                     // Highest chapter number last, so dropping from the end keeps the *latest* read
                     // chapters — the ones a reader flicks back to. Chapters the source left unnumbered
                     // sort first and are therefore deleted first, which is the right guess: an
@@ -81,13 +84,15 @@ sealed interface DeleteReadChapterDownloads {
         }
 
         /**
-         * Read, downloaded, and not bookmarked — all three, or it stays.
+         * Read, downloaded, and not bookmarked (no page of it is) — all three, or it stays.
          *
          * `downloadedIds` is the *record* index rather than the disk, which is the right authority here:
          * a chapter with no record is one this setting has no business deleting files for.
          */
-        private fun Chapter.isExpendable(downloadedIds: Set<Uuid>): Boolean =
-            progress?.alreadyRead == true && progress.hasBookmark != true && id in downloadedIds
+        private fun Chapter.isExpendable(
+            downloadedIds: Set<Uuid>,
+            bookmarkedIds: Set<Uuid>,
+        ): Boolean = progress?.alreadyRead == true && id in downloadedIds && id !in bookmarkedIds
 
         private companion object {
             const val TAG = "DeleteReadChapterDownloads"

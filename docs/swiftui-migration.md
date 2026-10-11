@@ -791,5 +791,46 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Not verified by hand:** fling and swipe gestures (no gesture automation here), long webtoon
     chapters, Android on a device or emulator.
 
-  Next: **Phase 8, part B** (reader features + bookmarks), then **C** (SwiftUI reader).
+- 2026-10-11 — **Phase 8, part B: reader features + page bookmarks** (shared ViewModels + Android Compose;
+  iOS gets the Bookmarks screen and Manga detail's markers natively; its reader is still the Compose one
+  until part C). Owner's choices: a new `page_bookmark` table with `reading_progress.has_bookmark`
+  retired (kept, unused); a bookmark stores its page's image reference; Material Icons Rounded
+  (`material-icons-extended` 1.7.3) for new Android icons.
+  - **`:features:reader:logic`** (Compose-free; exported in C): ViewModel, window, session and state
+    moved out of `:features:reader`; state made Swift-friendly (`chapterNumberLabel`, `PageItem` with
+    `imageUrl`/`imageHeaders`/`localPath`, no value classes). `@Immutable` replaced by a Compose
+    `stabilityConfigurationFile` in `:features:reader`.
+  - **Reader:** sheet + Chapters/Bookmarks segment as inputs; `isCurrentPageBookmarked`; the chapter list
+    (the reader's spine, newest first, read/downloaded/bookmark count, built only while the sheet is
+    open); bookmark list; reading mode via `SetReadingMode` (user origin), switched live on the same page
+    (`initialItemIndex` moves to the focused key, layouts keyed on the mode); app-wide
+    `ReaderBackground` (DataStore); chrome auto-hides after 3 s unless a sheet is open or the scrubber
+    is held; chapter URL for ⋯ → Open in browser.
+  - **Bookmarks data:** `PageBookmark` + `PageBookmarkRepository` + 4 use cases; Room v16
+    (`Migration15To16`, SQL checked against `16.json`); "delete read downloads" keeps chapters with a
+    bookmarked page. Source sync needed no change: the reader writes a progress row on open, so every
+    bookmarked chapter already has one, which sync keeps. `observeBookmarkedChapters` removed (unused).
+    `ObserveChapterDownloads` and `SetReadingMode` unsealed so ViewModel tests can fake them.
+  - **Android:** chrome rebuilt (back · title over series · bookmark · ⋯ / prev · scrubber "12 / 48" ·
+    next, Chapters, Reader settings) on opaque `surface` bars; Chapters sheet (segmented, scrolled to the
+    current chapter, thumbnails through the page loader) and Settings sheet (4 modes, 3 swatches); page
+    grounds and slide ink from the new generated `ReaderColors.kt` (`generate-ios-tokens.py` third
+    argument).
+  - **Manga detail (both):** bookmark marker + count on rows; "Bookmarked" in the chapter filter (the
+    filter shows whenever the series has bookmarks); with it on, a tap opens the first bookmarked page.
+  - **Library ⋯ → Bookmarks (both):** `Destination.Bookmarks`, `:features:bookmarks:logic`
+    (`BookmarksViewModel`, grouped by series, newest first) + `:features:bookmarks` (Compose,
+    swipe to delete) + `Features/Bookmarks/BookmarksScreen.swift`; ⋯ in Library's toolbar (iOS
+    `ToolbarItemGroup` with `ellipsis`, Android `TanukiTopBar` gained an `actions` slot).
+  - **Left out of Reader settings:** page scale/fit, tap zones, keep screen on, brightness, page gap,
+    crop borders, double pages. The settings' 4 modes don't show `CONTINUOUS_VERTICAL` (a legacy mode
+    laid out like webtoon).
+  - **Verified:** reader 61 (+7: sheet jump near, chapter list only while open, mode switch keeps the
+    page, bookmark toggle with image, bookmark opens its page, chrome auto-hide, background),
+    `TogglePageBookmarkTest` 2, `MangaContentProjectionTest` 7, `BookmarksGroupingTest` 1, all core
+    tests, host + iOS; `:androidApp:assembleDebug`, Debug xcodebuild.
+  - **Not verified by hand:** any of B on a device (Android chrome/sheets/swipe, iOS Bookmarks screen and
+    filter), a local (downloaded) page as a thumbnail, the Room v15→v16 migration on a real database.
+
+  Next: **Phase 8, part C** (SwiftUI reader).
 

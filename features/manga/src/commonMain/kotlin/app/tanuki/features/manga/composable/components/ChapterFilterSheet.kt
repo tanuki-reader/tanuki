@@ -31,7 +31,9 @@ import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiFilterChip
 import app.tanuki.features.manga.resources.Res
+import app.tanuki.features.manga.resources.manga_filter_bookmarked
 import app.tanuki.features.manga.resources.manga_filter_scanlators_help
+import app.tanuki.features.manga.resources.manga_filter_section_bookmarks
 import app.tanuki.features.manga.resources.manga_filter_section_scanlators
 import app.tanuki.features.manga.resources.manga_filter_show_count
 import app.tanuki.features.manga.resources.manga_filter_title
@@ -55,7 +57,9 @@ private val SheetContentMaxHeight = 420.dp
  * The last shown group can't be turned off (the ViewModel ignores it), because an empty chapter list
  * with the sheet closed would look like a broken screen.
  *
- * @param scanlators every group that published a chapter, with its count and shown state.
+ * @param scanlators every group that published a chapter, with its count and shown state; empty when
+ *   there is only one group, which hides that section.
+ * @param bookmarked whether only bookmarked chapters are shown; `null` hides the option (no bookmarks).
  * @param visibleChapterCount chapters currently passing the filter — the footer's "Show N".
  * @param onToggle a group chip was tapped — show or hide that group's chapters.
  * @param onReset the reset control was tapped — show every group again.
@@ -65,7 +69,9 @@ private val SheetContentMaxHeight = 420.dp
 @Composable
 internal fun ChapterFilterSheet(
     scanlators: List<ScanlatorChip>,
+    bookmarked: Boolean?,
     visibleChapterCount: Int,
+    onToggleBookmarked: () -> Unit,
     onToggle: (String) -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit,
@@ -96,27 +102,39 @@ internal fun ChapterFilterSheet(
                     .padding(horizontal = spacing.gutter)
                     .padding(top = spacing.sm, bottom = spacing.md)
         ) {
-            GroupLabel(stringResource(Res.string.manga_filter_section_scanlators))
-            Spacer(Modifier.size(spacing.xs))
-            Text(
-                text = stringResource(Res.string.manga_filter_scanlators_help),
-                style = TanukiTheme.typography.caption,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = spacing.xxs, vertical = spacing.xs)
-            )
-            Spacer(Modifier.size(spacing.sm))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(spacing.sm)
-            ) {
-                scanlators.forEach { chip ->
-                    TanukiFilterChip(
-                        // A group name is source content, never localized copy.
-                        text = chip.name,
-                        selected = chip.isShown,
-                        count = chip.chapterCount,
-                        onClick = { onToggle(chip.name) }
-                    )
+            if (bookmarked != null) {
+                GroupLabel(stringResource(Res.string.manga_filter_section_bookmarks))
+                Spacer(Modifier.size(spacing.sm))
+                TanukiFilterChip(
+                    text = stringResource(Res.string.manga_filter_bookmarked),
+                    selected = bookmarked,
+                    onClick = onToggleBookmarked
+                )
+                Spacer(Modifier.size(spacing.lg))
+            }
+            if (scanlators.isNotEmpty()) {
+                GroupLabel(stringResource(Res.string.manga_filter_section_scanlators))
+                Spacer(Modifier.size(spacing.xs))
+                Text(
+                    text = stringResource(Res.string.manga_filter_scanlators_help),
+                    style = TanukiTheme.typography.caption,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = spacing.xxs, vertical = spacing.xs)
+                )
+                Spacer(Modifier.size(spacing.sm))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(spacing.sm)
+                ) {
+                    scanlators.forEach { chip ->
+                        TanukiFilterChip(
+                            // A group name is source content, never localized copy.
+                            text = chip.name,
+                            selected = chip.isShown,
+                            count = chip.chapterCount,
+                            onClick = { onToggle(chip.name) }
+                        )
+                    }
                 }
             }
         }

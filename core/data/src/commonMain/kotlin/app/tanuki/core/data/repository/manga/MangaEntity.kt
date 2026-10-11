@@ -274,7 +274,7 @@ fun Manga.toLibraryEntry(): LibraryEntryEntity? =
     }
 
 /** An overriding cover is a plain image URL: the source's headers belong to the source's CDN, not to it. */
-private fun mangaCover(
+internal fun mangaCover(
     mangaId: Uuid,
     coverUrl: String?,
     coverHeaders: String?,

@@ -1,6 +1,7 @@
 package app.tanuki.features.manga.viewmodel
 
 import androidx.lifecycle.viewModelScope
+import app.tanuki.core.domain.bookmark.usecase.ObservePageBookmarks
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.category.usecase.SetMangaCategories
 import app.tanuki.core.domain.chapter.model.Chapter
@@ -85,6 +86,7 @@ class MangaViewModel(
     observeCategories: ObserveCategories,
     observeSources: ObserveSources,
     observeChapterDownloads: ObserveChapterDownloads,
+    observePageBookmarks: ObservePageBookmarks,
     private val enqueueChapterDownloads: EnqueueChapterDownloads,
     private val enqueueNextChapters: EnqueueNextChapters,
     private val cancelChapterDownloads: CancelChapterDownloads,
@@ -128,6 +130,9 @@ class MangaViewModel(
     /** The open modal, if any — screen state, so both platforms show the same one. */
     private val sheet = MutableStateFlow<MangaSheet?>(null)
 
+    /** The chapter filter's "Bookmarked": only chapters with a page bookmark. Not saved; a lookup. */
+    private val bookmarkedOnly = MutableStateFlow(false)
+
     /** The cover picker's and the match search's working state; see [MetadataEditor]. */
     private val editor = MutableStateFlow(MetadataEditor())
 
@@ -159,6 +164,15 @@ class MangaViewModel(
                     source = source
                 )
             }
+        }.combine(combine(observePageBookmarks(mangaId), bookmarkedOnly, ::Pair)) { state, (marks, only) ->
+            // Before the selection, which is pruned against the rows this leaves.
+            if (state !is Content) return@combine state
+            val marked = marks.mapTo(HashSet()) { it.chapterId }
+            state.copy(
+                bookmarks = marks,
+                bookmarkedOnly = only,
+                chapters = if (only) state.chapters.filter { it.id in marked } else state.chapters
+            )
         }.combine(observeChapterDownloads(mangaId)) { state, downloads ->
             if (state is Content) state.copy(downloads = downloads) else state
         }.combine(selectedChapterIds) { state, selected ->
@@ -449,8 +463,14 @@ class MangaViewModel(
         persistFilteredScanlators(hidden)
     }
 
-    /** The filter sheet's reset was tapped — show every group again. */
+    /** The filter sheet's "Bookmarked" was toggled — show only chapters with a bookmark, or all again. */
+    fun onToggleBookmarkedOnly() {
+        bookmarkedOnly.value = !bookmarkedOnly.value
+    }
+
+    /** The filter sheet's reset was tapped — show every group, and every chapter, again. */
     fun onResetChapterFilter() {
+        bookmarkedOnly.value = false
         val content = uiState.value as? Content ?: return
         if (content.manga.filteredScanlators.isEmpty()) return
         persistFilteredScanlators(emptySet())
@@ -482,7 +502,7 @@ class MangaViewModel(
         if (selection().isActive) {
             toggleSelection(chapterId)
         } else {
-            navigateTo(Reader(mangaId, chapterId))
+            navigateTo(Reader(mangaId, chapterId, (uiState.value as? Content)?.openPageOf(chapterId)))
         }
     }
 

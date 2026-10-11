@@ -41,6 +41,7 @@ kotlin {
             export(projects.features.search.logic)
             export(projects.features.activity.logic)
             export(projects.features.downloads.logic)
+            export(projects.features.bookmarks.logic)
         }
     }
     
@@ -99,6 +100,8 @@ kotlin {
             api(projects.features.activity.logic)
             api(projects.features.downloads)
             api(projects.features.downloads.logic)
+            api(projects.features.bookmarks)
+            api(projects.features.bookmarks.logic)
             api(projects.features.home)
             api(projects.features.home.logic)
             api(projects.features.source)

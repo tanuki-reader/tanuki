@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Generates the iOS design tokens from the Tanuki Design System's tokens.json.
 
-Usage: python3 -I scripts/generate-ios-tokens.py iosApp/design/tokens.json iosApp/iosApp
+Usage: python3 -I scripts/generate-ios-tokens.py iosApp/design/tokens.json iosApp/iosApp \
+           assets/designSystem/src/commonMain/kotlin/app/tanuki/assets/designSystem/ReaderColors.kt
 
 `tokens.json` is a checked-in copy of the design-system artifact's `project/tokens.json`. Refresh it
 when the design changes, then re-run this. The script writes:
@@ -10,6 +11,10 @@ when the design changes, then re-run this. The script writes:
   colorset there, and `Assets.xcassets/AccentColor.colorset` from `accent`.
 - `DesignSystem/TanukiColors.swift` (`Color.tk.*`) and `DesignSystem/TanukiTokens.swift` (`TK.Space`,
   `TK.Radius`, `TK.Size`).
+
+- With the optional third argument, the Android reader grounds (`reader-*`) as `ReaderColors.kt`. Android's
+  full palette is still hand-kept in `TanukiColors.kt` (it predates these tokens); the reader colours are
+  the first generated slice of it.
 
 Never edit the outputs by hand. `glass-*` and `scrim` are skipped: they exist for the web previews
 (Liquid Glass and the system scrim are drawn by iOS itself), and Swift never paints them.
@@ -121,5 +126,23 @@ def main(tokens_path: Path, app: Path) -> None:
     print(f"{len(emitted)} colors, {len(covers)} cover fallbacks → {app}")
 
 
+def android_reader_colors(tokens_path: Path, out: Path) -> None:
+    """The `reader-*` tokens (theme-invariant) as a Compose `ReaderColors` object."""
+    reader = [t for t in json.loads(tokens_path.read_text())["color"]["tokens"] if t["name"].startswith("reader-")]
+    lines = [HEADER.rstrip("\n"), "package app.tanuki.assets.designSystem", "",
+             "import androidx.compose.ui.graphics.Color", "",
+             "/** The reader's page grounds and the ink on sepia. Theme-invariant: the reader picks its own ground. */",
+             "object ReaderColors {"]
+    for token in reader:
+        r, g, b, a = rgba(token["value"])
+        name = camel(token["name"].removeprefix("reader-"))
+        lines += [f"    /** {token['usage']} */",
+                  f"    val {name[:1].upper() + name[1:]} = Color(0x{round(a * 255):02X}{r:02X}{g:02X}{b:02X})"]
+    out.write_text("\n".join(lines + ["}", ""]))
+    print(f"{len(reader)} reader colors → {out}")
+
+
 if __name__ == "__main__":
     main(Path(sys.argv[1]), Path(sys.argv[2]))
+    if len(sys.argv) > 3:
+        android_reader_colors(Path(sys.argv[1]), Path(sys.argv[3]))

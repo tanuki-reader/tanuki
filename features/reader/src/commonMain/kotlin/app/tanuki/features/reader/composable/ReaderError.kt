@@ -8,12 +8,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
+import app.tanuki.features.reader.LocalReaderInk
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_error_message
 import app.tanuki.features.reader.resources.reader_retry
@@ -32,7 +32,7 @@ internal fun ReaderError(
         Text(
             text = stringResource(Res.string.reader_error_message),
             style = TanukiTheme.typography.body,
-            color = Color.White,
+            color = LocalReaderInk.current,
             textAlign = TextAlign.Center
         )
         TanukiButton(

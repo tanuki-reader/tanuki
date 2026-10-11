@@ -20,6 +20,7 @@ import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
 import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.domain.settings.model.ReaderBackground
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -224,6 +225,15 @@ class SettingsRepositoryImp internal constructor(
         }
     }
 
+    override fun observeReaderBackground(): Flow<ReaderBackground> =
+        preferences.map { it[READER_BACKGROUND_KEY].toEnum<ReaderBackground>() ?: ReaderBackground.Black }
+
+    override suspend fun setReaderBackground(background: ReaderBackground) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[READER_BACKGROUND_KEY] = background.name }
+        }
+    }
+
     // Absent or corrupt reads as `false`: guessing wrong the other way shows adult content unasked.
     override fun observeShowSensitiveContent(): Flow<Boolean> = preferences.map { it[SHOW_SENSITIVE_KEY] ?: false }
 
@@ -253,6 +263,7 @@ class SettingsRepositoryImp internal constructor(
         val LIBRARY_SORT_MODE_KEY = stringPreferencesKey("library_sort_mode")
         val LIBRARY_SORT_DIRECTION_KEY = stringPreferencesKey("library_sort_direction")
         val LIBRARY_GRID_SIZE_KEY = stringPreferencesKey("library_grid_size")
+        val READER_BACKGROUND_KEY = stringPreferencesKey("reader_background")
         val SHOW_SENSITIVE_KEY = booleanPreferencesKey("show_sensitive_content")
 
         /** Each field by enum name; anything absent or unknown reads as that field's default. */

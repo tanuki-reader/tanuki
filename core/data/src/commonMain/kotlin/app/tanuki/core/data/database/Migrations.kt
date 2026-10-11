@@ -27,6 +27,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration12To13,
         Migration13To14,
         Migration14To15,
+        Migration15To16,
     )
 
 /**
@@ -392,5 +393,25 @@ internal object Migration14To15 : Migration(14, 15) {
             "CREATE TABLE IF NOT EXISTS `series_metadata` (`anilist_id` INTEGER NOT NULL, `lang` TEXT NOT NULL, " +
                 "`payload` TEXT NOT NULL, `fetched_at` INTEGER NOT NULL, PRIMARY KEY(`anilist_id`, `lang`))",
         )
+    }
+}
+
+/**
+ * Adds `page_bookmark`: a page the user marked, one per page of a chapter. Replaces the chapter-level
+ * `reading_progress.has_bookmark`, which nothing ever set; that column stays, unused.
+ */
+internal object Migration15To16 : Migration(15, 16) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `page_bookmark` (`id` TEXT NOT NULL, `manga_id` TEXT NOT NULL, " +
+                "`chapter_id` TEXT NOT NULL, `page` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, " +
+                "`image_url` TEXT, `image_headers` TEXT, `image_path` TEXT, PRIMARY KEY(`id`), " +
+                "FOREIGN KEY(`chapter_id`) REFERENCES `chapters`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                "FOREIGN KEY(`manga_id`) REFERENCES `manga`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL(
+            "CREATE UNIQUE INDEX IF NOT EXISTS `index_page_bookmark_chapter_id_page` ON `page_bookmark` (`chapter_id`, `page`)",
+        )
+        connection.execSQL("CREATE INDEX IF NOT EXISTS `index_page_bookmark_manga_id` ON `page_bookmark` (`manga_id`)")
     }
 }

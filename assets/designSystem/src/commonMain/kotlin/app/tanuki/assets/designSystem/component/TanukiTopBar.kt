@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -68,7 +69,8 @@ fun TanukiTopBar(
     onSearchSubmit: (String) -> Unit = {},
     onFilterClick: (() -> Unit)? = null,
     filterActive: Boolean = false,
-    containerColor: Color = Color.Unspecified
+    containerColor: Color = Color.Unspecified,
+    actions: @Composable RowScope.() -> Unit = {}
 ) {
     val colors = TanukiTheme.colors
     val borderColor = MaterialTheme.colorScheme.outlineVariant
@@ -162,6 +164,7 @@ fun TanukiTopBar(
                         FilterIcon(tint = tint)
                     }
                 }
+                actions()
             }
         }
     }

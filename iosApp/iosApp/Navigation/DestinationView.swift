@@ -28,6 +28,7 @@ struct DestinationView: View {
         case let .globalSearch(search): GlobalSearchScreen(query: search.query, path: $path)
         case let .mangaDetail(manga): MangaScreen(mangaId: manga.mangaId, path: $path)
         case .downloads: DownloadsScreen(path: $path)
+        case .bookmarks: BookmarksScreen(path: $path)
         case .reader: bridge
         }
     }

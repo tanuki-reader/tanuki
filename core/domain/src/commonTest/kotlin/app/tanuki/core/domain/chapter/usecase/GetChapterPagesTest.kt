@@ -176,7 +176,6 @@ private class PagesChapterRepo(
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
     override suspend fun getChapters(mangaId: Uuid): List<Chapter> = error("unused")
 

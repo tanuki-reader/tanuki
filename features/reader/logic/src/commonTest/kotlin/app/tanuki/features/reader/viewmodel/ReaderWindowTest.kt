@@ -134,6 +134,7 @@ private fun session(count: Int): ReaderSession =
                     progress = null
                 )
             },
+        mangaTitle = "Berserk",
         readingMode = ReadingMode.RIGHT_TO_LEFT,
         initialItemIndex = 0
     )

@@ -202,7 +202,6 @@ private class MarkChapterRepo(private val chapters: List<Chapter>) : ChapterRepo
 
     override fun observeChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
-    override fun observeBookmarkedChapters(mangaId: Uuid): Flow<List<Chapter>> = flowOf(emptyList())
 
     override suspend fun getChapter(chapterId: Uuid): Chapter? = error("unused")
 

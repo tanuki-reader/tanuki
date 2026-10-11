@@ -2,6 +2,7 @@ package app.tanuki.navigation
 
 import androidx.compose.runtime.Composable
 import app.tanuki.core.navigation.Destination
+import app.tanuki.core.navigation.Bookmarks
 import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.Reader
@@ -16,6 +17,7 @@ import app.tanuki.core.navigation.GlobalSearch
 import app.tanuki.features.search.GlobalSearchRoute
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.features.activity.ActivityRoute
+import app.tanuki.features.bookmarks.BookmarksRoute
 import app.tanuki.features.downloads.DownloadsRoute
 import app.tanuki.features.home.HomeRoute
 import app.tanuki.features.library.LibraryRoute
@@ -61,6 +63,7 @@ fun DestinationContent(
         SettingsDownloads -> DownloadSettingsRoute(onNavigate = onNavigate, onBack = onBack)
         SettingsSources -> SourcesRoute(onBack = onBack)
         Downloads -> DownloadsRoute(onNavigate = onNavigate, onBack = onBack)
+        Bookmarks -> BookmarksRoute(onNavigate = onNavigate, onBack = onBack)
         is SourceBrowse -> SourceHomeRoute(sourceId = destination.sourceId, onNavigate = onNavigate, onBack = onBack)
         is SourceCatalogGrid ->
             SourceRoute(

@@ -4,6 +4,7 @@
 enum StringTable: String {
     case localizable = "Localizable"
     case activity = "Activity"
+    case bookmarks = "Bookmarks"
     case downloads = "Downloads"
     case home = "Home"
     case library = "Library"

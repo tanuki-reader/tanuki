@@ -1,6 +1,7 @@
 package app.tanuki.features.manga.viewmodel
 
 import app.tanuki.core.domain.category.model.Category
+import app.tanuki.core.domain.bookmark.model.PageBookmark
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.model.DownloadState
@@ -54,6 +55,9 @@ sealed interface MangaState {
      * @param refresh what a *user-requested* refresh (pull-to-refresh) is doing — see [Refresh]. The
      *   refreshes the screen asks for on open are not reported here: they are speculative and
      *   staleness-gated, so a spinner for them would spin on an open that never asks the source anything.
+     * @param bookmarks this series' page bookmarks, for the rows' markers and the Bookmarked filter.
+     * @param bookmarkedOnly whether the chapter list shows only chapters with a bookmark; [chapters] is
+     *   already filtered when it is.
      */
     data class Content(
         val manga: Manga,
@@ -68,7 +72,9 @@ sealed interface MangaState {
         val refresh: Refresh = Refresh.Idle,
         val sheet: MangaSheet? = null,
         val metadata: MangaMetadata? = null,
-        val editor: MetadataEditor = MetadataEditor()
+        val editor: MetadataEditor = MetadataEditor(),
+        val bookmarks: List<PageBookmark> = emptyList(),
+        val bookmarkedOnly: Boolean = false
     ) : MangaState {
         /**
          * The matched metadata, when it should take over the header: linked, fetched, and the user hasn't
@@ -157,6 +163,9 @@ sealed interface MangaState {
             )
         }
 
+        /** How many pages of each chapter are bookmarked; chapters without one are absent. */
+        val bookmarkCounts: Map<Uuid, Int> by lazy { bookmarks.groupingBy { it.chapterId }.eachCount() }
+
         /** [chapters] as list rows, in plain values for Swift. Built once per state. */
         val rows: List<ChapterRow> by lazy {
             chapters.map { chapter ->
@@ -172,7 +181,8 @@ sealed interface MangaState {
                     download = download?.state,
                     downloadProgress =
                         download?.pageCount?.takeIf { it > 0 }?.let { download.downloadedPages.toFloat() / it },
-                    isSelected = chapter.id in selection.ids
+                    isSelected = chapter.id in selection.ids,
+                    bookmarkCount = bookmarkCounts[chapter.id] ?: 0
                 )
             }
         }
@@ -205,8 +215,21 @@ sealed interface MangaState {
         /** Whether the chapter list is worth offering a group filter for — i.e. more than one group. */
         val canFilterScanlators: Boolean get() = scanlators.size > 1
 
-        /** Whether any group is currently hidden, which the filter affordance marks with a dot. */
-        val isChapterFilterActive: Boolean get() = scanlators.any { !it.isShown }
+        /** Whether the filter offers "Bookmarked": the series has a bookmark, or the filter is on. */
+        val canFilterBookmarked: Boolean get() = bookmarks.isNotEmpty() || bookmarkedOnly
+
+        /** Whether the chapter filter has anything to offer, which is when its button shows. */
+        val canFilterChapters: Boolean get() = canFilterScanlators || canFilterBookmarked
+
+        /** Whether a filter is narrowing the list, which the filter affordance marks with a dot. */
+        val isChapterFilterActive: Boolean get() = bookmarkedOnly || scanlators.any { !it.isShown }
+
+        /**
+         * The page a tap on [chapterId] opens at: its first bookmarked page while the Bookmarked filter is
+         * on (that is what the user is looking for), else `null` — resume as usual.
+         */
+        fun openPageOf(chapterId: Uuid): Int? =
+            if (bookmarkedOnly) bookmarks.filter { it.chapterId == chapterId }.minOfOrNull { it.page } else null
     }
 
     /**
@@ -374,6 +397,7 @@ data class MangaHeader(
  * One chapter row. [numberLabel] ("12", "10.5") or [name] make the title; each platform formats
  * [dateUploaded]. [lastPageRead] is set only for a chapter started but not finished ("Page 12").
  * [download] is `null` when nothing is on disk or queued; [downloadProgress] is 0–1 while downloading.
+ * [bookmarkCount] is how many of its pages are bookmarked (a small marker when > 0).
  */
 data class ChapterRow(
     val id: Uuid,
@@ -385,6 +409,7 @@ data class ChapterRow(
     val lastPageRead: Int?,
     val download: DownloadState?,
     val downloadProgress: Float?,
-    val isSelected: Boolean
+    val isSelected: Boolean,
+    val bookmarkCount: Int = 0
 )
 

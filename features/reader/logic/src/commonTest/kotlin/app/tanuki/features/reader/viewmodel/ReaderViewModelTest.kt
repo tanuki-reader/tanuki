@@ -1,5 +1,10 @@
 package app.tanuki.features.reader.viewmodel
 
+import app.tanuki.core.domain.bookmark.model.PageBookmark
+import app.tanuki.core.domain.bookmark.model.PageBookmarkEntry
+import app.tanuki.core.domain.bookmark.repository.PageBookmarkRepository
+import app.tanuki.core.domain.bookmark.usecase.ObservePageBookmarks
+import app.tanuki.core.domain.bookmark.usecase.TogglePageBookmark
 import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.chapter.model.ChapterNumber
 import app.tanuki.core.domain.chapter.model.PageImage
@@ -20,7 +25,14 @@ import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
+import app.tanuki.core.domain.download.model.ChapterDownload
+import app.tanuki.core.domain.download.model.DownloadState
+import app.tanuki.core.domain.download.usecase.ObserveChapterDownloads
 import app.tanuki.core.domain.manga.usecase.ObserveManga
+import app.tanuki.core.domain.manga.usecase.SetReadingMode
+import app.tanuki.core.domain.settings.model.ReaderBackground
+import app.tanuki.core.domain.settings.usecase.ObserveReaderBackground
+import app.tanuki.core.domain.settings.usecase.SetReaderBackground
 import app.tanuki.features.reader.viewmodel.ReaderItem.PageItem
 import app.tanuki.features.reader.viewmodel.ReaderState.Content
 import app.tanuki.features.reader.viewmodel.ReaderState.Error
@@ -765,6 +777,140 @@ class ReaderViewModelTest {
         assertEquals(4, viewModel.content().initialItemIndex)
     }
 
+    // ---- Reader features (B) ---------------------------------------------------------------------
+
+    @Test
+    fun `picking a nearby chapter in the sheet lands on its first page and closes the sheet`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+        viewModel.onOpenSheet(ReaderSheet.Chapters)
+        runCurrent()
+
+        viewModel.onChapterSelected(world.chapterIds[START + 1])
+        runCurrent()
+
+        val landed = viewModel.content().landedOn(commands.filterIsInstance<ReaderCommand.Jump>().single())
+        assertEquals(world.chapterIds[START + 1], landed.chapterId)
+        assertEquals(0, landed.pageNumber)
+        assertNull(viewModel.content().sheet)
+        job.cancel()
+    }
+
+    @Test
+    fun `the chapter list is built only while its sheet is open`() = runTest {
+        val world = World()
+        world.downloads.value = mapOf(world.chapterIds[0] to downloaded(world.chapterIds[0]))
+        val viewModel = world.viewModel()
+        runCurrent()
+        assertTrue(viewModel.content().chapters.isEmpty())
+
+        viewModel.onOpenSheet(ReaderSheet.Chapters)
+        runCurrent()
+
+        val chapters = viewModel.content().chapters
+        assertEquals(world.chapterIds.reversed(), chapters.map { it.id }, "newest first, like Manga detail")
+        assertTrue(chapters.single { it.isCurrent }.id == world.chapterIds[START])
+        assertTrue(chapters.single { it.id == world.chapterIds[0] }.isDownloaded)
+
+        viewModel.onDismissSheet()
+        runCurrent()
+        assertTrue(viewModel.content().chapters.isEmpty())
+    }
+
+    @Test
+    fun `switching the reading mode keeps the page on screen`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        viewModel.focusAt(viewModel.content().items.indexOfFirst { it.key == pageKey(world.chapterIds[START], 2) })
+        runCurrent()
+
+        viewModel.onReadingModeChange(ReadingMode.WEBTOON)
+        runCurrent()
+
+        val content = viewModel.content()
+        assertEquals(ReadingMode.WEBTOON, content.readingMode)
+        assertEquals(pageKey(world.chapterIds[START], 2), content.items[content.initialItemIndex].key)
+    }
+
+    @Test
+    fun `toggling the bookmark marks the page with its image and toggling again clears it`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        viewModel.focusAt(viewModel.content().items.indexOfFirst { it.key == pageKey(world.chapterIds[START], 1) })
+        runCurrent()
+
+        viewModel.onToggleBookmark()
+        runCurrent()
+
+        assertTrue(viewModel.content().isCurrentPageBookmarked)
+        val saved = world.bookmarks.rows.value.single()
+        assertEquals(1, saved.page)
+        assertEquals(PageImage.Remote(Url("https://example.com/${world.chapterIds[START]}/1.png")), saved.image)
+
+        viewModel.onToggleBookmark()
+        runCurrent()
+
+        assertFalse(viewModel.content().isCurrentPageBookmarked)
+        assertTrue(world.bookmarks.rows.value.isEmpty())
+    }
+
+    @Test
+    fun `a bookmark opens on its page`() = runTest {
+        val world = World(chapterCount = 8)
+        val target = world.chapterIds[5]
+        world.bookmarks.rows.value =
+            listOf(PageBookmark(Uuid.random(), Uuid.random(), target, page = 2, Instant.DISTANT_PAST, image = null))
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+        viewModel.onOpenSheet(ReaderSheet.Chapters)
+        runCurrent()
+        assertEquals(1, viewModel.content().chapters.single { it.id == target }.bookmarkCount)
+
+        viewModel.onBookmarkSelected(viewModel.content().bookmarks.single().id)
+        runCurrent()
+
+        val landed = viewModel.content().landedOn(commands.filterIsInstance<ReaderCommand.Jump>().single())
+        assertEquals(target, landed.chapterId)
+        assertEquals(2, landed.pageNumber)
+        job.cancel()
+    }
+
+    @Test
+    fun `the chrome fades after a while unless a sheet is open`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        viewModel.onOpenSheet(ReaderSheet.Settings)
+        advanceTimeBy(ReaderViewModel.CHROME_HIDE_MS * 2)
+        runCurrent()
+        assertTrue(viewModel.content().chromeVisible)
+
+        viewModel.onDismissSheet()
+        advanceTimeBy(ReaderViewModel.CHROME_HIDE_MS + 1)
+        runCurrent()
+
+        assertFalse(viewModel.content().chromeVisible)
+    }
+
+    @Test
+    fun `the background follows the setting`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+
+        viewModel.onBackgroundChange(ReaderBackground.Sepia)
+        runCurrent()
+
+        assertEquals(ReaderBackground.Sepia, viewModel.content().background)
+    }
+
     // ---- Helpers --------------------------------------------------------------------------------
 
     private fun ReaderViewModel.content(): Content {
@@ -939,6 +1085,12 @@ class ReaderViewModelTest {
 
         val connection = FakeConnectionObserver()
 
+        val downloads = MutableStateFlow<Map<Uuid, ChapterDownload>>(emptyMap())
+
+        val bookmarks = FakeBookmarks()
+
+        val background = MutableStateFlow(ReaderBackground.Black)
+
         /** Drops [id] from the spine, as a library update pruning a delisted chapter would. */
         fun removeChapter(id: Uuid) = chapters.update { list -> list.filterNot { it.id == id } }
 
@@ -966,6 +1118,12 @@ class ReaderViewModelTest {
                 updateReadingProgress = progress,
                 observeChapters = FakeObserveChapters(chapters),
                 observeManga = FakeObserveManga(mangaFlow()),
+                observeChapterDownloads = FakeObserveChapterDownloads(downloads),
+                observePageBookmarks = ObservePageBookmarks.Default(bookmarks),
+                togglePageBookmark = TogglePageBookmark.Default(bookmarks),
+                setReadingMode = FakeSetReadingMode { mode -> manga.update { it?.copy(readingMode = mode) } },
+                observeReaderBackground = FakeObserveReaderBackground(background),
+                setReaderBackground = FakeSetReaderBackground(background),
                 connectionObserver = connection,
                 dispatcher = ImmediateDispatchers,
                 logger = SilentLogger
@@ -981,6 +1139,9 @@ private fun Content.landedOn(jump: ReaderCommand.Jump): PageItem = items.single 
 
 private fun Content.indexOfTrailingTransition(): Int =
     items.indexOfLast { it is ReaderItem.Transition && it.from.id == currentChapterId }
+
+private fun downloaded(chapterId: Uuid) =
+    ChapterDownload(chapterId, Uuid.random(), DownloadState.Downloaded, Instant.DISTANT_PAST)
 
 private data class ProgressWrite(
     val chapterId: Uuid,
@@ -1126,3 +1287,56 @@ private fun manga(id: Uuid): Manga =
         publishStatus = PublishStatus.ONGOING,
         readingStatus = ReadingStatus.READING
     )
+
+private class FakeObserveChapterDownloads(
+    private val downloads: Flow<Map<Uuid, ChapterDownload>>
+) : ObserveChapterDownloads {
+    override fun invoke(mangaId: Uuid): Flow<Map<Uuid, ChapterDownload>> = downloads
+}
+
+private class FakeSetReadingMode(
+    private val onSet: (ReadingMode) -> Unit
+) : SetReadingMode {
+    override suspend fun invoke(
+        mangaId: Uuid,
+        mode: ReadingMode
+    ) = onSet(mode)
+}
+
+private class FakeObserveReaderBackground(
+    private val background: Flow<ReaderBackground>
+) : ObserveReaderBackground {
+    override fun invoke(): Flow<ReaderBackground> = background
+}
+
+private class FakeSetReaderBackground(
+    private val background: MutableStateFlow<ReaderBackground>
+) : SetReaderBackground {
+    override suspend fun invoke(background: ReaderBackground) {
+        this.background.value = background
+    }
+}
+
+/** An in-memory bookmark table that emits on every change, as Room does. */
+private class FakeBookmarks : PageBookmarkRepository {
+    val rows = MutableStateFlow<List<PageBookmark>>(emptyList())
+
+    override fun observeForManga(mangaId: Uuid): Flow<List<PageBookmark>> = rows
+
+    override fun observeAll(): Flow<List<PageBookmarkEntry>> = error("unused")
+
+    override suspend fun bookmarkedChapterIds(mangaId: Uuid): Set<Uuid> = rows.value.mapTo(mutableSetOf()) { it.chapterId }
+
+    override suspend fun add(bookmark: PageBookmark) = rows.update { it + bookmark }
+
+    override suspend fun removeAt(
+        chapterId: Uuid,
+        page: Int
+    ): Boolean {
+        val before = rows.value
+        rows.update { list -> list.filterNot { it.chapterId == chapterId && it.page == page } }
+        return rows.value.size != before.size
+    }
+
+    override suspend fun remove(id: Uuid) = rows.update { list -> list.filterNot { it.id == id } }
+}

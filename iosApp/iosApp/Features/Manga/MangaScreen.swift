@@ -189,7 +189,7 @@ struct MangaScreen: View {
                     .tkStyle(.titleL)
                     .foregroundStyle(Color.tk.ink)
                 Spacer()
-                if content.canFilterScanlators {
+                if content.canFilterChapters {
                     Button { model.vm.onOpenSheet(sheet: .chapterFilter) } label: {
                         Image(systemName: content.isChapterFilterActive
                             ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
@@ -379,22 +379,34 @@ struct MangaScreen: View {
     private func filterSheet(_ content: MangaStateContent) -> some View {
         NavigationStack {
             List {
-                Section {
-                    ForEach(content.scanlators, id: \.name) { group in
-                        Toggle(isOn: Binding(get: { group.isShown }, set: { _ in model.vm.onToggleScanlator(name: group.name) })) {
-                            VStack(alignment: .leading) {
-                                Text(group.name).tkStyle(.body)
-                                Text(tr("manga_chapter_count", Int(group.chapterCount), table: .manga))
-                                    .tkStyle(.caption)
-                                    .foregroundStyle(Color.tk.inkMuted)
-                            }
+                if content.canFilterBookmarked {
+                    Section {
+                        Toggle(isOn: Binding(get: { content.bookmarkedOnly }, set: { _ in model.vm.onToggleBookmarkedOnly() })) {
+                            Label(tr("manga_filter_bookmarked", table: .manga), systemImage: "bookmark")
                         }
                         .tint(Color.tk.accent)
+                    } header: {
+                        Text(tr("manga_filter_section_bookmarks", table: .manga))
                     }
-                } header: {
-                    Text(tr("manga_filter_section_scanlators", table: .manga))
-                } footer: {
-                    Text(tr("manga_filter_scanlators_help", table: .manga))
+                }
+                if content.canFilterScanlators {
+                    Section {
+                        ForEach(content.scanlators, id: \.name) { group in
+                            Toggle(isOn: Binding(get: { group.isShown }, set: { _ in model.vm.onToggleScanlator(name: group.name) })) {
+                                VStack(alignment: .leading) {
+                                    Text(group.name).tkStyle(.body)
+                                    Text(tr("manga_chapter_count", Int(group.chapterCount), table: .manga))
+                                        .tkStyle(.caption)
+                                        .foregroundStyle(Color.tk.inkMuted)
+                                }
+                            }
+                            .tint(Color.tk.accent)
+                        }
+                    } header: {
+                        Text(tr("manga_filter_section_scanlators", table: .manga))
+                    } footer: {
+                        Text(tr("manga_filter_scanlators_help", table: .manga))
+                    }
                 }
             }
             .navigationTitle(tr("manga_filter_title", table: .manga))
@@ -604,7 +616,10 @@ private struct ChapterRowView: View {
                 }
             }
             Spacer(minLength: 0)
-            if !selecting { downloadControl }
+            if !selecting {
+                if row.bookmarkCount > 0 { bookmarkMark }
+                downloadControl
+            }
         }
         .padding(.horizontal, TK.Space.s5)
         .frame(minHeight: 64)
@@ -629,6 +644,22 @@ private struct ChapterRowView: View {
         let page = row.lastPageRead.map { tr("manga_chapter_page", Int($0), table: .manga) }
         let parts = [page ?? date, row.scanlator].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// The chapter has bookmarked pages: a small filled bookmark (and the count past one), read as words.
+    private var bookmarkMark: some View {
+        HStack(spacing: TK.Space.s0_5) {
+            Image(systemName: "bookmark.fill")
+                .imageScale(.small)
+                .foregroundStyle(Color.tk.accent)
+            if row.bookmarkCount > 1 {
+                Text(verbatim: "\(row.bookmarkCount)")
+                    .tkStyle(.caption)
+                    .foregroundStyle(Color.tk.inkMuted)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(tr("manga_chapter_bookmarks", Int(row.bookmarkCount), table: .manga))
     }
 
     @ViewBuilder
