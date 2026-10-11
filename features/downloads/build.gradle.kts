@@ -43,6 +43,7 @@ kotlin {
         }
         commonMain.dependencies {
             implementation(projects.core.presentation)
+            implementation(projects.features.downloads.logic)
             implementation(projects.core.navigation)
             implementation(projects.core.domain)
             implementation(projects.assets.designSystem)

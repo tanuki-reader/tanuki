@@ -748,5 +748,19 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     one row per series per day of discovery ("3 chapters · Ch. 418–421"), tap opens the earliest
     (`NewChapterRowsTest`); not seen live — the simulator has no pending chapters.
 
-  Next: **Phase 7 — Downloads**.
+- 2026-10-11 — **Phase 7: Downloads queue** (SwiftUI; a parity port, no redesign planned).
+  - **`:features:downloads:logic`** (exported to iOS): `DownloadsViewModel` moved out of the Compose
+    module; `DownloadsState.series` is now plain `DownloadSeriesItem`/`DownloadChapterItem` (title, cover,
+    failed count; `numberLabel`/`name`, `failed`/`error`, `progress`, pages) instead of domain
+    `Manga`/`Chapter`, whose `Text` reached Swift as `id`. Android's rows read the same items.
+  - **iOS:** `Features/Downloads/DownloadsScreen.swift` — status line (count, or pause/Wi-Fi hold with a
+    symbol), foreground-only footnote, a section per series (cover header opens the series, trash clears
+    it), chapter rows with a circular progress / error glyph, Try again / Verify, cancel button + swipe;
+    toolbar pause/resume + cancel all (confirmed by an alert). No new strings.
+  - **Verified:** `DownloadQueueItemsTest` (the domain → item mapping), host + iOS;
+    `:androidApp:assembleDebug`; Debug xcodebuild.
+  - **Not verified by hand:** a live queue on the simulator (progress, holds, cancel/retry), Android on a
+    device.
+
+  Next: **Phase 8 — Reader**.
 

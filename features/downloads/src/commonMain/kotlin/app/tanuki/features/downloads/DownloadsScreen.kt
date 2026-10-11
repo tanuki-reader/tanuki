@@ -280,18 +280,18 @@ private fun QueueList(
             // read as different weights of separation, which is what says "new series" rather than
             // "next chapter" without a second heading style.
             if (index > 0) {
-                item(key = "divider-${series.manga.id}") { TanukiRowDivider() }
+                item(key = "divider-${series.mangaId}") { TanukiRowDivider() }
             }
-            item(key = "series-${series.manga.id}") {
+            item(key = "series-${series.mangaId}") {
                 DownloadSeriesHeader(
                     series = series,
-                    onOpen = { onOpenManga(series.manga.id) },
-                    onCancel = { onCancelSeries(series.manga.id) }
+                    onOpen = { onOpenManga(series.mangaId) },
+                    onCancel = { onCancelSeries(series.mangaId) }
                 )
             }
             itemsIndexed(
                 items = series.chapters,
-                key = { _, queued -> queued.chapter.id.toString() }
+                key = { _, queued -> queued.chapterId.toString() }
             ) { position, queued ->
                 if (position > 0) {
                     // Inset to start under the rows' titles rather than their status glyphs — the
@@ -300,8 +300,8 @@ private fun QueueList(
                 }
                 DownloadQueueRow(
                     queued = queued,
-                    onCancel = { onCancelChapter(queued.chapter.id) },
-                    onRetry = { onRetryChapter(queued.chapter.id) }
+                    onCancel = { onCancelChapter(queued.chapterId) },
+                    onRetry = { onRetryChapter(queued.chapterId) }
                 )
             }
         }

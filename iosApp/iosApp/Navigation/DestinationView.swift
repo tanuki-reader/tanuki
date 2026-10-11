@@ -27,7 +27,8 @@ struct DestinationView: View {
             SourceCatalogScreen(sourceId: catalog.sourceId, listing: catalog.listing, query: catalog.query, path: $path)
         case let .globalSearch(search): GlobalSearchScreen(query: search.query, path: $path)
         case let .mangaDetail(manga): MangaScreen(mangaId: manga.mangaId, path: $path)
-        case .downloads, .reader: bridge
+        case .downloads: DownloadsScreen(path: $path)
+        case .reader: bridge
         }
     }
 

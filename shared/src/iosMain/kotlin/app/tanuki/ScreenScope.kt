@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.features.activity.viewmodel.ActivityViewModel
+import app.tanuki.features.downloads.viewmodel.DownloadsViewModel
 import app.tanuki.features.home.viewmodel.HomeViewModel
 import app.tanuki.features.library.viewmodel.LibraryViewModel
 import app.tanuki.features.manga.viewmodel.MangaViewModel
@@ -76,6 +77,8 @@ fun ScreenScope.privacyViewModel(): PrivacyViewModel = viewModel(PrivacyViewMode
 fun ScreenScope.categoriesViewModel(): CategoriesViewModel = viewModel(CategoriesViewModel::class)
 
 fun ScreenScope.downloadSettingsViewModel(): DownloadSettingsViewModel = viewModel(DownloadSettingsViewModel::class)
+
+fun ScreenScope.downloadsViewModel(): DownloadsViewModel = viewModel(DownloadsViewModel::class)
 
 fun ScreenScope.sourcesViewModel(): SourcesViewModel = viewModel(SourcesViewModel::class)
 

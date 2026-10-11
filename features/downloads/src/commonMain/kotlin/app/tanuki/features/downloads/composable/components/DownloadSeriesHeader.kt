@@ -22,7 +22,7 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.assets.designSystem.component.TrashIcon
-import app.tanuki.core.domain.download.model.DownloadQueueSeries
+import app.tanuki.features.downloads.viewmodel.DownloadSeriesItem
 import app.tanuki.features.downloads.resources.Res
 import app.tanuki.features.downloads.resources.downloads_cancel_series
 import app.tanuki.features.downloads.resources.downloads_cover_content_description
@@ -66,13 +66,12 @@ private val HeaderMinHeight = 56.dp
  */
 @Composable
 internal fun DownloadSeriesHeader(
-    series: DownloadQueueSeries,
+    series: DownloadSeriesItem,
     onOpen: () -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val manga = series.manga
-    val coverDescription = stringResource(Res.string.downloads_cover_content_description, manga.title.value)
+    val coverDescription = stringResource(Res.string.downloads_cover_content_description, series.title)
     val cancelDescription = stringResource(Res.string.downloads_cancel_series)
     val failed = series.failedCount
 
@@ -87,10 +86,10 @@ internal fun DownloadSeriesHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         MangaCoverTile(
-            seed = manga.id.toString(),
+            seed = series.mangaId.toString(),
             title = "",
-            coverUrl = manga.cover.url?.value,
-            coverHeaders = manga.cover.headers,
+            coverUrl = series.coverUrl,
+            coverHeaders = series.coverHeaders,
             // The same action as the row it sits in, deliberately: a nested target that did something
             // *different* would be a gesture conflict, but one that agrees is just a larger target.
             onClick = onOpen,
@@ -105,7 +104,7 @@ internal fun DownloadSeriesHeader(
         ) {
             Text(
                 // Content from the source, never localized.
-                text = manga.title.value,
+                text = series.title,
                 style = TanukiTheme.typography.headline,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 2,

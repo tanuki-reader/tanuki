@@ -1,7 +1,8 @@
 package app.tanuki.features.downloads.viewmodel
 
+import app.tanuki.core.domain.download.model.DownloadError
 import app.tanuki.core.domain.download.model.DownloadHold
-import app.tanuki.core.domain.download.model.DownloadQueueSeries
+import kotlin.uuid.Uuid
 
 /**
  * Immutable UI state for the download queue screen.
@@ -22,7 +23,7 @@ import app.tanuki.core.domain.download.model.DownloadQueueSeries
  */
 data class DownloadsState(
     val loading: Boolean = true,
-    val series: List<DownloadQueueSeries> = emptyList(),
+    val series: List<DownloadSeriesItem> = emptyList(),
     val hold: DownloadHold = DownloadHold.None,
     val busy: Boolean = false,
     val runsInBackground: Boolean = true,
@@ -36,3 +37,39 @@ data class DownloadsState(
     /** Whether the user's own pause is on — what the top bar's toggle reflects. */
     val paused: Boolean get() = hold == DownloadHold.Paused
 }
+/**
+ * One series' share of the queue, in plain values so Swift can read it (domain `Text` reaches Swift as
+ * an untyped `id`).
+ *
+ * @property failedCount how many of [chapters] stopped with an error; the header names these instead of
+ *   the count when there are any.
+ */
+data class DownloadSeriesItem(
+    val mangaId: Uuid,
+    val title: String,
+    val coverUrl: String?,
+    val coverHeaders: Map<String, String>,
+    val failedCount: Int,
+    val chapters: List<DownloadChapterItem>,
+)
+
+/**
+ * One queued chapter.
+ *
+ * @property numberLabel the chapter number for display ("12", "10.5"); each platform words it
+ *   ("Chapter 12"). When `null`, [name] titles the row, else a localized placeholder.
+ * @property error why it stopped, when [failed].
+ * @property progress the fraction of pages on disk; `null` until the page list is known, which the UI
+ *   shows as an indeterminate indicator rather than 0%.
+ * @property pageCount `null` until the page list is known — the row then reads "Waiting".
+ */
+data class DownloadChapterItem(
+    val chapterId: Uuid,
+    val numberLabel: String?,
+    val name: String?,
+    val failed: Boolean,
+    val error: DownloadError?,
+    val progress: Float?,
+    val downloadedPages: Int,
+    val pageCount: Int?,
+)

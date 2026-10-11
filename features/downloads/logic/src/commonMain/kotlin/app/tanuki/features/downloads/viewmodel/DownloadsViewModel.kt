@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
+import app.tanuki.core.domain.download.model.DownloadQueueSeries
+import app.tanuki.core.domain.download.model.DownloadState
 import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.usecase.CancelAllDownloads
 import app.tanuki.core.domain.download.usecase.CancelChapterDownloads
@@ -63,7 +65,7 @@ class DownloadsViewModel(
         ) { series, hold, busy ->
             DownloadsState(
                 loading = false,
-                series = series,
+                series = series.map { it.toItem() },
                 hold = hold,
                 busy = busy,
                 // A constant per platform, read once rather than observed: where work runs is decided
@@ -88,9 +90,9 @@ class DownloadsViewModel(
     fun onCancelSeries(mangaId: Uuid) {
         val chapterIds =
             uiState.value.series
-                .firstOrNull { it.manga.id == mangaId }
+                .firstOrNull { it.mangaId == mangaId }
                 ?.chapters
-                ?.map { it.chapter.id }
+                ?.map { it.chapterId }
                 .orEmpty()
         if (chapterIds.isEmpty()) return
         viewModelScope.launch { tryIo("Could not cancel a series' downloads") { cancelChapterDownloads(chapterIds) } }
@@ -140,3 +142,25 @@ class DownloadsViewModel(
         }
     }
 }
+
+internal fun DownloadQueueSeries.toItem() =
+    DownloadSeriesItem(
+        mangaId = manga.id,
+        title = manga.title.value,
+        coverUrl = manga.cover.url?.value,
+        coverHeaders = manga.cover.headers,
+        failedCount = failedCount,
+        chapters =
+            chapters.map { (chapter, download) ->
+                DownloadChapterItem(
+                    chapterId = chapter.id,
+                    numberLabel = chapter.chapterNumber?.display,
+                    name = chapter.name?.value,
+                    failed = download.state == DownloadState.Failed,
+                    error = download.error,
+                    progress = download.progress,
+                    downloadedPages = download.downloadedPages,
+                    pageCount = download.pageCount,
+                )
+            },
+    )

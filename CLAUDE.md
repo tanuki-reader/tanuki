@@ -57,14 +57,14 @@ This reverses the earlier "one Compose UI on both platforms" decision.
 
 > **Current state (2026-10):** iOS has a **SwiftUI root** (`iosApp/iosApp/Navigation/RootView.swift`: a
 > `TabView` with a `NavigationStack` of `Route`s per tab). `Navigation/DestinationView.swift` picks each
-> destination's screen: **Home, Settings, Library, Source browse, Manga detail, Search and Activity are SwiftUI-native**
+> destination's screen: **Home, Settings, Library, Source browse, Manga detail, Search, Activity and Downloads are SwiftUI-native**
 > (`Features/Home/`, `Features/Settings/`, `Features/Library/`, `Features/Source/`, `Features/Manga/`, over the
 > matching `:features:<x>:logic`), and
 > every other destination still renders its Compose `*Route` through `shared/src/iosMain/…/ComposeBridge.kt`
 > (`DestinationContent` is the one Destination → Route mapping, shared with Android's `TanukiNavHost`).
-> The migration has finished **Phase 6 (Activity)**, after Phase 5 (Manga detail + AniList metadata,
-> `docs/design-manga-metadata.md`) and **global search** (a Search tab, native on both platforms);
-> Phase 7 (Downloads) is next. **Plan, estimates and
+> The migration has finished **Phase 7 (Downloads)**, after Phase 6 (Activity), Phase 5 (Manga detail +
+> AniList metadata, `docs/design-manga-metadata.md`) and **global search** (a Search tab, native on both
+> platforms); Phase 8 (Reader) is next. **Plan, estimates and
 > progress log: `docs/swiftui-migration.md`. Read it before any migration work, and update its progress
 > log at the end of the session.** Until the split lands:
 > - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.

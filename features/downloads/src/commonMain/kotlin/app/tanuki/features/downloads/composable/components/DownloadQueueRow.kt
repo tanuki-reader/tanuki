@@ -16,11 +16,7 @@ import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.assets.designSystem.component.TanukiListRow
 import app.tanuki.assets.designSystem.component.TanukiProgressRing
-import app.tanuki.core.domain.chapter.model.Chapter
-import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.model.DownloadError
-import app.tanuki.core.domain.download.model.DownloadState
-import app.tanuki.core.domain.download.model.QueuedChapter
 import app.tanuki.features.downloads.resources.Res
 import app.tanuki.features.downloads.resources.downloads_cancel_chapter
 import app.tanuki.features.downloads.resources.downloads_chapter_number
@@ -34,6 +30,7 @@ import app.tanuki.features.downloads.resources.downloads_retry_chapter
 import app.tanuki.features.downloads.resources.downloads_state_pages
 import app.tanuki.features.downloads.resources.downloads_state_queued
 import app.tanuki.features.downloads.resources.downloads_verify_chapter
+import app.tanuki.features.downloads.viewmodel.DownloadChapterItem
 import org.jetbrains.compose.resources.stringResource
 
 /** The leading indicator's diameter — the same glyph size the chapter list's download control uses. */
@@ -69,18 +66,17 @@ internal val QueueGlyphSize = 20.dp
  */
 @Composable
 internal fun DownloadQueueRow(
-    queued: QueuedChapter,
+    queued: DownloadChapterItem,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val download = queued.download
-    val failed = download.state == DownloadState.Failed
+    val failed = queued.failed
     val cancelDescription = stringResource(Res.string.downloads_cancel_chapter)
 
     TanukiListRow(
-        title = queued.chapter.title(),
-        subtitle = download.statusLine(),
+        title = queued.title(),
+        subtitle = queued.statusLine(),
         subtitleColor = if (failed) TanukiTheme.colors.danger else null,
         modifier = modifier,
         leading = {
@@ -90,7 +86,7 @@ internal fun DownloadQueueRow(
                 // `progress` is null until the page list has been fetched, which is exactly the queued
                 // case — the ring sweeps rather than sitting at zero, so "waiting" and "stuck at 0%"
                 // can't be mistaken for each other.
-                TanukiProgressRing(progress = download.progress, size = QueueGlyphSize)
+                TanukiProgressRing(progress = queued.progress, size = QueueGlyphSize)
             }
         },
         trailing = {
@@ -98,7 +94,7 @@ internal fun DownloadQueueRow(
                 TanukiButton(
                     text =
                         stringResource(
-                            if (download.error == DownloadError.NeedsVerification) {
+                            if (queued.error == DownloadError.NeedsVerification) {
                                 Res.string.downloads_verify_chapter
                             } else {
                                 Res.string.downloads_retry_chapter
@@ -128,9 +124,9 @@ internal fun DownloadQueueRow(
  * blank.
  */
 @Composable
-private fun Chapter.title(): String =
-    chapterNumber?.let { stringResource(Res.string.downloads_chapter_number, it.display) }
-        ?: name?.value
+private fun DownloadChapterItem.title(): String =
+    numberLabel?.let { stringResource(Res.string.downloads_chapter_number, it) }
+        ?: name
         ?: stringResource(Res.string.downloads_chapter_untitled)
 
 /**
@@ -140,28 +136,22 @@ private fun Chapter.title(): String =
  * proportion; the numbers answer the question the ring can't — how much is actually left.
  */
 @Composable
-private fun ChapterDownload.statusLine(): String =
-    when (state) {
-        DownloadState.Failed ->
-            stringResource(
-                when (error) {
-                    DownloadError.Network -> Res.string.downloads_error_network
-                    DownloadError.SourceUnavailable -> Res.string.downloads_error_source
-                    DownloadError.NeedsVerification -> Res.string.downloads_error_verification
-                    DownloadError.OutOfSpace -> Res.string.downloads_error_space
-                    // A record can be `Failed` with no reason only if a write was interrupted between the
-                    // state and the error; "the download failed" is true either way.
-                    DownloadError.Unknown, null -> Res.string.downloads_error_unknown
-                }
-            )
-
-        // `Downloaded` never reaches this screen (see `DownloadRepository.observeQueue`); it shares this
-        // arm because "every page of N" is the only honest thing to say about it if it ever did.
-        DownloadState.Downloading, DownloadState.Downloaded ->
-            pageCount?.let { stringResource(Res.string.downloads_state_pages, downloadedPages, it) }
-                // Between being picked up and its page list arriving, a chapter is downloading but has no
-                // total to count against — still "waiting" as far as anything visible goes.
-                ?: stringResource(Res.string.downloads_state_queued)
-
-        DownloadState.Queued -> stringResource(Res.string.downloads_state_queued)
+private fun DownloadChapterItem.statusLine(): String =
+    if (failed) {
+        stringResource(
+            when (error) {
+                DownloadError.Network -> Res.string.downloads_error_network
+                DownloadError.SourceUnavailable -> Res.string.downloads_error_source
+                DownloadError.NeedsVerification -> Res.string.downloads_error_verification
+                DownloadError.OutOfSpace -> Res.string.downloads_error_space
+                // A record can be `Failed` with no reason only if a write was interrupted between the
+                // state and the error; "the download failed" is true either way.
+                DownloadError.Unknown, null -> Res.string.downloads_error_unknown
+            }
+        )
+    } else {
+        // Queued, or picked up but its page list not here yet: no total to count against, so "waiting"
+        // as far as anything visible goes.
+        pageCount?.let { stringResource(Res.string.downloads_state_pages, downloadedPages, it) }
+            ?: stringResource(Res.string.downloads_state_queued)
     }
