@@ -8,6 +8,10 @@ import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.manga.model.ReadingStatus
+import app.tanuki.core.domain.metadata.model.CoverOption
+import app.tanuki.core.domain.metadata.model.MetadataSearchResult
+import app.tanuki.core.domain.metadata.model.SeriesMetadata
+import app.tanuki.core.domain.metadata.usecase.MangaMetadata
 import app.tanuki.core.domain.source.model.Source
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -62,17 +66,44 @@ sealed interface MangaState {
         val selection: ChapterSelection = ChapterSelection.None,
         val downloads: Map<Uuid, ChapterDownload> = emptyMap(),
         val refresh: Refresh = Refresh.Idle,
-        val sheet: MangaSheet? = null
+        val sheet: MangaSheet? = null,
+        val metadata: MangaMetadata? = null,
+        val editor: MetadataEditor = MetadataEditor()
     ) : MangaState {
+        /**
+         * The matched metadata, when it should take over the header: linked, fetched, and the user hasn't
+         * asked for the source's info. `null` shows the source's data.
+         */
+        private val preferred: SeriesMetadata?
+            get() = metadata?.metadata?.takeIf { metadata.link?.useSourceInfo != true }
+
+        /** The matched series' metadata, whether or not it is preferred — score, tags, rails. */
+        val series: SeriesMetadata? get() = metadata?.metadata
+
+        /** Whether the series is matched to the provider (for "Matched on AniList · Change"). */
+        val isMatched: Boolean get() = metadata?.link?.anilistId != null
+
+        /** AniList's 0–100 average as a 0–10 score with one decimal ("8.8"), `null` when unrated. */
+        val scoreLabel: String? get() = series?.score?.let { "${it / 10}.${it % 10}" }
+
+        /** The user's "Use source info" switch. */
+        val useSourceInfo: Boolean get() = metadata?.link?.useSourceInfo == true
+
         /** The page's header, in plain values for Swift (the domain's `Text`/`Url` reach it untyped). */
         val header: MangaHeader by lazy {
+            val preferred = preferred
+            // The user's pick wins; else the metadata's cover (when preferred); else the source's. Only the
+            // source's cover needs its headers — a provider CDN takes none.
+            val chosenCover = metadata?.link?.coverChoice ?: preferred?.coverUrl
             MangaHeader(
-                title = manga.title.value,
+                title = preferred?.title?.takeIf { it.isNotBlank() } ?: manga.title.value,
                 author = manga.author?.value,
-                coverUrl = manga.cover.url?.value,
-                coverHeaders = manga.cover.headers,
-                synopsis = manga.description?.value,
-                publishStatus = manga.publishStatus,
+                coverUrl = chosenCover ?: manga.cover.url?.value,
+                coverHeaders = if (chosenCover == null) manga.cover.headers else emptyMap(),
+                synopsis = preferred?.synopsis ?: manga.description?.value,
+                publishStatus =
+                    preferred?.status?.takeIf { it != PublishStatus.UNKNOWN } ?: manga.publishStatus,
+                genres = preferred?.genres.orEmpty(),
                 chapterCount = chapters.size,
                 sourceName = source?.name?.value,
                 sourceLang = source?.lang?.value,
@@ -241,7 +272,16 @@ sealed interface MangaState {
 }
 
 /** A modal over the manga page. Screen state like any other, so both platforms show the same one. */
-enum class MangaSheet { Categories, ChapterFilter, ReadingStatus, ReadingMode, ConfirmDeleteDownloads }
+enum class MangaSheet { Categories, ChapterFilter, ReadingStatus, ReadingMode, ConfirmDeleteDownloads, CoverPicker, MatchSearch }
+
+/**
+ * Working state of the metadata sheets. [coverOptions] / [matchResults] are `null` while loading.
+ */
+data class MetadataEditor(
+    val coverOptions: List<CoverOption>? = null,
+    val matchQuery: String = "",
+    val matchResults: List<MetadataSearchResult>? = null
+)
 
 /**
  * The manga page's header in plain values. [publishStatus], [readingStatus] and [readingMode] stay enums:
@@ -254,6 +294,7 @@ data class MangaHeader(
     val coverHeaders: Map<String, String>,
     val synopsis: String?,
     val publishStatus: PublishStatus,
+    val genres: List<String>,
     val chapterCount: Int,
     val sourceName: String?,
     val sourceLang: String?,

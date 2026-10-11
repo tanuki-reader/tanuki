@@ -25,6 +25,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration10To11,
         Migration11To12,
         Migration12To13,
+        Migration13To14,
     )
 
 /**
@@ -349,3 +350,23 @@ internal object Migration12To13 : Migration(12, 13) {
         )
     }
 }
+
+/**
+ * Adds the metadata tables: `manga_tracker_link` (a series' tie to its AniList/MyAnimeList ids and the
+ * user's per-series choices) and `series_metadata` (the cache, keyed by AniList id).
+ */
+internal object Migration13To14 : Migration(13, 14) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `manga_tracker_link` (`manga_id` TEXT NOT NULL, `anilist_id` INTEGER, " +
+                "`mal_id` INTEGER, `mangadex_id` TEXT, `matched_by` TEXT NOT NULL, `use_source_info` INTEGER NOT NULL, " +
+                "`cover_choice` TEXT, PRIMARY KEY(`manga_id`), FOREIGN KEY(`manga_id`) REFERENCES `manga`(`id`) " +
+                "ON UPDATE NO ACTION ON DELETE CASCADE )",
+        )
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `series_metadata` (`anilist_id` INTEGER NOT NULL, `payload` TEXT NOT NULL, " +
+                "`fetched_at` INTEGER NOT NULL, PRIMARY KEY(`anilist_id`))",
+        )
+    }
+}
+

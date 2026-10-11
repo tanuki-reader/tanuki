@@ -1,6 +1,7 @@
 # Manga metadata enrichment (Phase 5b) — design
 
-> Status: **designed, not built** (2026-10-11). Phase 5a shipped the SwiftUI manga page with room for this.
+> Status: **built** (2026-10-11, Phase 5b) — see the progress log in `swiftui-migration.md` for what shipped
+> and what was deferred (cover in library/history lists, Android rails, global search). Designed 2026-10-11. Phase 5a shipped the SwiftUI manga page with room for this.
 > Decisions taken with the owner: AniList as the primary provider (no API key), MangaDex volume covers
 > for the cover picker, MyAnimeList id kept for linking; enriched metadata takes over by default with a
 > per-series "Use source info" switch.

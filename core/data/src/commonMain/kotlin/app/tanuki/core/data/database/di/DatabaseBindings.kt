@@ -8,6 +8,7 @@ import app.tanuki.core.data.repository.chapter.ChapterDao
 import app.tanuki.core.data.repository.download.ChapterDownloadDao
 import app.tanuki.core.data.repository.history.HistoryDao
 import app.tanuki.core.data.repository.manga.MangaDao
+import app.tanuki.core.data.repository.metadata.MetadataDao
 import app.tanuki.core.data.repository.source.SourceDao
 import app.tanuki.core.data.repository.update.ChapterUpdateDao
 import app.tanuki.core.domain.common.service.DispatcherProvider
@@ -39,6 +40,9 @@ object DatabaseBindings {
 
     @Provides
     fun provideMangaDao(database: TanukiDatabase): MangaDao = database.mangaDao()
+
+    @Provides
+    fun provideMetadataDao(database: TanukiDatabase): MetadataDao = database.metadataDao()
 
     @Provides
     fun provideChapterDao(database: TanukiDatabase): ChapterDao = database.chapterDao()

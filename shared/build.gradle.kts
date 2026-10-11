@@ -88,6 +88,7 @@ kotlin {
             api(projects.core.data)
             api(projects.core.domain)
             api(projects.core.source)
+            api(projects.core.metadata)
             api(projects.features.library)
             api(projects.features.manga)
             api(projects.features.reader)

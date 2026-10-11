@@ -147,4 +147,20 @@
         <item quantity="one">%1$d no total</item>
         <item quantity="other">%1$d no total</item>
     </plurals>
+    <string name="manga_metadata_matched">Vinculado ao AniList</string>
+    <string name="manga_metadata_change">Alterar</string>
+    <string name="manga_metadata_find">Buscar no AniList</string>
+    <string name="manga_metadata_use_source">Usar dados da fonte</string>
+    <string name="manga_metadata_unlink">Desvincular do AniList</string>
+    <string name="manga_metadata_more">Mais opções</string>
+    <string name="manga_metadata_characters">Personagens</string>
+    <string name="manga_metadata_reviews">Resenhas</string>
+    <string name="manga_metadata_recommendations">Você também pode gostar</string>
+    <string name="manga_metadata_tags">Tags</string>
+    <string name="manga_metadata_show_spoilers">Mostrar tags com spoiler</string>
+    <string name="manga_metadata_cover_title">Escolher capa</string>
+    <string name="manga_metadata_cover_default">Capa padrão</string>
+    <string name="manga_metadata_cover_volume">Vol. %1$s</string>
+    <string name="manga_metadata_search_empty">Nenhum resultado</string>
+    <string name="manga_metadata_score">Nota</string>
 </resources>

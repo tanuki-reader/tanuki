@@ -26,6 +26,10 @@ import app.tanuki.core.domain.manga.usecase.SetFilteredScanlators
 import app.tanuki.core.domain.manga.usecase.SetReadingMode
 import app.tanuki.core.domain.manga.usecase.SetReadingStatus
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
+import app.tanuki.core.domain.metadata.usecase.EditMangaMetadata
+import app.tanuki.core.domain.metadata.usecase.EnrichManga
+import app.tanuki.core.domain.metadata.usecase.MangaMetadata
+import app.tanuki.core.domain.metadata.usecase.ObserveMangaMetadata
 import app.tanuki.core.domain.source.usecase.ObserveSources
 import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.Reader
@@ -43,15 +47,17 @@ import dev.zacsweers.metro.AssistedInject
 import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
+import kotlin.Double.Companion.MAX_VALUE
+import kotlin.Double.Companion.MIN_VALUE
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlin.Double.Companion.MAX_VALUE
-import kotlin.Double.Companion.MIN_VALUE
-import kotlin.uuid.Uuid
 
 /**
  * Presentation logic for the Manga Detail screen. Compose-free (per CLAUDE.md → MVVM): it exposes state
@@ -94,6 +100,9 @@ class MangaViewModel(
     private val setChaptersRead: SetChaptersRead,
     private val syncSourceChapters: SyncSourceChapters,
     private val syncSourceMangaDetails: SyncSourceMangaDetails,
+    observeMangaMetadata: ObserveMangaMetadata,
+    private val enrichManga: EnrichManga,
+    private val editMangaMetadata: EditMangaMetadata,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : StateViewModel<MangaState>(dispatcher, logger, Loading) {
@@ -119,6 +128,9 @@ class MangaViewModel(
 
     /** The open modal, if any — screen state, so both platforms show the same one. */
     private val sheet = MutableStateFlow<MangaSheet?>(null)
+
+    /** The cover picker's and the match search's working state; see [MetadataEditor]. */
+    private val editor = MutableStateFlow(MetadataEditor())
 
     override val state: Flow<MangaState> =
         combine(
@@ -161,6 +173,14 @@ class MangaViewModel(
             if (state is Content) state.copy(refresh = refreshing) else state
         }.combine(sheet) { state, sheet ->
             if (state is Content) state.copy(sheet = sheet) else state
+        }.combine(
+            // Starts empty, so the page never waits on metadata: it shows the source's data at once and
+            // picks the metadata up whenever enrichment (or the cache) provides it.
+            observeMangaMetadata(mangaId).onStart { emit(MangaMetadata(link = null, metadata = null)) }
+        ) { state, metadata ->
+            if (state is Content) state.copy(metadata = metadata) else state
+        }.combine(editor) { state, editor ->
+            if (state is Content) state.copy(editor = editor) else state
         }
 
     init {
@@ -168,6 +188,17 @@ class MangaViewModel(
         // screen was opened, not because something is collecting it.
         refreshChapters()
         refreshDetails()
+        enrich()
+    }
+
+    /**
+     * Fetches this series' metadata in the background — its own coroutine, so neither the chapter list nor
+     * the details wait on a third-party API. [EnrichManga] reads the cache first and only calls the
+     * provider once the cached copy is older than its freshness window, so opening a page is normally no
+     * network at all. It never throws; a failure leaves the page on the source's data.
+     */
+    private fun enrich(force: Boolean = false) {
+        viewModelScope.launch { enrichManga(mangaId, force) }
     }
 
     /**
@@ -221,6 +252,59 @@ class MangaViewModel(
      * for the same reason the two are separate coroutines on open: different endpoints, and a slow
      * synopsis must not hold the spinner over an already-updated chapter list.
      */
+    /** The user's per-series switch: show the source's title, cover and synopsis instead of the metadata's. */
+    fun onUseSourceInfoChange(useSourceInfo: Boolean) {
+        viewModelScope.launch { tryIo("Couldn't save the metadata preference") { editMangaMetadata.setUseSourceInfo(mangaId, useSourceInfo) } }
+    }
+
+    /** Open the cover picker and load its choices (the metadata's cover, MangaDex volumes, the source's). */
+    fun onOpenCoverPicker() {
+        sheet.value = MangaSheet.CoverPicker
+        editor.update { it.copy(coverOptions = null) }
+        val sourceCover = (uiState.value as? Content)?.manga?.cover?.url?.value
+        viewModelScope.launch {
+            val options = tryIo("Couldn't load cover options") { editMangaMetadata.coverOptions(mangaId, sourceCover) }
+            editor.update { it.copy(coverOptions = options.getOrDefault(emptyList())) }
+        }
+    }
+
+    /** A cover was picked (`null` = back to the default). */
+    fun onPickCover(url: String?) {
+        sheet.value = null
+        viewModelScope.launch { tryIo("Couldn't save the cover choice") { editMangaMetadata.setCoverChoice(mangaId, url) } }
+    }
+
+    /** Open the manual match search, pre-filled with the series' title and already searching it. */
+    fun onOpenMatchSearch() {
+        sheet.value = MangaSheet.MatchSearch
+        val title = (uiState.value as? Content)?.manga?.title?.value.orEmpty()
+        onMatchSearch(title)
+    }
+
+    /** Search the metadata provider for [query] in the match sheet. */
+    fun onMatchSearch(query: String) {
+        editor.update { it.copy(matchQuery = query, matchResults = null) }
+        viewModelScope.launch {
+            val results = tryIo("Metadata search failed") { editMangaMetadata.search(query) }
+            // Only if the user hasn't typed something newer meanwhile.
+            editor.update { if (it.matchQuery == query) it.copy(matchResults = results.getOrDefault(emptyList())) else it }
+        }
+    }
+
+    /** The user confirmed a search result: link it and fetch its metadata now. */
+    fun onConfirmMatch(anilistId: Long) {
+        sheet.value = null
+        viewModelScope.launch {
+            tryIo("Couldn't link the series") { editMangaMetadata.link(mangaId, anilistId) }
+            enrichManga(mangaId, force = true)
+        }
+    }
+
+    /** Forget the match; the source's info shows again. */
+    fun onUnlinkMetadata() {
+        viewModelScope.launch { tryIo("Couldn't unlink the series") { editMangaMetadata.unlink(mangaId) } }
+    }
+
     /** Open a modal over the page. */
     fun onOpenSheet(sheet: MangaSheet) {
         this.sheet.value = sheet

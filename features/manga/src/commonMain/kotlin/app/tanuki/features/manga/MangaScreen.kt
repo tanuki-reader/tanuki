@@ -172,6 +172,7 @@ private fun MangaScreen(
                             onReadClick = viewModel::onReadClick,
                             onAddToLibrary = viewModel::onAddToLibrary,
                             onRemoveFromLibrary = viewModel::onRemoveFromLibrary,
+                            onUseSourceInfoChange = viewModel::onUseSourceInfoChange,
                             onHeroCollapsedChange = { heroCollapsed = it },
                             modifier = Modifier.fillMaxSize()
                         )

@@ -38,10 +38,26 @@ struct MangaScreen: View {
         let selecting = content.selection.isActive
         return ScrollView {
             VStack(alignment: .leading, spacing: TK.Space.s6) {
-                MangaHero(header: content.header, seed: seed)
+                MangaHero(
+                    header: content.header,
+                    seed: seed,
+                    scoreLabel: content.scoreLabel,
+                    isMatched: content.isMatched,
+                    onChangeMatch: { model.vm.onOpenMatchSearch() },
+                    onChooseCover: { model.vm.onOpenCoverPicker() }
+                )
                 if !selecting { actions(content) }
                 MangaSynopsis(text: content.header.synopsis)
+                if !content.header.genres.isEmpty {
+                    FlowLayout {
+                        ForEach(content.header.genres, id: \.self) { TagChip(text: $0) }
+                    }
+                    .padding(.horizontal, TK.Space.s5)
+                }
                 infoRows(content)
+                if let series = content.series {
+                    MetadataSections(series: series)
+                }
                 chapters(content)
             }
             .padding(.bottom, TK.Space.s16)
@@ -66,6 +82,8 @@ struct MangaScreen: View {
         .sheet(isPresented: sheetBinding(content, .categories)) { categoriesSheet(content) }
         .sheet(isPresented: sheetBinding(content, .chapterFilter)) { filterSheet(content) }
         .sheet(isPresented: sheetBinding(content, .readingMode)) { readingModeSheet(content) }
+        .sheet(isPresented: sheetBinding(content, .coverPicker)) { coverPickerSheet(content) }
+        .sheet(isPresented: sheetBinding(content, .matchSearch)) { MatchSearchSheet(editor: content.editor, vm: model.vm) }
         .alert(
             tr("manga_download_delete_all_title", table: .manga),
             isPresented: sheetBinding(content, .confirmDeleteDownloads)
@@ -293,9 +311,28 @@ struct MangaScreen: View {
                     Image(systemName: "arrow.down.circle")
                 }
                 .accessibilityLabel(tr("manga_download_menu", table: .manga))
-                if let url = URL(string: content.header.url) {
-                    ShareLink(item: url)
+                Menu {
+                    if content.isMatched {
+                        Toggle(tr("manga_metadata_use_source", table: .manga), isOn: Binding(
+                            get: { content.useSourceInfo },
+                            set: { model.vm.onUseSourceInfoChange(useSourceInfo: $0) }
+                        ))
+                    }
+                    Button(tr("manga_metadata_find", table: .manga), systemImage: "magnifyingglass") { model.vm.onOpenMatchSearch() }
+                    Button(tr("manga_metadata_cover_title", table: .manga), systemImage: "photo.on.rectangle") { model.vm.onOpenCoverPicker() }
+                    if content.isMatched {
+                        Button(tr("manga_metadata_unlink", table: .manga), systemImage: "link.badge.plus", role: .destructive) {
+                            model.vm.onUnlinkMetadata()
+                        }
+                    }
+                    if let url = URL(string: content.header.url) {
+                        Divider()
+                        ShareLink(item: url)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
+                .accessibilityLabel(tr("manga_metadata_more", table: .manga))
             }
         }
     }
@@ -365,6 +402,53 @@ struct MangaScreen: View {
         .presentationDetents([.medium, .large])
     }
 
+    private func coverPickerSheet(_ content: MangaStateContent) -> some View {
+        NavigationStack {
+            ScrollView {
+                if let options = content.editor.coverOptions {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: TK.Space.s3)], spacing: TK.Space.s3) {
+                        ForEach(options, id: \.url) { option in
+                            Button { model.vm.onPickCover(url: option.url) } label: {
+                                VStack(spacing: TK.Space.s1) {
+                                    MangaCover(seed: seed, url: option.url)
+                                        .overlay {
+                                            if option.url == content.header.coverUrl {
+                                                RoundedRectangle(cornerRadius: TK.Radius.sm, style: .continuous)
+                                                    .stroke(Color.tk.accent, lineWidth: 3)
+                                            }
+                                        }
+                                    Text(coverLabel(option))
+                                        .tkStyle(.caption)
+                                        .foregroundStyle(Color.tk.inkMuted)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(TK.Space.s5)
+                } else {
+                    ProgressView().padding(.top, TK.Space.s12)
+                }
+            }
+            .navigationTitle(tr("manga_metadata_cover_title", table: .manga))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(tr("manga_metadata_cover_default", table: .manga)) { model.vm.onPickCover(url: nil) }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func coverLabel(_ option: CoverOption) -> String {
+        switch option.origin {
+        case .mangaDex: option.label.map { tr("manga_metadata_cover_volume", $0, table: .manga) } ?? "MangaDex"
+        case .aniList: "AniList"
+        case .source: tr("manga_info_source", table: .manga)
+        }
+    }
+
     private func readingModeSheet(_ content: MangaStateContent) -> some View {
         NavigationStack {
             List {
@@ -393,12 +477,18 @@ struct MangaScreen: View {
 private struct MangaHero: View {
     let header: MangaHeader
     let seed: String
+    let scoreLabel: String?
+    let isMatched: Bool
+    let onChangeMatch: () -> Void
+    let onChooseCover: () -> Void
 
     var body: some View {
         HStack(alignment: .bottom, spacing: TK.Space.s4) {
             MangaCover(seed: seed, url: header.coverUrl, headers: header.coverHeaders)
                 .frame(width: 124)
                 .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+                .onLongPressGesture(perform: onChooseCover)
+                .accessibilityAction(named: tr("manga_metadata_cover_title", table: .manga), onChooseCover)
             VStack(alignment: .leading, spacing: TK.Space.s1) {
                 Text(header.title)
                     .tkStyle(.titleXL)
@@ -410,6 +500,19 @@ private struct MangaHero: View {
                 Label(statusLine, systemImage: "clock")
                     .tkStyle(.caption)
                     .foregroundStyle(Color.tk.inkMuted)
+                if let scoreLabel {
+                    Label(scoreLabel, systemImage: "star.fill")
+                        .tkStyle(.label)
+                        .foregroundStyle(Color.tk.accent)
+                        .accessibilityLabel("\(tr("manga_metadata_score", table: .manga)) \(scoreLabel)")
+                }
+                if isMatched {
+                    Button(action: onChangeMatch) {
+                        Text("\(tr("manga_metadata_matched", table: .manga)) · \(tr("manga_metadata_change", table: .manga))")
+                            .tkStyle(.caption)
+                    }
+                    .tint(Color.tk.inkMuted)
+                }
             }
             .padding(.bottom, TK.Space.s1)
         }
@@ -539,6 +642,178 @@ private struct ChapterRowView: View {
             Button(action: onDownload) { Image(systemName: "arrow.down.circle").foregroundStyle(Color.tk.inkMuted) }
                 .frame(width: 44, height: 44)
                 .accessibilityLabel(tr("manga_download_chapter", table: .manga))
+        }
+    }
+}
+
+/// A display-only genre/tag chip (solid; the page is content).
+private struct TagChip: View {
+    let text: String
+    var blurred = false
+
+    var body: some View {
+        Text(text)
+            .tkStyle(.label)
+            .foregroundStyle(Color.tk.ink)
+            .blur(radius: blurred ? 5 : 0)
+            .padding(.horizontal, TK.Space.s3)
+            .frame(height: 32)
+            .background(Color.tk.surfaceRaised, in: Capsule())
+    }
+}
+
+/// What the metadata adds below the info rows: tags, characters, reviews and recommendations. Rendered
+/// only once enrichment has landed, so the page above never waits for it.
+private struct MetadataSections: View {
+    let series: SeriesMetadata
+    @State private var showSpoilers = false
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TK.Space.s6) {
+            if !series.tags.isEmpty { tags }
+            if !series.characters.isEmpty { characters }
+            if !series.reviews.isEmpty { reviews }
+            if !series.recommendations.isEmpty { recommendations }
+        }
+    }
+
+    private var tags: some View {
+        section(tr("manga_metadata_tags", table: .manga)) {
+            FlowLayout {
+                ForEach(series.tags.prefix(12), id: \.name) { tag in
+                    TagChip(text: tag.name, blurred: tag.spoiler && !showSpoilers)
+                }
+            }
+            .padding(.horizontal, TK.Space.s5)
+            if series.tags.contains(where: \.spoiler) && !showSpoilers {
+                Button(tr("manga_metadata_show_spoilers", table: .manga)) { showSpoilers = true }
+                    .tkStyle(.label)
+                    .tint(Color.tk.accent)
+                    .padding(.horizontal, TK.Space.s5)
+            }
+        }
+    }
+
+    private var characters: some View {
+        section(tr("manga_metadata_characters", table: .manga)) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: TK.Space.s3) {
+                    ForEach(series.characters, id: \.name) { character in
+                        VStack(spacing: TK.Space.s1) {
+                            TanukiImage(url: character.imageUrl) { CoverSeed.ground(character.name) }
+                                .frame(width: 72, height: 72)
+                                .clipShape(Circle())
+                            Text(character.name)
+                                .tkStyle(.caption)
+                                .foregroundStyle(Color.tk.ink)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(width: 80)
+                    }
+                }
+            }
+            .contentMargins(.horizontal, TK.Space.s5, for: .scrollContent)
+        }
+    }
+
+    private var reviews: some View {
+        section(tr("manga_metadata_reviews", table: .manga)) {
+            VStack(spacing: TK.Space.s2) {
+                ForEach(series.reviews, id: \.url) { review in
+                    Button { if let url = URL(string: review.url) { openURL(url) } } label: {
+                        HStack(alignment: .top, spacing: TK.Space.s3) {
+                            Text(review.summary)
+                                .tkStyle(.body)
+                                .foregroundStyle(Color.tk.ink)
+                                .multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            if let score = review.score {
+                                Text(verbatim: "\(score.intValue)")
+                                    .tkStyle(.numeric)
+                                    .foregroundStyle(Color.tk.accent)
+                            }
+                        }
+                        .padding(TK.Space.s4)
+                        .background(Color.tk.surfaceRaised, in: RoundedRectangle(cornerRadius: TK.Radius.md, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, TK.Space.s5)
+        }
+    }
+
+    private var recommendations: some View {
+        section(tr("manga_metadata_recommendations", table: .manga)) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: TK.Space.s3) {
+                    ForEach(series.recommendations, id: \.anilistId) { recommendation in
+                        Button { if let url = URL(string: recommendation.siteUrl) { openURL(url) } } label: {
+                            CoverTile(
+                                seed: "\(recommendation.anilistId)",
+                                title: recommendation.title,
+                                coverUrl: recommendation.coverUrl,
+                                accessibilityLabel: recommendation.title
+                            )
+                            .frame(width: 112)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .contentMargins(.horizontal, TK.Space.s5, for: .scrollContent)
+        }
+    }
+
+    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: TK.Space.s3) {
+            Text(title)
+                .tkStyle(.titleL)
+                .foregroundStyle(Color.tk.ink)
+                .padding(.horizontal, TK.Space.s5)
+            content()
+        }
+    }
+}
+
+/// Manual matching: search AniList by title and confirm the right series.
+private struct MatchSearchSheet: View {
+    let editor: MetadataEditor
+    let vm: MangaViewModel
+    @State private var query = ""
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let results = editor.matchResults {
+                    if results.isEmpty {
+                        Text(tr("manga_metadata_search_empty", table: .manga)).foregroundStyle(Color.tk.inkMuted)
+                    }
+                    ForEach(results, id: \.anilistId) { result in
+                        Button { vm.onConfirmMatch(anilistId: result.anilistId) } label: {
+                            HStack(spacing: TK.Space.s3) {
+                                MangaCover(seed: "\(result.anilistId)", url: result.coverUrl, radius: TK.Radius.xs)
+                                    .frame(width: 44)
+                                VStack(alignment: .leading, spacing: TK.Space.s0_5) {
+                                    Text(result.title).tkStyle(.body).foregroundStyle(Color.tk.ink)
+                                    Text([result.format, result.year.map { "\($0.intValue)" }].compactMap { $0 }.joined(separator: " · "))
+                                        .tkStyle(.caption)
+                                        .foregroundStyle(Color.tk.inkMuted)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    ProgressView().frame(maxWidth: .infinity)
+                }
+            }
+            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always))
+            .onSubmit(of: .search) { vm.onMatchSearch(query: query) }
+            .onAppear { query = editor.matchQuery }
+            .navigationTitle(tr("manga_metadata_find", table: .manga))
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

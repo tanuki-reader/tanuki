@@ -77,6 +77,8 @@ fun Wire.MangaWire.toDomain(): MangaListing =
         latestChapterName = latestChapterName?.takeIf(String::isNotBlank),
         updatedAt = updatedAt?.takeIf { it > 0 }?.let(Instant::fromEpochMilliseconds),
         genres = genres.map(String::trim).filter(String::isNotEmpty).distinct(),
+        anilistId = anilistId?.takeIf { it > 0 },
+        malId = malId?.takeIf { it > 0 },
     )
 
 /**

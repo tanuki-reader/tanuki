@@ -149,4 +149,20 @@
         <item quantity="one">%1$d total</item>
         <item quantity="other">%1$d total</item>
     </plurals>
+    <string name="manga_metadata_matched">Matched on AniList</string>
+    <string name="manga_metadata_change">Change</string>
+    <string name="manga_metadata_find">Find on AniList</string>
+    <string name="manga_metadata_use_source">Use source info</string>
+    <string name="manga_metadata_unlink">Unlink from AniList</string>
+    <string name="manga_metadata_more">More options</string>
+    <string name="manga_metadata_characters">Characters</string>
+    <string name="manga_metadata_reviews">Reviews</string>
+    <string name="manga_metadata_recommendations">You might also like</string>
+    <string name="manga_metadata_tags">Tags</string>
+    <string name="manga_metadata_show_spoilers">Show spoiler tags</string>
+    <string name="manga_metadata_cover_title">Choose cover</string>
+    <string name="manga_metadata_cover_default">Default cover</string>
+    <string name="manga_metadata_cover_volume">Vol. %1$s</string>
+    <string name="manga_metadata_search_empty">No matches</string>
+    <string name="manga_metadata_score">Score</string>
 </resources>

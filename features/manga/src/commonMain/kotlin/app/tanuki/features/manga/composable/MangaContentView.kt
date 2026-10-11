@@ -43,6 +43,7 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.Segment
 import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
 import app.tanuki.core.domain.chapter.model.Chapter
+import app.tanuki.features.manga.composable.components.InfoMetadata
 import app.tanuki.features.manga.composable.components.MangaHero
 import app.tanuki.features.manga.composable.components.MangaInfoTab
 import app.tanuki.features.manga.composable.components.chapterList
@@ -50,8 +51,8 @@ import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_chapters_title
 import app.tanuki.features.manga.resources.manga_tab_info
 import app.tanuki.features.manga.viewmodel.MangaState.Content
-import org.jetbrains.compose.resources.stringResource
 import kotlin.math.roundToInt
+import org.jetbrains.compose.resources.stringResource
 
 /** The two panes of the detail body's tabbed section. Ordinal order drives the slide direction. */
 private enum class MangaTab { Chapters, Info }
@@ -101,6 +102,7 @@ fun MangaContentView(
     onReadClick: () -> Unit,
     onAddToLibrary: () -> Unit,
     onRemoveFromLibrary: () -> Unit,
+    onUseSourceInfoChange: (Boolean) -> Unit,
     onHeroCollapsedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -250,6 +252,17 @@ fun MangaContentView(
                         onEditReadingMode = onEditReadingMode,
                         onAddToLibrary = onAddToLibrary,
                         onRemoveFromLibrary = onRemoveFromLibrary,
+                        synopsis = state.header.synopsis,
+                        metadata =
+                            state.series?.takeIf { state.isMatched }?.let { series ->
+                                InfoMetadata(
+                                    scoreLabel = state.scoreLabel,
+                                    genres = series.genres,
+                                    tags = series.tags.filterNot { it.spoiler }.take(10).map { it.name },
+                                    useSourceInfo = state.useSourceInfo
+                                )
+                            },
+                        onUseSourceInfoChange = onUseSourceInfoChange,
                         modifier = Modifier.fillMaxSize()
                     )
                 }

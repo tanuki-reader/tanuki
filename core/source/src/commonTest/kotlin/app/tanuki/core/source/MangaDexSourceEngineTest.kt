@@ -228,6 +228,9 @@ class MangaDexSourceEngineTest {
         assertEquals("https://uploads.mangadex.org/covers/op-id/cover.jpg.512.jpg", manga.coverUrl)
         assertEquals("Eiichiro Oda", manga.author)
         assertEquals("ongoing", manga.status)
+        // The series' ids elsewhere, for exact metadata matching.
+        assertEquals(30013L, manga.anilistId)
+        assertEquals(13L, manga.malId)
 
         module.close()
     }
@@ -289,7 +292,8 @@ private val CANNED_POPULAR =
     """
     {"result":"ok","response":"collection","data":[
       {"id":"op-id","type":"manga",
-       "attributes":{"title":{"en":"One Piece"},"description":{"en":"Pirates."},"status":"ongoing","originalLanguage":"ja"},
+       "attributes":{"title":{"en":"One Piece"},"description":{"en":"Pirates."},"status":"ongoing","originalLanguage":"ja",
+                     "links":{"al":"30013","mal":"13","mu":"pb8uwds"}},
        "relationships":[
          {"type":"cover_art","attributes":{"fileName":"cover.jpg"}},
          {"type":"author","attributes":{"name":"Eiichiro Oda"}}
@@ -313,7 +317,8 @@ private val CANNED_DETAILS =
     {"result":"ok","response":"entity","data":
       {"id":"op-id","type":"manga",
        "attributes":{"title":{"en":"One Piece"},"description":{"en":"Pirates and dreams."},
-                     "status":"ongoing","originalLanguage":"ja"},
+                     "status":"ongoing","originalLanguage":"ja",
+                     "links":{"al":"30013","mal":"13","mu":"pb8uwds"}},
        "relationships":[
          {"type":"cover_art","attributes":{"fileName":"cover.jpg"}},
          {"type":"author","attributes":{"name":"Eiichiro Oda"}}

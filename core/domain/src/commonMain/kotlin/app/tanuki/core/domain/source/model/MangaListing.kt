@@ -36,6 +36,8 @@ import kotlin.time.Instant
  * @property latestChapterName The newest chapter's own name, for sources that don't number chapters.
  * @property updatedAt When the series last got a chapter, when the source says.
  * @property genres Genre/tag names as the source shows them; empty when none.
+ * @property anilistId The series' AniList id, when the source links to it (metadata matching).
+ * @property malId The series' MyAnimeList id, when the source links to it.
  */
 data class MangaListing(
     val sourceMangaKey: String,
@@ -51,4 +53,6 @@ data class MangaListing(
     val latestChapterName: String? = null,
     val updatedAt: Instant? = null,
     val genres: List<String> = emptyList(),
+    val anilistId: Long? = null,
+    val malId: Long? = null,
 )

@@ -122,6 +122,13 @@ object Wire {
         val updatedAt: Long? = null,
         /** Genre/tag names as the source shows them; empty when none. */
         val genres: List<String> = emptyList(),
+        /**
+         * The series' AniList id, when the source links to it — lets the app match the series exactly
+         * for its metadata instead of guessing by title. Optional; usually only on details.
+         */
+        val anilistId: Long? = null,
+        /** The series' MyAnimeList id, when the source links to it. Same purpose as [anilistId]. */
+        val malId: Long? = null,
     )
 
     /** Request for [SourceAbi.Exports.SOURCE_HOME]; empty today, an object so it can grow optional fields. */

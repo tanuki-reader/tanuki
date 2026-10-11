@@ -11,6 +11,10 @@ import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
+import app.tanuki.core.domain.metadata.model.MatchedBy
+import app.tanuki.core.domain.metadata.model.SeriesMetadata
+import app.tanuki.core.domain.metadata.model.TrackerLink
+import app.tanuki.core.domain.metadata.usecase.MangaMetadata
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -84,6 +88,34 @@ class MangaContentProjectionTest {
         assertEquals(DownloadState.Downloading, rows[2].download)
         assertEquals(0.25f, rows[2].downloadProgress)
         assertNull(rows[0].download)
+    }
+
+    @Test
+    fun `matched metadata takes over the header until the user prefers the source`() {
+        val metadata =
+            SeriesMetadata(
+                anilistId = 1, malId = null, title = "Absolute Regression (EN)", synopsis = "From AniList",
+                coverUrl = "https://anilist/cover.jpg", bannerUrl = null, score = 84, popularity = 1,
+                genres = listOf("Action"), tags = emptyList(), status = PublishStatus.COMPLETED, year = 2020,
+                characters = emptyList(), reviews = emptyList(), recommendations = emptyList(),
+                siteUrl = "https://anilist.co/manga/1", fetchedAt = Instant.DISTANT_PAST
+            )
+        val link = TrackerLink(mangaId, anilistId = 1, malId = null, mangaDexId = null, matchedBy = MatchedBy.Source)
+
+        val enriched = content(emptyList()).copy(metadata = MangaMetadata(link, metadata))
+        assertEquals("Absolute Regression (EN)", enriched.header.title)
+        assertEquals("From AniList", enriched.header.synopsis)
+        assertEquals("https://anilist/cover.jpg", enriched.header.coverUrl)
+        assertEquals(PublishStatus.COMPLETED, enriched.header.publishStatus)
+        assertEquals(listOf("Action"), enriched.header.genres)
+        assertEquals("8.4", enriched.scoreLabel)
+
+        val sourcePreferred = content(emptyList()).copy(metadata = MangaMetadata(link.copy(useSourceInfo = true), metadata))
+        assertEquals("Absolute Regression", sourcePreferred.header.title)
+        assertEquals("Murim's skies", sourcePreferred.header.synopsis)
+
+        val picked = content(emptyList()).copy(metadata = MangaMetadata(link.copy(coverChoice = "https://md/vol3.jpg"), metadata))
+        assertEquals("https://md/vol3.jpg", picked.header.coverUrl)
     }
 
     private fun content(

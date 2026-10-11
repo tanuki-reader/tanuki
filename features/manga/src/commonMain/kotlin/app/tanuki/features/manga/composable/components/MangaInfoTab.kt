@@ -25,6 +25,7 @@ import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.SourceIcon
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
+import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.source.model.Source
@@ -38,6 +39,10 @@ import app.tanuki.features.manga.resources.manga_info_show_less
 import app.tanuki.features.manga.resources.manga_info_show_more
 import app.tanuki.features.manga.resources.manga_info_source
 import app.tanuki.features.manga.resources.manga_info_source_unknown
+import app.tanuki.features.manga.resources.manga_metadata_matched
+import app.tanuki.features.manga.resources.manga_metadata_score
+import app.tanuki.features.manga.resources.manga_metadata_tags
+import app.tanuki.features.manga.resources.manga_metadata_use_source
 import app.tanuki.features.manga.resources.manga_reading_mode_title
 import org.jetbrains.compose.resources.stringResource
 
@@ -64,7 +69,10 @@ internal fun MangaInfoTab(
     onEditReadingMode: () -> Unit,
     onAddToLibrary: () -> Unit,
     onRemoveFromLibrary: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    synopsis: String? = manga.description?.value,
+    metadata: InfoMetadata? = null,
+    onUseSourceInfoChange: (Boolean) -> Unit = {}
 ) {
     val spacing = TanukiTheme.spacing
     Column(
@@ -76,7 +84,7 @@ internal fun MangaInfoTab(
         verticalArrangement = Arrangement.spacedBy(spacing.xl)
     ) {
         InfoSection(title = stringResource(Res.string.manga_info_description)) {
-            val description = manga.description?.value
+            val description = synopsis
             if (description != null) {
                 ExpandableDescription(text = description)
             } else {
@@ -85,6 +93,39 @@ internal fun MangaInfoTab(
                     style = TanukiTheme.typography.body,
                     color = TanukiTheme.colors.textFaint
                 )
+            }
+        }
+
+        metadata?.let { info ->
+            InfoSection(title = stringResource(Res.string.manga_metadata_matched)) {
+                Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                    info.scoreLabel?.let { score ->
+                        Text(
+                            text = stringResource(Res.string.manga_metadata_score) + " ★ " + score,
+                            style = TanukiTheme.typography.label,
+                            color = TanukiTheme.colors.accent
+                        )
+                    }
+                    if (info.genres.isNotEmpty()) {
+                        Text(
+                            text = info.genres.joinToString(" · "),
+                            style = TanukiTheme.typography.body,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (info.tags.isNotEmpty()) {
+                        Text(
+                            text = stringResource(Res.string.manga_metadata_tags) + ": " + info.tags.joinToString(", "),
+                            style = TanukiTheme.typography.caption,
+                            color = TanukiTheme.colors.textFaint
+                        )
+                    }
+                    TanukiSwitchRow(
+                        title = stringResource(Res.string.manga_metadata_use_source),
+                        checked = info.useSourceInfo,
+                        onCheckedChange = onUseSourceInfoChange
+                    )
+                }
             }
         }
 
@@ -255,3 +296,16 @@ private fun SourceRow(source: Source?) {
         }
     }
 }
+
+/**
+ * What the Info tab shows from the matched metadata. Spoiler tags are already left out of [tags].
+ * ponytail: a compact text block; the full rails (characters, reviews, recommendations) come with the
+ * Android redesign of this screen.
+ */
+internal data class InfoMetadata(
+    val scoreLabel: String?,
+    val genres: List<String>,
+    val tags: List<String>,
+    val useSourceInfo: Boolean
+)
+

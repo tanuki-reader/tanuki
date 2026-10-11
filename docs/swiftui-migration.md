@@ -214,8 +214,8 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
       genres; AniList will).
 - [x] Primary action: floating `.glassProminent` "Read Chapter N"; "Remove from library" lives in the
       Reading status menu.
-- [ ] **Phase 5b — metadata enrichment** (AniList + MangaDex covers): designed in
-      `docs/design-manga-metadata.md`, not built.
+- [x] **Phase 5b — metadata enrichment** (AniList + MangaDex covers), per
+      `docs/design-manga-metadata.md`.
 
 ### Activity (Phase 6)
 
@@ -605,4 +605,36 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Metadata (5b):** feasibility confirmed and designed in `docs/design-manga-metadata.md`.
 
   Next: **Phase 5b — metadata**, or **Phase 6 — Activity**.
+- 2026-10-11 — **Phase 5b — metadata enrichment done** (pending commit and the hand checks below).
+  - **Identity:** optional ABI `anilist_id`/`mal_id` on `Manga`; MangaDex fills them from `links.al/mal`,
+    MangaFire from `anilistId`/`malId` (strings on its API, parsed leniently). Versions bumped.
+  - **Storage (Room v14, `Migration13To14`, SQL checked against the exported schema):**
+    `manga_tracker_link` (one per manga row: ids, `matched_by`, `use_source_info`, `cover_choice`,
+    `mangadex_id`) and `series_metadata` (one per **series**, keyed by AniList id, JSON payload,
+    `fetched_at`). Two copies of One Piece from two sources = two links → one metadata row.
+  - **`:core:metadata`** (new): `AniListProvider` (one GraphQL query: media + characters + reviews +
+    recommendations + tags; search), `MangaDexCoverProvider` (volume covers), own Ktor client per
+    platform, a spacing rate limiter. Exposed to the app graphs via `api` in `:shared`.
+  - **`EnrichManga`** (background, never throws): link from the source's ids **once per series**
+    (recorded even when the source has none), then fetch only when the cache is older than **7 days**.
+    `MangaViewModel` launches it as its own coroutine alongside the chapter/details syncs; the state
+    folds `ObserveMangaMetadata` in starting from empty, so the page never waits on AniList.
+  - **Precedence** in `MangaState.Content.header`: matched + not `useSourceInfo` → AniList title,
+    synopsis, cover (user's pick first), status, genres; chapters always from the source.
+  - **UI:** iOS — score badge, "Matched on AniList · Change", genre chips, Tags (spoilers blurred),
+    Characters rail, Reviews, Recommendations rail (opens AniList), cover picker (long-press cover or
+    ⋯ menu), match search sheet, "Use source info" / unlink in the ⋯ menu. Android — a compact
+    metadata block on the Info tab with the "Use source info" switch.
+  - **Verified:** `ProvidersTest` 3 (MockEngine), `EnrichMangaTest` 5 (link once, TTL skip, two copies
+    share one row and one fetch, stale refetch, failure swallowed), precedence test, host + iOS;
+    `:androidApp:assembleDebug`, framework link, Debug xcodebuild. Live: a MangaDex title matched via
+    its ids and filled in (score 7.9, AniList cover, genres, tags) after the page loaded; the DB held one
+    link + one metadata row, and a relaunch + reopen left `fetched_at` unchanged (served from cache).
+  - **Deferred:** the chosen/AniList cover in library and history lists (needs a resolved-cover column
+    joined into the library query), recommendation taps searching installed sources (needs global
+    search), Android's full rails, MyAnimeList's own score.
+  - **Not verified by hand:** the cover picker and match search sheets, unlink, a MangaFire title,
+    offline open.
+
+  Next: **global search** (see below), or **Phase 6 — Activity**.
 

@@ -18,6 +18,9 @@ import app.tanuki.core.data.repository.history.HistoryEntity
 import app.tanuki.core.data.repository.library.LibraryEntryEntity
 import app.tanuki.core.data.repository.manga.MangaDao
 import app.tanuki.core.data.repository.manga.MangaEntity
+import app.tanuki.core.data.repository.metadata.MetadataDao
+import app.tanuki.core.data.repository.metadata.SeriesMetadataEntity
+import app.tanuki.core.data.repository.metadata.TrackerLinkEntity
 import app.tanuki.core.data.repository.source.SourceDao
 import app.tanuki.core.data.repository.source.SourceEntity
 import app.tanuki.core.data.repository.update.ChapterUpdateDao
@@ -41,9 +44,11 @@ import app.tanuki.core.data.repository.update.ChapterUpdateEntity
         ChapterDownloadEntity::class,
         HistoryEntity::class,
         CategoryEntity::class,
-        MangaCategoryEntity::class
+        MangaCategoryEntity::class,
+        TrackerLinkEntity::class,
+        SeriesMetadataEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -62,6 +67,8 @@ abstract class TanukiDatabase : RoomDatabase() {
     abstract fun historyDao(): HistoryDao
 
     abstract fun categoryDao(): CategoryDao
+
+    abstract fun metadataDao(): MetadataDao
 }
 
 /**
