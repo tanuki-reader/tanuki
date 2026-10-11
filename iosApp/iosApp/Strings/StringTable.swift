@@ -9,6 +9,7 @@ enum StringTable: String {
     case library = "Library"
     case manga = "Manga"
     case reader = "Reader"
+    case search = "Search"
     case settings = "Settings"
     case source = "Source"
 }

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_title">Search</string>
+    <string name="search_hint">Search all your sources</string>
+    <string name="search_prompt">Find a series in your library and in every installed source.</string>
+    <string name="search_library_section">In your library</string>
+    <string name="search_in_library">In library</string>
+    <string name="search_see_all">See all</string>
+    <string name="search_no_results">No results</string>
+    <string name="search_failed">Couldn\'t search this source.</string>
+    <string name="search_retry">Retry</string>
+</resources>

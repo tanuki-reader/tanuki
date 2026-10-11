@@ -31,7 +31,7 @@ private const val ICON_STROKE = 2f
 
 /** `search` — a magnifying glass: lens circle plus a rounded handle. */
 @Composable
-internal fun SearchIcon(
+fun SearchIcon(
     tint: Color,
     modifier: Modifier = Modifier,
     size: Dp = 20.dp

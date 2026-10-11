@@ -75,7 +75,8 @@ internal fun MangaInfoTab(
     modifier: Modifier = Modifier,
     synopsis: String? = manga.description?.value,
     metadata: InfoMetadata? = null,
-    onUseSourceInfoChange: (Boolean) -> Unit = {}
+    onUseSourceInfoChange: (Boolean) -> Unit = {},
+    onRecommendationClick: (MetadataRecommendation) -> Unit = {}
 ) {
     val spacing = TanukiTheme.spacing
     Column(
@@ -139,7 +140,7 @@ internal fun MangaInfoTab(
             }
         }
 
-        metadata?.recommendations?.takeIf { it.isNotEmpty() }?.let { RecommendationsRow(it) }
+        metadata?.recommendations?.takeIf { it.isNotEmpty() }?.let { RecommendationsRow(it, onRecommendationClick) }
 
         manga.author?.let { author ->
             InfoSection(title = stringResource(Res.string.manga_info_author)) {

@@ -12,6 +12,8 @@ import app.tanuki.core.navigation.SettingsPrivacy
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.SourceCatalogGrid
+import app.tanuki.core.navigation.GlobalSearch
+import app.tanuki.features.search.GlobalSearchRoute
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.features.activity.ActivityRoute
 import app.tanuki.features.downloads.DownloadsRoute
@@ -51,6 +53,8 @@ fun DestinationContent(
         TopLevelDestination.Home -> HomeRoute(onNavigate = onNavigate)
         TopLevelDestination.Activity -> ActivityRoute(onNavigate = onNavigate)
         TopLevelDestination.Settings -> SettingsRoute(onNavigate = onNavigate)
+        TopLevelDestination.Search -> GlobalSearchRoute(initialQuery = null, onNavigate = onNavigate, onBack = null)
+        is GlobalSearch -> GlobalSearchRoute(initialQuery = destination.query, onNavigate = onNavigate, onBack = onBack)
         SettingsAppearance -> AppearanceRoute(onBack = onBack)
         SettingsPrivacy -> PrivacyRoute(onBack = onBack)
         SettingsCategories -> CategoriesRoute(onBack = onBack)

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="search_title">Buscar</string>
+    <string name="search_hint">Buscar em todas as fontes</string>
+    <string name="search_prompt">Encontre uma série na sua biblioteca e em todas as fontes instaladas.</string>
+    <string name="search_library_section">Na sua biblioteca</string>
+    <string name="search_in_library">Na biblioteca</string>
+    <string name="search_see_all">Ver tudo</string>
+    <string name="search_no_results">Nenhum resultado</string>
+    <string name="search_failed">Não foi possível buscar nesta fonte.</string>
+    <string name="search_retry">Tentar de novo</string>
+</resources>

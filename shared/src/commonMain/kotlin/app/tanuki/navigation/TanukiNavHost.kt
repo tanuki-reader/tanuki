@@ -40,6 +40,7 @@ import app.tanuki.core.navigation.SettingsDownloads
 import app.tanuki.core.navigation.SettingsSources
 import app.tanuki.core.navigation.SourceBrowse
 import app.tanuki.core.navigation.SourceCatalogGrid
+import app.tanuki.core.navigation.GlobalSearch
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.platform.rememberReducedMotion
 import kotlin.reflect.typeOf
@@ -195,6 +196,7 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
             composable<TopLevelDestination.Activity> { screen(TopLevelDestination.Activity) }
             composable<TopLevelDestination.Home> { screen(TopLevelDestination.Home) }
             composable<TopLevelDestination.Settings> { screen(TopLevelDestination.Settings) }
+            composable<TopLevelDestination.Search> { screen(TopLevelDestination.Search) }
             composable<SettingsAppearance>(
                 enterTransition = leafEnter,
                 exitTransition = leafExit,
@@ -243,6 +245,12 @@ fun TanukiNavHost(modifier: Modifier = Modifier) {
                 popEnterTransition = leafPopEnter,
                 popExitTransition = leafPopExit
             ) { entry -> screen(entry.toRoute<SourceCatalogGrid>()) }
+            composable<GlobalSearch>(
+                enterTransition = leafEnter,
+                exitTransition = leafExit,
+                popEnterTransition = leafPopEnter,
+                popExitTransition = leafPopExit
+            ) { entry -> screen(entry.toRoute<GlobalSearch>()) }
             composable<MangaDetail>(
                 typeMap = uuidTypeMap,
                 enterTransition = leafEnter,

@@ -38,6 +38,7 @@ kotlin {
             export(projects.features.library.logic)
             export(projects.features.manga.logic)
             export(projects.features.source.logic)
+            export(projects.features.search.logic)
         }
     }
     
@@ -102,6 +103,8 @@ kotlin {
             api(projects.features.library.logic)
             api(projects.features.manga.logic)
             api(projects.features.source.logic)
+            api(projects.features.search)
+            api(projects.features.search.logic)
             implementation(projects.assets.designSystem)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.navigation.compose)

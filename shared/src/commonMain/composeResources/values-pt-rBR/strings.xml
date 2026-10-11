@@ -5,6 +5,7 @@
     <string name="tab_home">Início</string>
     <string name="tab_activity">Atividade</string>
     <string name="tab_settings">Ajustes</string>
+    <string name="tab_search">Buscar</string>
 
     <!-- Notificação de atualização da biblioteca -->
     <string name="notification_channel_updates">Atualizações da biblioteca</string>

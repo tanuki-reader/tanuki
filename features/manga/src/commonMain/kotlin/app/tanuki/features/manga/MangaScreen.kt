@@ -174,6 +174,7 @@ private fun MangaScreen(
                             onClearSelection = viewModel::onClearSelection,
                             onReadClick = viewModel::onReadClick,
                             onOpenAbout = { viewModel.onOpenSheet(MangaSheet.About) },
+                            onRecommendationClick = { viewModel.onRecommendationClick(it.title) },
                             onHeroCollapsedChange = { heroCollapsed = it },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -272,6 +273,7 @@ private fun MangaScreen(
                     onAddToLibrary = viewModel::onAddToLibrary,
                     onRemoveFromLibrary = viewModel::onRemoveFromLibrary,
                     synopsis = content.header.synopsis,
+                    onRecommendationClick = { viewModel.onRecommendationClick(it.title) },
                     metadata =
                         content.series?.takeIf { content.isMatched }?.let { series ->
                             InfoMetadata(

@@ -8,6 +8,7 @@ import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.features.home.viewmodel.HomeViewModel
 import app.tanuki.features.library.viewmodel.LibraryViewModel
 import app.tanuki.features.manga.viewmodel.MangaViewModel
+import app.tanuki.features.search.viewmodel.GlobalSearchViewModel
 import app.tanuki.features.settings.appearance.viewmodel.AppearanceViewModel
 import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
 import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsViewModel
@@ -74,6 +75,11 @@ fun ScreenScope.categoriesViewModel(): CategoriesViewModel = viewModel(Categorie
 fun ScreenScope.downloadSettingsViewModel(): DownloadSettingsViewModel = viewModel(DownloadSettingsViewModel::class)
 
 fun ScreenScope.sourcesViewModel(): SourcesViewModel = viewModel(SourcesViewModel::class)
+
+fun ScreenScope.globalSearchViewModel(query: String?): GlobalSearchViewModel =
+    assistedViewModel(GlobalSearchViewModel::class) {
+        createManuallyAssistedFactory(GlobalSearchViewModel.Factory::class)().create(query)
+    }
 
 fun ScreenScope.sourceHomeViewModel(sourceId: String): SourceHomeViewModel =
     assistedViewModel(SourceHomeViewModel::class) {

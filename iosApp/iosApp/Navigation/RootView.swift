@@ -22,10 +22,15 @@ struct RootView: View {
                 .ignoresSafeArea()
                 .zIndex(sessionRevealed ? 1 : -1)
             TabView(selection: $tab) {
-                ForEach(TabKey.allCases, id: \.self) { key in
+                ForEach(TabKey.allCases.filter { $0 != .search }, id: \.self) { key in
                     Tab(key.title, systemImage: key.systemImage, value: key) {
                         stack(for: key)
                     }
+                }
+                // The system search tab: set apart at the bar's trailing edge, and its screen's
+                // `.searchable` field moves into the Liquid Glass tab bar.
+                Tab(value: TabKey.search, role: .search) {
+                    stack(for: .search)
                 }
             }
             .tabBarMinimizeBehavior(.onScrollDown)
@@ -58,7 +63,7 @@ struct RootView: View {
 /// The tabs, in `TopLevelDestination.entries` order. A Swift enum because `TabView` selection and the
 /// path dictionary need a `Hashable` key, and the titles/icons are the iOS dialect's own.
 private enum TabKey: CaseIterable {
-    case library, home, activity, settings
+    case library, home, activity, settings, search
 
     var destination: any TopLevelDestination {
         switch self {
@@ -66,6 +71,7 @@ private enum TabKey: CaseIterable {
         case .home: TopLevelDestinationHome.shared
         case .activity: TopLevelDestinationActivity.shared
         case .settings: TopLevelDestinationSettings.shared
+        case .search: TopLevelDestinationSearch.shared
         }
     }
 
@@ -75,6 +81,7 @@ private enum TabKey: CaseIterable {
         case .home: "tab_home"
         case .activity: "tab_activity"
         case .settings: "tab_settings"
+        case .search: "tab_search"
         }
     }
 
@@ -84,6 +91,7 @@ private enum TabKey: CaseIterable {
         case .home: "house"
         case .activity: "chart.line.uptrend.xyaxis"
         case .settings: "gearshape"
+        case .search: "magnifyingglass"
         }
     }
 }

@@ -30,6 +30,7 @@ import app.tanuki.core.domain.metadata.usecase.EditMangaMetadata
 import app.tanuki.core.domain.metadata.usecase.EnrichManga
 import app.tanuki.core.domain.metadata.usecase.ObserveMangaMetadata
 import app.tanuki.core.domain.source.usecase.ObserveSources
+import app.tanuki.core.navigation.GlobalSearch
 import app.tanuki.core.navigation.Downloads
 import app.tanuki.core.navigation.Reader
 import app.tanuki.core.presentation.StateViewModel
@@ -306,6 +307,12 @@ class MangaViewModel(
     }
 
     /** Open a modal over the page. */
+    /** A recommended series: look for it in the installed sources (closing the About sheet if it's open). */
+    fun onRecommendationClick(title: String) {
+        sheet.value = null
+        navigateTo(GlobalSearch(query = title))
+    }
+
     fun onOpenSheet(sheet: MangaSheet) {
         this.sheet.value = sheet
     }

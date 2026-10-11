@@ -256,9 +256,9 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
 
 - [ ] Outline SF Symbols at rest, `.fill` only when selected (`TabView` does this if given outline
       symbols); today every icon looks filled.
-- [ ] Decide the tab set: today Library / Home / Activity / Settings; the design system specifies
-      Library / Updates / History / Browse + `Tab(role: .search)`. A global search tab pairs well with
-      Source home.
+- [ ] Decide the tab set: today Library / Home / Activity / Settings + a **Search** tab
+      (`Tab(role: .search)`, added with global search on 2026-10-11); the design system specifies
+      Library / Updates / History / Browse + search.
 
 ### Settings (done in Phase 2, polish)
 
@@ -690,3 +690,31 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Known gaps:** MangaFire's own synopsis is English, so a pt-BR series MangaDex hasn't translated
     still reads in English. Links made before v15 from MangaFire have no MangaDex id (re-link to fill).
     Not verified by hand: list covers and the fade on a device/Android.
+- 2026-10-11 — **Global search** (both platforms; owner's choices: a Search tab, rails per source,
+  recommendation taps search).
+  - **Domain:** `SearchSources(query, sourceIds)` — a `channelFlow` fan-out over `BrowseSource`, emitting
+    each source's `SourceSearch` (`Loaded`/`Failed`) as it answers; 20 s timeout per source, at most 4 in
+    parallel (each engine call holds an IO thread), a failure stays in its own rail.
+  - **`:features:search:logic`** (exported to iOS) — `GlobalSearchViewModel` (`StateViewModel`, assisted
+    `initialQuery`): library matches live as you type (`ObserveLibrary`); sources searched on submit
+    only (no per-keystroke requests to every site), adult-only sources skipped unless sensitive content
+    is on; results held in the ViewModel so coming back from a series doesn't search again; retry per
+    rail, "See all" → `SourceCatalogGrid(sourceId, query)`, result → cache + Manga detail.
+  - **Navigation:** `TopLevelDestination.Search` (the tab) and leaf `GlobalSearch(query)`;
+    `MangaViewModel.onRecommendationClick` pushes the latter, so AniList recommendations now look the
+    series up in your sources instead of opening AniList.
+  - **iOS:** `Tab(value: .search, role: .search)` — its `.searchable` field sits in the Liquid Glass tab
+    bar; `GlobalSearchScreen` draws the library rail and one rail per source with `CoverTile`.
+    **Android:** `:features:search` `GlobalSearchRoute` (top bar with search open, `LazyColumn` of
+    `LazyRow` rails, `animateItem`), a Search bottom-bar item (the design system's existing search glyph,
+    made public — no Material Symbols dependency yet).
+  - **Strings** (en + pt-BR): `search_*` in `:features:search`, `tab_search` in `:shared`.
+  - **Verified:** `SearchSourcesTest` 3 (streams fastest first, failure + timeout isolated, parallel cap),
+    `GlobalSearchViewModelTest` 5 (typing filters only the library, submit searches shown sources minus
+    nsfw, initial query + per-rail retry, results survive resubscription, result/See all navigation);
+    `:androidApp:assembleDebug`, Debug xcodebuild. Live (temporary auto-open, removed): the search tab sits
+    apart in the glass tab bar; "dress" filled MangaDex pt-BR/en and MangaFire rails; "youth" showed the
+    library rail and the "In library" pill on the MangaDex copy.
+  - **Not verified by hand:** Android on a device, a recommendation tap end to end, Retry with the
+    network off, the empty-field prompt.
+

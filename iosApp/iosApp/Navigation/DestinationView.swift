@@ -15,6 +15,7 @@ struct DestinationView: View {
             case .settings: SettingsScreen(path: $path)
             case .library: LibraryScreen(path: $path)
             case .activity: bridge
+            case .search: GlobalSearchScreen(query: nil, path: $path)
             }
         case .settingsAppearance: AppearanceScreen()
         case .settingsPrivacy: PrivacyScreen()
@@ -24,6 +25,7 @@ struct DestinationView: View {
         case let .sourceBrowse(source): SourceHomeScreen(sourceId: source.sourceId, path: $path)
         case let .sourceCatalogGrid(catalog):
             SourceCatalogScreen(sourceId: catalog.sourceId, listing: catalog.listing, query: catalog.query, path: $path)
+        case let .globalSearch(search): GlobalSearchScreen(query: search.query, path: $path)
         case let .mangaDetail(manga): MangaScreen(mangaId: manga.mangaId, path: $path)
         case .downloads, .reader: bridge
         }

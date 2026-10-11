@@ -36,7 +36,6 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
@@ -103,6 +102,7 @@ fun MangaContentView(
     onClearSelection: () -> Unit,
     onReadClick: () -> Unit,
     onOpenAbout: () -> Unit,
+    onRecommendationClick: (MetadataRecommendation) -> Unit,
     onHeroCollapsedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -208,7 +208,7 @@ fun MangaContentView(
             }
             if (state.recommendationsPlacement == RecommendationsPlacement.AboveChapters) {
                 state.series?.recommendations?.let { recommendations ->
-                    item(key = "recommendations") { Box(Modifier.animateItem()) { RecommendationsRow(recommendations) } }
+                    item(key = "recommendations") { Box(Modifier.animateItem()) { RecommendationsRow(recommendations, onRecommendationClick) } }
                 }
             }
             chapterList(
@@ -297,9 +297,11 @@ private fun TagRowPreview(
 
 /** "You might also like": covers that open the title on AniList. */
 @Composable
-internal fun RecommendationsRow(recommendations: List<MetadataRecommendation>) {
+internal fun RecommendationsRow(
+    recommendations: List<MetadataRecommendation>,
+    onClick: (MetadataRecommendation) -> Unit
+) {
     val spacing = TanukiTheme.spacing
-    val uriHandler = LocalUriHandler.current
     Column(Modifier.padding(vertical = spacing.sm), verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
         Text(
             text = stringResource(Res.string.manga_metadata_recommendations),
@@ -316,7 +318,7 @@ internal fun RecommendationsRow(recommendations: List<MetadataRecommendation>) {
                     seed = recommendation.anilistId.toString(),
                     title = recommendation.title,
                     coverUrl = recommendation.coverUrl,
-                    onClick = { runCatching { uriHandler.openUri(recommendation.siteUrl) } },
+                    onClick = { onClick(recommendation) },
                     modifier = Modifier.width(112.dp)
                 )
             }

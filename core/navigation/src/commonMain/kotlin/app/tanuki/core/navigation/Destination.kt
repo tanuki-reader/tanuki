@@ -38,9 +38,13 @@ sealed interface TopLevelDestination : Destination {
     @Serializable
     data object Settings : TopLevelDestination
 
+    /** Global search: one query across the library and every installed source. */
+    @Serializable
+    data object Search : TopLevelDestination
+
     companion object {
         /** Ordered tabs the bottom bar renders. Add a tab here and it appears in the bar. */
-        val entries: List<TopLevelDestination> = listOf(Library, Home, Activity, Settings)
+        val entries: List<TopLevelDestination> = listOf(Library, Home, Activity, Settings, Search)
     }
 }
 
@@ -75,6 +79,15 @@ data class SourceBrowse(
 data class SourceCatalogGrid(
     val sourceId: String,
     val listing: String? = null,
+    val query: String? = null
+) : Destination
+
+/**
+ * Global search pushed onto the current tab, pre-filled — e.g. from an AniList recommendation. Same screen
+ * as [TopLevelDestination.Search]; a non-blank [query] is searched at once.
+ */
+@Serializable
+data class GlobalSearch(
     val query: String? = null
 ) : Destination
 

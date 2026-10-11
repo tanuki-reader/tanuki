@@ -53,7 +53,7 @@ struct MangaScreen: View {
                 // Placement is the ViewModel's call: above the chapters only while the series isn't in the
                 // library (still being decided on); otherwise suggestions live in About.
                 if content.recommendationsPlacement == .aboveChapters, let series = content.series {
-                    RecommendationsRail(recommendations: series.recommendations)
+                    RecommendationsRail(recommendations: series.recommendations) { model.vm.onRecommendationClick(title: $0.title) }
                 }
                 chapters(content)
             }
@@ -432,7 +432,8 @@ struct MangaScreen: View {
                     if let series = content.series {
                         MetadataSections(
                             series: series,
-                            showRecommendations: content.recommendationsPlacement == .aboutOnly
+                            showRecommendations: content.recommendationsPlacement == .aboutOnly,
+                            onRecommendation: { model.vm.onRecommendationClick(title: $0.title) }
                         )
                     }
                     infoRows(content)
@@ -733,7 +734,8 @@ private struct AboutTags: View {
 /// search lands).
 private struct RecommendationsRail: View {
     let recommendations: [MetadataRecommendation]
-    @Environment(\.openURL) private var openURL
+    /// Looks the series up in the installed sources (global search).
+    let onSelect: (MetadataRecommendation) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: TK.Space.s3) {
@@ -744,7 +746,7 @@ private struct RecommendationsRail: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(alignment: .top, spacing: TK.Space.s3) {
                     ForEach(recommendations, id: \.anilistId) { recommendation in
-                        Button { if let url = URL(string: recommendation.siteUrl) { openURL(url) } } label: {
+                        Button { onSelect(recommendation) } label: {
                             CoverTile(
                                 seed: "\(recommendation.anilistId)",
                                 title: recommendation.title,
@@ -767,6 +769,7 @@ private struct RecommendationsRail: View {
 private struct MetadataSections: View {
     let series: SeriesMetadata
     let showRecommendations: Bool
+    let onRecommendation: (MetadataRecommendation) -> Void
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -774,7 +777,7 @@ private struct MetadataSections: View {
             if !series.characters.isEmpty { characters }
             if !series.reviews.isEmpty { reviews }
             if showRecommendations && !series.recommendations.isEmpty {
-                RecommendationsRail(recommendations: series.recommendations)
+                RecommendationsRail(recommendations: series.recommendations, onSelect: onRecommendation)
             }
         }
     }

@@ -20,12 +20,14 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ActivityTabIcon
 import app.tanuki.assets.designSystem.component.HomeTabIcon
 import app.tanuki.assets.designSystem.component.LibraryTabIcon
+import app.tanuki.assets.designSystem.component.SearchIcon
 import app.tanuki.assets.designSystem.component.SettingsTabIcon
 import app.tanuki.core.navigation.TopLevelDestination
 import app.tanuki.shared.resources.Res
 import app.tanuki.shared.resources.tab_activity
 import app.tanuki.shared.resources.tab_home
 import app.tanuki.shared.resources.tab_library
+import app.tanuki.shared.resources.tab_search
 import app.tanuki.shared.resources.tab_settings
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
@@ -94,6 +96,7 @@ private fun TopLevelDestination.TabIcon(tint: Color) {
         TopLevelDestination.Home -> HomeTabIcon(tint)
         TopLevelDestination.Activity -> ActivityTabIcon(tint)
         TopLevelDestination.Settings -> SettingsTabIcon(tint)
+        TopLevelDestination.Search -> SearchIcon(tint, size = 24.dp)
     }
 }
 
@@ -104,4 +107,5 @@ private fun TopLevelDestination.labelRes(): StringResource =
         TopLevelDestination.Home -> Res.string.tab_home
         TopLevelDestination.Activity -> Res.string.tab_activity
         TopLevelDestination.Settings -> Res.string.tab_settings
+        TopLevelDestination.Search -> Res.string.tab_search
     }

@@ -5,6 +5,7 @@
     <string name="tab_home">Home</string>
     <string name="tab_activity">Activity</string>
     <string name="tab_settings">Settings</string>
+    <string name="tab_search">Search</string>
 
     <!-- Library update notification -->
     <string name="notification_channel_updates">Library updates</string>
