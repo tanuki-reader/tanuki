@@ -93,6 +93,9 @@ private struct ReaderContentView: View {
                     // A new mode is a new layout, parked on `initialItemIndex` — which the ViewModel moves to
                     // the page on screen when the mode changes.
                     .id(content.readingMode)
+                    // Pages run edge to edge, under the status bar and the home indicator; only the chrome
+                    // keeps to the safe area.
+                    .ignoresSafeArea()
             }
             ReaderChrome(content: content, vm: vm)
         }
