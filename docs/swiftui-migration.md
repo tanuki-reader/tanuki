@@ -762,5 +762,34 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Not verified by hand:** a live queue on the simulator (progress, holds, cancel/retry), Android on a
     device.
 
-  Next: **Phase 8 — Reader**.
+- 2026-10-11 — **Phase 8, part A: reader navigation bugs** (shared ViewModel, before the SwiftUI port).
+  - **Causes found** (repro tests failed first, 6 of them):
+    - **Duplicate chapter numbers.** The spine kept every scanlator's copy, so from 56 (group B)
+      "previous" was 56 (group A) and 55 looked unreachable; "next" walked into a copy of the chapter
+      just read. The simulator's series has 7 doubled numbers.
+    - **Index race.** Focus was reported as an index and resolved against the newest list, so a report
+      from the list still on screen after a prepend/eviction named an item N away (end of chapter / next
+      chapter).
+    - **A finished chapter resumed on its last page.**
+  - **Fixes:**
+    - `siblingsOf` keeps one chapter per number (the opened one, else its group, else source order).
+    - Focus and `ReaderCommand`s are by `ReaderItem.key`. Compose reads the key from the layout info,
+      and waits ≤1 s for a command's key to reach the rendered list.
+    - The strip applies `Reanchor` with `requestScrollToItem` (no fling cancel), for shifts beyond
+      Compose's ~100-item key window.
+    - Read chapters reopen at page 0.
+    - `Reader(…, page)` opens at a page (for bookmarks).
+    - `jumpTo` reseeds the window for a far chapter (`onChapterSelected`, for the Chapters sheet) without
+      an empty frame.
+    - The previous chapter is warmed once the reader settles.
+  - **Verified:**
+    - `ReaderViewModelTest` 45 (the 6 repros, far jump, open-at-page), iOS simulator.
+    - `:androidApp:assembleDebug` and the Debug xcodebuild.
+    - Live on the simulator (Compose reader, temporary scripted hook, removed): in paged L→R and webtoon,
+      56 (Sniper Lord) → previous → 55 Sniper Lord → next → 56 → next → 57, each on page 1. A finished
+      57 reopened on 1/13 and kept its read flag.
+  - **Not verified by hand:** fling and swipe gestures (no gesture automation here), long webtoon
+    chapters, Android on a device or emulator.
+
+  Next: **Phase 8, part B** (reader features + bookmarks), then **C** (SwiftUI reader).
 

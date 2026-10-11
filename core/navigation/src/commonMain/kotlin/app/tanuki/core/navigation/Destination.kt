@@ -91,11 +91,15 @@ data class GlobalSearch(
     val query: String? = null
 ) : Destination
 
-/** The reader for a specific chapter. [mangaId] is carried so the reader can page across chapters. */
+/**
+ * The reader for a specific chapter. [mangaId] is carried so the reader can page across chapters. [page]
+ * opens at that zero-based page (a bookmark); `null` resumes where the chapter was left.
+ */
 @Serializable
 data class Reader(
     val mangaId: Uuid,
-    val chapterId: Uuid
+    val chapterId: Uuid,
+    val page: Int? = null
 ) : Destination
 
 /**

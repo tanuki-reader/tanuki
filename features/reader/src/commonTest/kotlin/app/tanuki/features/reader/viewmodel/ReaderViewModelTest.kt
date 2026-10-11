@@ -162,9 +162,9 @@ class ReaderViewModelTest {
         runCurrent()
         val onOpen = world.progress.writes.size
 
-        viewModel.onItemFocused(2)
-        viewModel.onItemFocused(3)
-        viewModel.onItemFocused(4)
+        viewModel.focusAt(2)
+        viewModel.focusAt(3)
+        viewModel.focusAt(4)
         advanceTimeBy(ReaderViewModel.PROGRESS_PERSIST_DEBOUNCE_MS + 1)
         runCurrent()
 
@@ -178,7 +178,7 @@ class ReaderViewModelTest {
         val viewModel = world.viewModel()
         runCurrent()
 
-        viewModel.onItemFocused(viewModel.content().indexOfTrailingTransition())
+        viewModel.focusAt(viewModel.content().indexOfTrailingTransition())
         advanceTimeBy(ReaderViewModel.PROGRESS_PERSIST_DEBOUNCE_MS + 1)
         runCurrent()
 
@@ -194,7 +194,7 @@ class ReaderViewModelTest {
         val viewModel = world.viewModel()
         runCurrent()
 
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         advanceTimeBy(ReaderViewModel.PROGRESS_PERSIST_DEBOUNCE_MS + 1)
         runCurrent()
 
@@ -214,7 +214,7 @@ class ReaderViewModelTest {
 
         val jump = commands.single()
         assertTrue(jump is ReaderCommand.Jump)
-        val landed = viewModel.content().items[jump.index]
+        val landed = viewModel.content().items.single { it.key == jump.key }
         assertTrue(landed is PageItem)
         assertEquals(world.chapterIds[START], landed.chapterId)
         assertEquals(2, landed.pageNumber)
@@ -230,7 +230,7 @@ class ReaderViewModelTest {
         runCurrent()
         val before = viewModel.content().items
 
-        viewModel.onItemFocused(2)
+        viewModel.focusAt(2)
         runCurrent()
 
         // Identity, not equality: an equal-but-fresh list would pass `assertEquals` while still costing
@@ -276,7 +276,7 @@ class ReaderViewModelTest {
     // ---- Eviction -------------------------------------------------------------------------------
 
     @Test
-    fun `the window holds the opened chapter and its successor`() = runTest {
+    fun `the window holds the opened chapter and both neighbours once settled`() = runTest {
         val world = World()
         val viewModel = world.viewModel()
 
@@ -284,7 +284,7 @@ class ReaderViewModelTest {
         advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
         runCurrent()
 
-        assertEquals(world.chapterIds.slice(START..START + 1), viewModel.content().loadedChapterIds)
+        assertEquals(world.chapterIds.slice(START - 1..START + 1), viewModel.content().loadedChapterIds)
     }
 
     @Test
@@ -293,7 +293,7 @@ class ReaderViewModelTest {
         val viewModel = world.viewModel()
         runCurrent()
         // Page back into the leading transition so the previous chapter is loaded too.
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         runCurrent()
         assertEquals(world.chapterIds.slice(START - 1..START + 1), viewModel.content().loadedChapterIds)
 
@@ -318,9 +318,8 @@ class ReaderViewModelTest {
         advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
         runCurrent()
 
-        // The predecessor is loaded lazily (only when its leading slide is focused), so stepping back
-        // leaves two held chapters, not three — what matters is that the one two ahead is gone.
-        assertEquals(world.chapterIds.slice(START..START + 1), viewModel.content().loadedChapterIds)
+        // The one two ahead is gone; the predecessor is warmed once the reader settles.
+        assertEquals(world.chapterIds.slice(START - 1..START + 1), viewModel.content().loadedChapterIds)
     }
 
     @Test
@@ -349,7 +348,7 @@ class ReaderViewModelTest {
         runCurrent()
         // Start the previous chapter's fetch, then walk away from it before it lands.
         val gate = world.pages.gate(world.chapterIds[START - 1])
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         runCurrent()
 
         viewModel.crossInto(world.chapterIds[START + 1])
@@ -369,7 +368,7 @@ class ReaderViewModelTest {
         val viewModel = world.viewModel()
         runCurrent()
         val gate = world.pages.gate(world.chapterIds[START - 1])
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         runCurrent()
 
         viewModel.crossInto(world.chapterIds[START + 1])
@@ -403,7 +402,7 @@ class ReaderViewModelTest {
         val world = World()
         val viewModel = world.viewModel()
         runCurrent()
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         runCurrent()
 
         viewModel.crossInto(world.chapterIds[START + 1])
@@ -473,7 +472,7 @@ class ReaderViewModelTest {
         runCurrent()
         val before = viewModel.content().items
 
-        viewModel.onItemFocused(2)
+        viewModel.focusAt(2)
         advanceTimeBy(ReaderViewModel.PROGRESS_PERSIST_DEBOUNCE_MS + 1)
         runCurrent()
 
@@ -491,7 +490,7 @@ class ReaderViewModelTest {
         val world = World()
         val viewModel = world.viewModel()
         runCurrent()
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         runCurrent()
         val commands = mutableListOf<ReaderCommand>()
         val job = collectCommands(viewModel, commands)
@@ -503,20 +502,21 @@ class ReaderViewModelTest {
         runCurrent()
 
         val reanchor = commands.filterIsInstance<ReaderCommand.Reanchor>().last()
-        assertEquals(focusedKey, viewModel.content().items[reanchor.index].key)
+        assertEquals(focusedKey, reanchor.key)
         job.cancel()
     }
 
     @Test
     fun `no command is sent for a page turn inside a chapter`() = runTest {
-        val world = World()
+        // Opened on the first chapter: no predecessor to warm in above the viewport once it settles.
+        val world = World(startIndex = 0)
         val viewModel = world.viewModel()
         runCurrent()
         val commands = mutableListOf<ReaderCommand>()
         val job = collectCommands(viewModel, commands)
 
-        viewModel.onItemFocused(2)
-        viewModel.onItemFocused(3)
+        viewModel.focusAt(2)
+        viewModel.focusAt(3)
         advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
         runCurrent()
 
@@ -526,7 +526,8 @@ class ReaderViewModelTest {
 
     @Test
     fun `no command is sent when eviction changes nothing`() = runTest {
-        val world = World()
+        // Opened on the first chapter: no predecessor to warm in above the viewport once it settles.
+        val world = World(startIndex = 0)
         val viewModel = world.viewModel()
         runCurrent()
         val commands = mutableListOf<ReaderCommand>()
@@ -549,7 +550,7 @@ class ReaderViewModelTest {
         runCurrent()
 
         // A flung strip can reach the leading slide with every page in between conflated away.
-        viewModel.onItemFocused(0)
+        viewModel.focusAt(0)
         runCurrent()
 
         val content = viewModel.content()
@@ -585,6 +586,185 @@ class ReaderViewModelTest {
         job.cancel()
     }
 
+    // ---- Reported navigation bugs (A) -------------------------------------------------------------
+
+    @Test
+    fun `a focus reported against the list the UI still renders resolves the same page`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        val rendered = viewModel.content().items
+        val secondPage = rendered.indexOfFirst { it is PageItem && it.chapterId == world.chapterIds[START] && it.pageNumber == 1 }
+
+        // The previous chapter lands and is prepended while the UI is still drawing the old list…
+        viewModel.focusAt(0)
+        runCurrent()
+        // …and the UI reports the page it shows, against that old list.
+        viewModel.onItemFocused(rendered[secondPage].key)
+        runCurrent()
+
+        assertEquals(world.chapterIds[START], viewModel.content().currentChapterId)
+        assertEquals(1, viewModel.content().currentPage)
+    }
+
+    @Test
+    fun `an eviction under a crossing does not move the reader into another chapter`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        viewModel.focusAt(0) // the previous chapter is held too
+        runCurrent()
+        viewModel.crossInto(world.chapterIds[START + 1])
+        runCurrent()
+        val rendered = viewModel.content().items
+        val nextPage = rendered.indexOfFirst { it is PageItem && it.chapterId == world.chapterIds[START + 1] && it.pageNumber == 1 }
+
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1) // drops the chapter two behind
+        runCurrent()
+        viewModel.onItemFocused(rendered[nextPage].key) // the next page turn, from the list on screen
+        runCurrent()
+
+        assertEquals(world.chapterIds[START + 1], viewModel.content().currentChapterId)
+        assertEquals(1, viewModel.content().currentPage)
+    }
+
+    @Test
+    fun `a finished chapter opens on its first page`() = runTest {
+        val world = World(resumePageOfStart = PAGES - 1, startRead = true)
+
+        val viewModel = world.viewModel()
+        runCurrent()
+
+        assertEquals(0, viewModel.content().currentPage)
+        assertEquals(1, viewModel.content().initialItemIndex)
+    }
+
+    @Test
+    fun `a chapter read half way still resumes where it was left`() = runTest {
+        val world = World(resumePageOfStart = 2, startRead = false)
+
+        val viewModel = world.viewModel()
+        runCurrent()
+
+        assertEquals(2, viewModel.content().currentPage)
+    }
+
+    @Test
+    fun `the previous chapter loads from the leading slide and its pages appear`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+
+        viewModel.focusAt(0)
+        runCurrent()
+
+        val content = viewModel.content()
+        assertTrue(world.chapterIds[START - 1] in content.loadedChapterIds)
+        assertEquals(world.chapterIds[START], content.currentChapterId)
+    }
+
+    @Test
+    fun `the previous-chapter button lands on the first page of the previous chapter`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+
+        viewModel.onPreviousChapter()
+        runCurrent()
+
+        val landed = viewModel.content().landedOn(commands.filterIsInstance<ReaderCommand.Jump>().single())
+        assertEquals(world.chapterIds[START - 1], landed.chapterId)
+        assertEquals(0, landed.pageNumber)
+        job.cancel()
+    }
+
+    @Test
+    fun `with two groups the previous chapter is the lower number and not the other group copy`() = runTest {
+        // 1A 1B 2A 2B 3A 3B …, opened on 2B.
+        val world = World(groups = listOf("A", "B"), startIndex = 3)
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+
+        viewModel.onPreviousChapter()
+        runCurrent()
+
+        val landed = viewModel.content().landedOn(commands.filterIsInstance<ReaderCommand.Jump>().single())
+        assertEquals(world.chapterIds[1], landed.chapterId, "expected 1B, the opened chapter's group")
+        job.cancel()
+    }
+
+    @Test
+    fun `with two groups the next chapter is the higher number in the same group`() = runTest {
+        val world = World(groups = listOf("A", "B"), startIndex = 3)
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+
+        viewModel.onNextChapter()
+        runCurrent()
+
+        val landed = viewModel.content().landedOn(commands.filterIsInstance<ReaderCommand.Jump>().single())
+        assertEquals(world.chapterIds[5], landed.chapterId, "expected 3B")
+        assertEquals(0, landed.pageNumber)
+        job.cancel()
+    }
+
+    @Test
+    fun `the previous chapter is preloaded once the reader settles`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        assertFalse(world.chapterIds[START - 1] in viewModel.content().loadedChapterIds)
+
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
+        runCurrent()
+
+        assertTrue(world.chapterIds[START - 1] in viewModel.content().loadedChapterIds)
+        assertEquals(world.chapterIds[START], viewModel.content().currentChapterId)
+    }
+
+    @Test
+    fun `a far chapter opens on its first page and the old pages stay until it lands`() = runTest {
+        val world = World(chapterCount = 8)
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+        val target = world.chapterIds[6]
+        val gate = world.pages.gate(target)
+
+        viewModel.onChapterSelected(target)
+        runCurrent()
+        assertEquals(world.chapterIds[START], viewModel.content().currentChapterId)
+        assertTrue(viewModel.content().items.isNotEmpty(), "the reader emptied while the far chapter loaded")
+
+        gate.complete(Unit)
+        runCurrent()
+
+        val content = viewModel.content()
+        assertEquals(target, content.currentChapterId)
+        val landed = content.landedOn(commands.filterIsInstance<ReaderCommand.Jump>().single())
+        assertEquals(target, landed.chapterId)
+        assertEquals(0, landed.pageNumber)
+        job.cancel()
+    }
+
+    @Test
+    fun `a page the route asks for wins over the resume page`() = runTest {
+        val world = World(resumePageOfStart = 1, initialPage = 3)
+
+        val viewModel = world.viewModel()
+        runCurrent()
+
+        assertEquals(3, viewModel.content().currentPage)
+        assertEquals(4, viewModel.content().initialItemIndex)
+    }
+
     // ---- Helpers --------------------------------------------------------------------------------
 
     private fun ReaderViewModel.content(): Content {
@@ -594,7 +774,10 @@ class ReaderViewModelTest {
     }
 
     /** Focuses the first page of [chapterId], the way the viewport reports crossing a boundary. */
-    private fun ReaderViewModel.crossInto(chapterId: Uuid) = onItemFocused(indexOfFirstPage(chapterId))
+    private fun ReaderViewModel.crossInto(chapterId: Uuid) = focusAt(indexOfFirstPage(chapterId))
+
+    /** Focuses the item at [index] of the list in state, reported by key as the UI does. */
+    private fun ReaderViewModel.focusAt(index: Int) = onItemFocused(content().items[index].key)
 
     // ---- The prefetch budget --------------------------------------------------------------------
 
@@ -691,9 +874,16 @@ class ReaderViewModelTest {
     private class World(
         chapterCount: Int = 6,
         resumePageOfStart: Int = 0,
-        private val cancelWhileLoading: Boolean = false
+        private val cancelWhileLoading: Boolean = false,
+        startRead: Boolean = false,
+        /** Scanlator groups; each chapter number exists once per group, in this order (1A 1B 2A 2B …). */
+        groups: List<String?> = listOf(null),
+        /** Index into [chapterIds] of the chapter the reader opens on. */
+        private val startIndex: Int = START,
+        /** The page the route asks for (a bookmark), or `null` to resume. */
+        private val initialPage: Int? = null
     ) {
-        val chapterIds: List<Uuid> = List(chapterCount) { Uuid.random() }
+        val chapterIds: List<Uuid> = List(chapterCount * groups.size) { Uuid.random() }
         private val mangaId = Uuid.random()
         val pages = FakeGetReaderPages(PAGES)
 
@@ -729,13 +919,14 @@ class ReaderViewModelTest {
                     chapter(
                         id = id,
                         mangaId = mangaId,
-                        number = index + 1,
+                        number = index / groups.size + 1,
+                        scanlator = groups[index % groups.size],
                         progress =
-                            if (index == START && resumePageOfStart > 0) {
+                            if (index == startIndex && (resumePageOfStart > 0 || startRead)) {
                                 ReadingProgress(
                                     hasBookmark = false,
                                     lastPageRead = resumePageOfStart.toUInt(),
-                                    alreadyRead = false
+                                    alreadyRead = startRead
                                 )
                             } else {
                                 null
@@ -769,7 +960,8 @@ class ReaderViewModelTest {
         fun viewModel(): ReaderViewModel =
             ReaderViewModel(
                 mangaId = mangaId,
-                initialChapterId = chapterIds[START],
+                initialChapterId = chapterIds[startIndex],
+                initialPage = initialPage,
                 getReaderPages = pages,
                 updateReadingProgress = progress,
                 observeChapters = FakeObserveChapters(chapters),
@@ -783,6 +975,9 @@ class ReaderViewModelTest {
 
 private val Content.loadedChapterIds: List<Uuid>
     get() = items.filterIsInstance<PageItem>().map { it.chapterId }.distinct()
+
+/** The page a jump lands on, resolved against the list that is now in state. */
+private fun Content.landedOn(jump: ReaderCommand.Jump): PageItem = items.single { it.key == jump.key } as PageItem
 
 private fun Content.indexOfTrailingTransition(): Int =
     items.indexOfLast { it is ReaderItem.Transition && it.from.id == currentChapterId }
@@ -901,14 +1096,15 @@ private fun chapter(
     id: Uuid,
     mangaId: Uuid,
     number: Int,
-    progress: ReadingProgress?
+    progress: ReadingProgress?,
+    scanlator: String? = null
 ): Chapter =
     Chapter(
         id = id,
         mangaId = mangaId,
         chapterNumber = ChapterNumber(number),
         name = Text("Chapter $number"),
-        scanlator = null,
+        scanlator = scanlator?.let(::Text),
         sourceChapterKey = Text("ch-$number"),
         url = Url("https://example.com/chapter/$number"),
         dateUpload = null,

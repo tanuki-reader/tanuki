@@ -108,7 +108,7 @@ sealed interface ReaderItem {
         val pageCount: Int,
         val page: ReaderPage
     ) : ReaderItem {
-        override val key: String get() = "page:$chapterId:$pageNumber"
+        override val key: String get() = pageKey(chapterId, pageNumber)
     }
 
     /**
@@ -137,10 +137,16 @@ sealed interface ReaderItem {
 /**
  * An imperative scroll the ViewModel asks the UI to perform. The reader's pages are driven by user
  * gestures and by these commands; the UI never computes item indices itself.
+ *
+ * Commands name their target by [ReaderItem.key], never by index. An index is only meaningful against
+ * one item list, and the list is re-indexed under the viewport whenever a neighbouring chapter is
+ * prepended or evicted — so an index sent against the list in state can land N items away if the UI
+ * applies it while still drawing the previous list. The UI resolves the key against the items it is
+ * actually rendering, waiting for the key to appear when the list it was sent with hasn't been drawn yet.
  */
 sealed interface ReaderCommand {
-    /** Target item index to scroll to. */
-    val index: Int
+    /** Key of the item to scroll to. */
+    val key: String
 
     /**
      * Keep the viewport on the same logical page after the item list was re-indexed above it — an adjacent
@@ -149,12 +155,17 @@ sealed interface ReaderCommand {
      * Mostly belt-and-braces: both layouts are keyed by [ReaderItem.key] and restore their own position
      * during measure. But Compose builds its key→index map only over a window of roughly a hundred items
      * around the last known position, and outside it the lookup silently keeps the stale index — so a
-     * shift larger than that (a long webtoon chapter leaving the window) would jump. This index is
-     * computed against the freshly emitted list and is subject to no such bound. Paged layouts apply it;
-     * the strip ignores it, since re-issuing a scroll it has already made itself would fight the user.
+     * shift larger than that (a long webtoon chapter leaving the window) would jump. Every layout applies
+     * it, but only when the item on screen isn't already [key], so it never fights a scroll in progress.
      */
-    data class Reanchor(override val index: Int) : ReaderCommand
+    data class Reanchor(override val key: String) : ReaderCommand
 
-    /** An explicit user jump (scrubber, or the prev/next-chapter buttons). Every layout applies it. */
-    data class Jump(override val index: Int) : ReaderCommand
+    /** An explicit user jump (scrubber, chapter buttons, chapter list). Every layout applies it. */
+    data class Jump(override val key: String) : ReaderCommand
 }
+
+/** The [ReaderItem.key] of page [pageNumber] of [chapterId] — what jumps are addressed to. */
+internal fun pageKey(
+    chapterId: Uuid,
+    pageNumber: Int
+): String = "page:$chapterId:$pageNumber"

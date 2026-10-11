@@ -71,6 +71,12 @@ fun DestinationContent(
                 onBack = onBack
             )
         is MangaDetail -> MangaRoute(mangaId = destination.mangaId, onNavigate = onNavigate, onBack = onBack)
-        is Reader -> ReaderRoute(mangaId = destination.mangaId, chapterId = destination.chapterId, onBack = onBack)
+        is Reader ->
+            ReaderRoute(
+                mangaId = destination.mangaId,
+                chapterId = destination.chapterId,
+                page = destination.page,
+                onBack = onBack
+            )
     }
 }

@@ -54,6 +54,7 @@ import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.uuid.Uuid
 
 /**
@@ -92,14 +93,15 @@ import kotlin.uuid.Uuid
  * Four pipelines hang off it. **Fetching is flow-driven** — every chapter change drives [warmWindow],
  * which loads the current chapter and warms its successor. **Eviction** runs once the window has held
  * still for [EVICT_QUIET_MS], because the reader's position moves mid-gesture and dropping items from
- * above a viewport under a live finger is not something to do eagerly. **Progress** is a debounced flow,
+ * above a viewport under a live finger is not something to do eagerly — and the previous chapter is warmed
+ * on the same quiet beat, since its pages land above the viewport too. **Progress** is a debounced flow,
  * so a fast swipe writes once. And the **spine** is live: the chapter list can change under an open
  * reader, so the session is re-projected onto it rather than snapshotted (see [spines] and [reproject]).
  *
  * ## Why this extends [TanukiViewModel] and not `StateViewModel`
  *
  * Not because the state isn't derived — it is, entirely. Because `asState` doesn't fit, three ways: it
- * maps on [DispatcherProvider.default], and [focusedItemKey]/[lastAnchoredIndex]/[pendingJumpChapterId]
+ * maps on [DispatcherProvider.default], and [focusedItemKey]/[lastAnchoredIndex]/[pendingJump]
  * are mutated from both the pipeline and the main thread, so the hop would leave them unsynchronised;
  * the scroll [ReaderCommand]s must be computed *after* the state is published, where a `state` flow sits
  * upstream of `stateIn` and nothing has; and `WhileSubscribed` would stop and reseed [frames]' `scan` on
@@ -129,6 +131,7 @@ import kotlin.uuid.Uuid
 class ReaderViewModel(
     @Assisted private val mangaId: Uuid,
     @Assisted private val initialChapterId: Uuid,
+    @Assisted private val initialPage: Int?,
     private val getReaderPages: GetReaderPages,
     private val updateReadingProgress: UpdateReadingProgress,
     private val observeChapters: ObserveChapters,
@@ -193,8 +196,8 @@ class ReaderViewModel(
     /** Last index we re-anchored the pager to, so we don't re-send a no-op [ReaderCommand.Reanchor]. */
     private var lastAnchoredIndex: Int = -1
 
-    /** A chapter to jump to (prev/next button) once its pages have loaded; resolved by the content pipeline. */
-    private var pendingJumpChapterId: Uuid? = null
+    /** A page to jump to once its chapter's pages have loaded; resolved by the content pipeline. */
+    private var pendingJump: PendingJump? = null
 
     /**
      * Progress writes waiting to be persisted. A flow rather than a hand-cancelled job: the debounce is the
@@ -260,6 +263,10 @@ class ReaderViewModel(
             }.onEach { active ->
                 val evicted = window.updateAndGet { it.evicted(active) }
                 logger.debug(tag, "Reader window holds ${evicted.pages.size} chapters")
+                // The previous chapter is warmed here, on a parked reader, rather than with the next one
+                // at open: its pages go *above* the viewport, and both layouts hold their place across
+                // that by key — which is only safe once nothing is mid-gesture.
+                active.siblings.getOrNull(active.positionOf(evicted.currentChapterId) - 1)?.let { loadChapter(it.id) }
             }.launchIn(viewModelScope)
 
         // Progress pipeline: one write lands per quiet period, so a fast swipe through a chapter writes
@@ -300,7 +307,7 @@ class ReaderViewModel(
         window.value = ReaderWindow.EMPTY
         focusedItemKey = null
         lastAnchoredIndex = -1
-        pendingJumpChapterId = null
+        pendingJump = null
 
         viewModelScope.launch {
             // Cancellable, not plain `runCatching`: a reader closed while this is resolving must unwind
@@ -326,9 +333,12 @@ class ReaderViewModel(
                 return@launch
             }
 
-            // Resume where the user left off, clamped in case the page count shrank since last read.
+            // Resume where the user left off — unless the chapter is finished, which reopens at its start
+            // (its last page read is the end, and reopening a read chapter means reading it again). A
+            // page the route asked for (a bookmark) wins over both. Clamped in case the count shrank.
+            val progress = siblings[startIndex].progress
             val resumePage =
-                (siblings[startIndex].progress?.lastPageRead?.toInt() ?: 0)
+                (initialPage ?: if (progress?.alreadyRead == true) 0 else progress?.lastPageRead?.toInt() ?: 0)
                     .coerceIn(0, (pages.size - 1).coerceAtLeast(0))
 
             // The pager starts on the resume page, shifted past a leading transition when a previous chapter
@@ -352,9 +362,9 @@ class ReaderViewModel(
             persistNow(initialChapterId, resumePage, read = markRead)
 
             // Publishing the session starts the content + warm pipelines; the warm pipeline preloads the
-            // next chapter (so crossing the trailing boundary is seamless). The previous chapter is loaded
-            // lazily — when its leading transition is focused — rather than prepended here, which would
-            // shove the just-opened page down and force a re-anchor.
+            // next chapter (so crossing the trailing boundary is seamless). The previous chapter is not
+            // prepended here, which would shove the just-opened page down mid-layout: it is warmed once the
+            // reader settles (the eviction pipeline), or at once if its leading transition is focused.
             bootstrap.value = Bootstrap.Ready(resolved)
         }
     }
@@ -368,17 +378,21 @@ class ReaderViewModel(
     }
 
     /**
-     * The viewport settled on item [index] (a page swipe/scroll, or the result of a command). Updates the
-     * chrome, persists progress, slides the window if the page belongs to a neighbouring chapter, and kicks
-     * off any loading a transition slide implies.
+     * The viewport settled on the item keyed [key] (a page swipe/scroll, or the result of a command).
+     * Updates the chrome, persists progress, slides the window if the page belongs to a neighbouring
+     * chapter, and kicks off any loading a transition slide implies.
      *
-     * The [index] refers to the list the UI is currently rendering — i.e. the last emitted [Content] — so
-     * this resolves it against [uiState], not a freshly rebuilt list.
+     * By key, not index: the UI may still be drawing the list before the one in [uiState] (a chapter was
+     * just prepended or evicted), and an index from that list resolved against this one names an item N
+     * positions away — the end of the chapter, or the next one. A key names the same item in both. A key
+     * that is no longer held (its chapter was evicted) is ignored.
      */
-    fun onItemFocused(index: Int) {
+    fun onItemFocused(key: String) {
         val content = uiState.value as? Content ?: return
-        val item = content.items.getOrNull(index) ?: return
-        focusedItemKey = item.key
+        val index = content.items.indexOfFirst { it.key == key }
+        if (index < 0) return
+        val item = content.items[index]
+        focusedItemKey = key
         lastAnchoredIndex = index
         when (item) {
             is PageItem -> onPageFocused(item)
@@ -448,45 +462,85 @@ class ReaderViewModel(
     /** Scrub to page [page] of the current chapter (from the bottom-chrome slider). */
     fun onScrubToPage(page: Int) {
         val content = uiState.value as? Content ?: return
-        val index =
-            content.items.indexOfFirst {
-                it is PageItem && it.chapterId == content.currentChapterId && it.pageNumber == page
-            }
-        if (index >= 0) _commands.trySend(ReaderCommand.Jump(index))
+        val key = pageKey(content.currentChapterId, page)
+        if (content.items.any { it.key == key }) _commands.trySend(ReaderCommand.Jump(key))
     }
 
     /** Jump to the start of the next chapter (bottom-chrome button); loads it first if needed. */
     fun onNextChapter() {
         val active = session ?: return
         active.siblings.getOrNull(active.positionOf(window.value.currentChapterId) + 1)
-            ?.let { jumpToChapterStart(it.id) }
+            ?.let { jumpTo(it.id, page = 0) }
     }
 
     /** Jump to the start of the previous chapter (bottom-chrome button); loads it first if needed. */
     fun onPreviousChapter() {
         val active = session ?: return
         val position = active.positionOf(window.value.currentChapterId)
-        if (position > 0) jumpToChapterStart(active.siblings[position - 1].id)
+        if (position > 0) jumpTo(active.siblings[position - 1].id, page = 0)
     }
+
+    /** Open any chapter of the series at its first page (the chapter list). */
+    fun onChapterSelected(chapterId: Uuid) = jumpTo(chapterId, page = 0)
 
     /** The back affordance was tapped. */
     fun onBack() {
         navigateBack()
     }
 
-    private fun jumpToChapterStart(chapterId: Uuid) {
-        if (window.value.holds(chapterId)) {
-            val content = uiState.value as? Content ?: return
-            val index =
-                content.items.indexOfFirst {
-                    it is PageItem && it.chapterId == chapterId && it.pageNumber == 0
-                }
-            if (index >= 0) _commands.trySend(ReaderCommand.Jump(index))
-        } else {
-            // Not fetched yet (its transition slide is still page-less): load, and the content pipeline
-            // performs the jump once the pages land (see [resolvePendingJump]).
-            pendingJumpChapterId = chapterId
+    /**
+     * Lands the reader on [page] of [chapterId], from wherever it is.
+     *
+     * - **Held:** jump straight there.
+     * - **A neighbour:** load it into the window; the jump fires once its pages land (see
+     *   [resolvePendingJump]).
+     * - **Further away:** the window can't grow to reach it (it holds one chapter either side), so it is
+     *   *reseeded* on the target — but only once the target's pages are in hand, in a single write, so
+     *   the reader never shows an empty list in between (see [reseed]).
+     */
+    private fun jumpTo(
+        chapterId: Uuid,
+        page: Int
+    ) {
+        val active = session ?: return
+        val target = active.positionOf(chapterId)
+        if (target < 0) return
+        val current = window.value
+        current.pages[chapterId]?.let { pages ->
+            pendingJump = null
+            _commands.trySend(ReaderCommand.Jump(pageKey(chapterId, page.coerceIn(0, pages.lastIndex.coerceAtLeast(0)))))
+            return
+        }
+        pendingJump = PendingJump(chapterId, page)
+        if (abs(target - active.positionOf(current.currentChapterId)) <= ReaderWindow.RADIUS) {
             loadChapter(chapterId)
+        } else {
+            reseed(chapterId)
+        }
+    }
+
+    /**
+     * Fetches a chapter outside the window and, once its pages are in hand, replaces the window with it
+     * in one write. The old pages stay on screen meanwhile; a jump made elsewhere before the fetch lands
+     * (the user changed their mind) leaves the window alone.
+     */
+    private fun reseed(chapterId: Uuid) {
+        if (chapterId in window.value.loading) return
+        window.update { it.loadingStarted(chapterId) }
+        viewModelScope.launch {
+            val pages =
+                tryIo("Failed to load pages for chapter $chapterId", reportAs = PAGES_UNAVAILABLE) {
+                    getReaderPages(chapterId)
+                }.getOrNull()
+            if (pages == null || pendingJump?.chapterId != chapterId) {
+                window.update { it.loadingFinished(chapterId) }
+                return@launch
+            }
+            // The page on screen leaves the list with this write; nothing to re-anchor to until the jump
+            // lands and the UI reports the new page.
+            focusedItemKey = null
+            lastAnchoredIndex = -1
+            window.value = ReaderWindow(chapterId, mapOf(chapterId to pages), emptySet())
         }
     }
 
@@ -566,10 +620,26 @@ class ReaderViewModel(
      * from a hidden scanlator. The opened chapter itself is always kept — the user navigated straight to
      * it (from history, say), even if its group is otherwise hidden.
      */
-    private fun siblingsOf(spine: Spine): List<Chapter> =
-        spine.chapters
-            .filter { it.id == initialChapterId || !it.isHiddenBy(spine.hidden) }
-            .sortedWith(compareBy(nullsLast()) { it.chapterNumber })
+    private fun siblingsOf(spine: Spine): List<Chapter> {
+        val shown =
+            spine.chapters
+                .filter { it.id == initialChapterId || !it.isHiddenBy(spine.hidden) }
+                .sortedWith(compareBy(nullsLast()) { it.chapterNumber })
+        // One chapter per number. Two groups releasing the same chapter would otherwise sit side by side
+        // in the spine, so "previous" from 12 (group B) was 12 (group A) and the real 11 was unreachable,
+        // and "next" walked into a copy of the chapter just read. The opened chapter always stays; for
+        // other numbers, the opened chapter's group wins, else the first in source order.
+        val group = spine.chapters.firstOrNull { it.id == initialChapterId }?.scanlator
+        return shown
+            .groupBy { it.chapterNumber }
+            .flatMap { (number, copies) ->
+                if (number == null || copies.size == 1) {
+                    copies
+                } else {
+                    listOf(copies.firstOrNull { it.id == initialChapterId } ?: copies.firstOrNull { it.scanlator == group } ?: copies.first())
+                }
+            }
+    }
 
     /**
      * Rebuilds the session on a spine that has changed under the reader.
@@ -636,10 +706,11 @@ class ReaderViewModel(
      * could only happen if the chapter on screen were evicted — something [ReaderWindow] forbids.
      */
     private fun reanchorIfNeeded(items: List<ReaderItem>) {
-        val index = focusedItemKey?.let { key -> items.indexOfFirst { it.key == key } } ?: -1
+        val key = focusedItemKey ?: return
+        val index = items.indexOfFirst { it.key == key }
         if (index >= 0 && index != lastAnchoredIndex) {
             lastAnchoredIndex = index
-            _commands.trySend(ReaderCommand.Reanchor(index))
+            _commands.trySend(ReaderCommand.Reanchor(key))
         }
     }
 
@@ -649,9 +720,9 @@ class ReaderViewModel(
      * scrolling the reader out from under a user who has long since moved on.
      */
     private fun abandonUnreachableJump() {
-        val target = pendingJumpChapterId ?: return
+        val target = pendingJump?.chapterId ?: return
         val current = window.value
-        if (!current.holds(target) && target !in current.loading) pendingJumpChapterId = null
+        if (!current.holds(target) && target !in current.loading) pendingJump = null
     }
 
     /**
@@ -660,13 +731,11 @@ class ReaderViewModel(
      * the moment the freshly emitted list contains the target.
      */
     private fun resolvePendingJump(items: List<ReaderItem>) {
-        val target = pendingJumpChapterId ?: return
-        val index =
-            items.indexOfFirst { it is PageItem && it.chapterId == target && it.pageNumber == 0 }
-        if (index >= 0) {
-            pendingJumpChapterId = null
-            _commands.trySend(ReaderCommand.Jump(index))
-        }
+        val target = pendingJump ?: return
+        val pages = items.filterIsInstance<PageItem>().filter { it.chapterId == target.chapterId }
+        if (pages.isEmpty()) return
+        pendingJump = null
+        _commands.trySend(ReaderCommand.Jump(pageKey(target.chapterId, target.page.coerceIn(0, pages.lastIndex))))
     }
 
     /**
@@ -810,7 +879,8 @@ class ReaderViewModel(
     fun interface Factory : ManualViewModelAssistedFactory {
         fun create(
             mangaId: Uuid,
-            initialChapterId: Uuid
+            initialChapterId: Uuid,
+            initialPage: Int?
         ): ReaderViewModel
     }
 
@@ -832,6 +902,12 @@ class ReaderViewModel(
         /** Ready to read. */
         data class Ready(val session: ReaderSession) : Bootstrap
     }
+
+    /** A jump waiting for its chapter's pages: [page] is clamped to the chapter once they land. */
+    private data class PendingJump(
+        val chapterId: Uuid,
+        val page: Int
+    )
 
     /** One pending progress write, queued through [pendingProgress]. */
     private data class ProgressWrite(

@@ -28,17 +28,19 @@ import kotlin.uuid.Uuid
  *
  * @param mangaId the series being read — so the reader can page across sibling chapters.
  * @param chapterId the chapter to open — decoded from the route by the host `NavHost`.
+ * @param page the page to open at (a bookmark), or `null` to resume.
  * @param onBack invoked when navigation should pop back to the previous screen.
  */
 @Composable
 fun ReaderRoute(
     mangaId: Uuid,
     chapterId: Uuid,
+    page: Int?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel =
-        assistedMetroViewModel<ReaderViewModel, ReaderViewModel.Factory> { create(mangaId, chapterId) }
+        assistedMetroViewModel<ReaderViewModel, ReaderViewModel.Factory> { create(mangaId, chapterId, page) }
 
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
