@@ -64,7 +64,53 @@ class ProvidersTest {
         assertEquals(listOf("1", "2"), covers.map { it.label })
         assertTrue(covers.all { it.origin == CoverOrigin.MangaDex })
     }
+
+    @Test
+    fun `an AniList search result carries every title - native and synonyms too`() = runTest {
+        val client = HttpClient(MockEngine { respond(SEARCH, HttpStatusCode.OK, json) })
+
+        val result = AniListProvider(client).search("sextudy group").single()
+
+        assertEquals("Sex Study Group", result.title)
+        assertEquals(listOf("Sex Study Group", "Sextudy Group", "섹터디그룹", "深度交流會"), result.titles)
+    }
+
+    @Test
+    fun `a MangaDex title search asks for every rating and maps titles and links`() = runTest {
+        var params = io.ktor.http.Parameters.Empty
+        val client =
+            HttpClient(
+                MockEngine { request ->
+                    params = request.url.parameters
+                    respond(TITLE_SEARCH, HttpStatusCode.OK, json)
+                }
+            )
+
+        val candidates = MangaDexProvider(client).byTitle("Sextudy Group")
+
+        assertEquals("Sextudy Group", params["title"])
+        assertEquals(listOf("safe", "suggestive", "erotica", "pornographic"), params.getAll("contentRating[]"))
+        assertEquals(listOf("Sextudy Group", "Sex Study Group"), candidates[0].titles)
+        assertEquals(Triple(145493L, 152218L, "sg-id"), Triple(candidates[0].anilistId, candidates[0].malId, candidates[0].mangaDexId))
+        assertEquals(null to null, candidates[1].anilistId to candidates[1].malId)
+    }
 }
+
+private val SEARCH =
+    """
+    {"data":{"Page":{"media":[{"id":145493,"format":"MANGA",
+      "title":{"english":"Sex Study Group","romaji":"Sextudy Group","native":"섹터디그룹"},
+      "synonyms":["深度交流會",""],"coverImage":{"large":"https://img/sg.jpg"},"startDate":{"year":2022}}]}}}
+    """.trimIndent()
+
+private val TITLE_SEARCH =
+    """
+    {"result":"ok","data":[
+      {"id":"sg-id","attributes":{"title":{"en":"Sextudy Group"},"altTitles":[{"en":"Sex Study Group"}],
+        "links":{"al":"145493","mal":"152218"}}},
+      {"id":"other","attributes":{"title":{"en":"Other"},"altTitles":[],"links":[]}}
+    ]}
+    """.trimIndent()
 
 private val MEDIA =
     """

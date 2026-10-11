@@ -25,8 +25,11 @@ choice of covers. Chapters always come from the source; only *descriptive* metad
 | Several covers to choose from | MangaDex `GET /cover?manga[]=…` (one per volume), AniList cover, the source's own cover | ✓ (MangaDex covers API) |
 | MyAnimeList's own score / pictures | Official MAL API needs a client id; Jikan (unofficial) timed out from the dev network | deferred |
 
-Only sources that publish no ids (Hipercool, Manhastro today) need a fuzzy match: an AniList title
-search the user confirms once ("Is this the right series?").
+Sources that publish no ids (Hipercool, Manhastro today) are matched by title, once: an AniList search,
+then MangaDex's (its alt titles cover most scanlation names, and it links to AniList/MAL). The series is
+linked only when its title equals a title of exactly one result, case and punctuation aside
+(`MatchedBy.Title`); otherwise it's `Unmatched` and the user can match it by hand ("Is this the right
+series?").
 
 ## Architecture
 
@@ -92,7 +95,8 @@ title/cover (a `resolved_cover_url` column on the link, so list queries don't pa
 
 - AniList rate limit (90/min): enrich on detail open only, never in bulk on library refresh; queue with
   backoff on 429.
-- Fuzzy matches can be wrong → never auto-link a search result; the user confirms.
+- Title matches can be wrong → auto-link only an exact title shared by exactly one result; anything
+  looser waits for the user. A wrong match is undone by unlinking, which is never re-matched.
 - Review bodies are long Markdown/HTML → show summaries; full text links out.
 - MyAnimeList score: add a `MalProvider` later behind the same interface once a client id is registered.
 - Offline: metadata is cached; nothing blocks the page if AniList is unreachable (source data shows).

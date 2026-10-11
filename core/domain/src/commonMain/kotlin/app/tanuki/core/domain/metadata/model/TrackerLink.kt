@@ -28,6 +28,12 @@ enum class MatchedBy {
     /** The source published the ids (exact). */
     Source,
 
-    /** The user confirmed a search result. */
-    User
+    /** The user confirmed a search result (or unlinked it). */
+    User,
+
+    /** The source published no ids; its title matched exactly one series' title. */
+    Title,
+
+    /** The source published no ids and its title matched nothing; not searched again. */
+    Unmatched
 }

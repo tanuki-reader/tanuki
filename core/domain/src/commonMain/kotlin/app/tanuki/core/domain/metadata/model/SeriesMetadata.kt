@@ -77,7 +77,9 @@ data class MetadataSearchResult(
     val title: String,
     val coverUrl: String?,
     val year: Int?,
-    val format: String?
+    val format: String?,
+    /** Every name the series goes by (English, romaji, native, synonyms). */
+    val titles: List<String> = emptyList()
 )
 
 /** A cover the user can pick for a series. */

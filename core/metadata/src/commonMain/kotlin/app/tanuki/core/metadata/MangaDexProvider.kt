@@ -3,6 +3,8 @@ package app.tanuki.core.metadata
 import app.tanuki.core.domain.metadata.CoverProvider
 import app.tanuki.core.domain.metadata.LocalizedText
 import app.tanuki.core.domain.metadata.LocalizedTextProvider
+import app.tanuki.core.domain.metadata.TitleCandidate
+import app.tanuki.core.domain.metadata.TitleLookup
 import app.tanuki.core.domain.metadata.model.CoverOption
 import app.tanuki.core.domain.metadata.model.CoverOrigin
 import dev.zacsweers.metro.AppScope
@@ -14,6 +16,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.isSuccess
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -25,15 +28,18 @@ import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * MangaDex's public API: volume covers ([CoverProvider], one per volume from `/cover`) and a series'
- * title and synopsis per language ([LocalizedTextProvider], from `/manga/{id}`).
+ * title and synopsis per language ([LocalizedTextProvider], from `/manga/{id}`), and series by title
+ * ([TitleLookup], from `/manga?title=`).
  */
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class, binding = binding<CoverProvider>())
 @ContributesBinding(AppScope::class, binding = binding<LocalizedTextProvider>())
+@ContributesBinding(AppScope::class, binding = binding<TitleLookup>())
 class MangaDexProvider internal constructor(
     private val client: HttpClient
 ) : CoverProvider,
-    LocalizedTextProvider {
+    LocalizedTextProvider,
+    TitleLookup {
     @Inject
     constructor() : this(metadataHttpClient())
 
@@ -63,6 +69,21 @@ class MangaDexProvider internal constructor(
             .takeIf { it.title != null || it.synopsis != null }
     }
 
+    /** Every content rating: the default leaves out erotica, and the source already chose what to show. */
+    override suspend fun byTitle(title: String): List<TitleCandidate> {
+        val ratings = RATINGS.joinToString("") { "&contentRating[]=$it" }
+        val body = get("https://api.mangadex.org/manga?title=${title.encodeURLParameter()}&limit=10$ratings")
+        return json.decodeFromString<MangaList>(body).data.map { manga ->
+            val attributes = manga.attributes
+            TitleCandidate(
+                titles = (listOfNotNull(attributes.title) + attributes.altTitles).flatMap { it.texts() },
+                anilistId = attributes.links.text("al")?.toLongOrNull(),
+                malId = attributes.links.text("mal")?.toLongOrNull(),
+                mangaDexId = manga.id
+            )
+        }
+    }
+
     private suspend fun get(url: String): String {
         val response =
             limiter.run {
@@ -77,6 +98,7 @@ class MangaDexProvider internal constructor(
 
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
+        val RATINGS = listOf("safe", "suggestive", "erotica", "pornographic")
     }
 }
 
@@ -93,14 +115,22 @@ private data class CoverAttributes(val fileName: String? = null, val volume: Str
 private data class MangaEnvelope(val data: MangaDto)
 
 @Serializable
-private data class MangaDto(val attributes: MangaAttributes = MangaAttributes())
+private data class MangaList(val data: List<MangaDto> = emptyList())
+
+@Serializable
+private data class MangaDto(val id: String = "", val attributes: MangaAttributes = MangaAttributes())
 
 /** Language-keyed maps, kept as raw JSON: MangaDex sends an empty one as `[]`. */
 @Serializable
 private data class MangaAttributes(
     val title: JsonElement? = null,
     val altTitles: List<JsonElement> = emptyList(),
-    val description: JsonElement? = null
+    val description: JsonElement? = null,
+    val links: JsonElement? = null
 )
 
 private fun JsonElement?.text(lang: String): String? = ((this as? JsonObject)?.get(lang) as? JsonPrimitive)?.contentOrNull
+
+/** Every language's entry. */
+private fun JsonElement.texts(): List<String> =
+    (this as? JsonObject)?.values.orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }

@@ -34,6 +34,19 @@ interface LocalizedTextProvider {
     ): LocalizedText?
 }
 
+/** A series found by title, with every name it goes by and the ids it links to. */
+data class TitleCandidate(
+    val titles: List<String>,
+    val anilistId: Long?,
+    val malId: Long?,
+    val mangaDexId: String
+)
+
+/** Finds series by title beyond the [MetadataProvider] (MangaDex today, whose alt titles cover most scanlation names). */
+interface TitleLookup {
+    suspend fun byTitle(title: String): List<TitleCandidate>
+}
+
 /** Extra covers for a series, beyond the source's and the metadata's one. */
 interface CoverProvider {
     /** One per volume, in volume order. Empty when the series has none. */

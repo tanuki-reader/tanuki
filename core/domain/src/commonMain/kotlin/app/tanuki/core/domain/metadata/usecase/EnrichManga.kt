@@ -7,6 +7,7 @@ import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.metadata.LocalizedTextProvider
 import app.tanuki.core.domain.metadata.MetadataProvider
 import app.tanuki.core.domain.metadata.MetadataRepository
+import app.tanuki.core.domain.metadata.TitleLookup
 import app.tanuki.core.domain.metadata.model.DEFAULT_METADATA_LANG
 import app.tanuki.core.domain.metadata.model.MatchedBy
 import app.tanuki.core.domain.metadata.model.SeriesMetadata
@@ -29,7 +30,9 @@ import kotlin.uuid.Uuid
  * data at once and [ObserveMangaMetadata] fills the rest in when this lands.
  *
  * 1. **Link.** The stored [TrackerLink], or — the first time — the ids the source publishes for the series
- *    (one details call; recorded even when the source has none, so it isn't asked again).
+ *    (one details call; recorded even when the source has none, so it isn't asked again). When it has
+ *    none, the series' title is searched once — AniList, then MangaDex ([TitleLookup]) — and linked only
+ *    if it equals a title of exactly one series ([MatchedBy.Title]; else [MatchedBy.Unmatched]).
  * 2. **Fetch.** Per series *and* the source's language. Skipped while the cached row is fresher than
  *    [METADATA_TTL] unless [force]d. By AniList id when known, else by MyAnimeList id (and the AniList id
  *    it resolves to is stored). Outside English, the title and synopsis come from MangaDex's text in that
@@ -55,6 +58,7 @@ interface EnrichManga {
         private val metadataRepository: MetadataRepository,
         private val provider: MetadataProvider,
         private val localizedText: LocalizedTextProvider,
+        private val titleLookup: TitleLookup,
         private val applyMangaMetadata: ApplyMangaMetadata,
         private val logger: Logger
     ) : EnrichManga {
@@ -70,6 +74,7 @@ interface EnrichManga {
                     (metadataRepository.getLink(mangaId) ?: linkFromSource(manga, source) ?: return)
                         // Links made before they carried a language (or after a source changed its own).
                         .let { if (it.lang == lang) it else it.copy(lang = lang).also { l -> metadataRepository.upsertLink(l) } }
+                        .let { if (it.matchedBy == MatchedBy.Source && it.anilistId == null && it.malId == null) matchByTitle(it, manga) else it }
                 fetch(link, force)
                 applyMangaMetadata(mangaId)
             } catch (e: CancellationException) {
@@ -96,6 +101,24 @@ interface EnrichManga {
             if (fetched.anilistId != anilistId || (link.malId == null && fetched.malId != null)) {
                 metadataRepository.upsertLink(link.copy(anilistId = fetched.anilistId, malId = link.malId ?: fetched.malId))
             }
+        }
+
+        /** [link] with the ids of the one series whose title is [manga]'s, or marked [MatchedBy.Unmatched]. */
+        private suspend fun matchByTitle(
+            link: TrackerLink,
+            manga: Manga
+        ): TrackerLink {
+            val title = manga.title.value
+            val matched =
+                provider.search(title).singleExact(title) { it.titles }?.let { link.copy(anilistId = it.anilistId) }
+                    ?: titleLookup
+                        .byTitle(title)
+                        .filter { it.anilistId != null || it.malId != null }
+                        .singleExact(title) { it.titles }
+                        ?.let { link.copy(anilistId = it.anilistId, malId = it.malId, mangaDexId = link.mangaDexId ?: it.mangaDexId) }
+            val result = matched?.copy(matchedBy = MatchedBy.Title) ?: link.copy(matchedBy = MatchedBy.Unmatched)
+            metadataRepository.upsertLink(result)
+            return result
         }
 
         /** The provider's (English) metadata with [TrackerLink.lang]'s title and synopsis, or none. */
@@ -125,6 +148,17 @@ interface EnrichManga {
             metadataRepository.upsertLink(link)
             return link
         }
+
+        // ponytail: exact match only (case and punctuation aside); a year/format tie-break if too few match.
+        private fun <T> List<T>.singleExact(
+            title: String,
+            titles: (T) -> List<String>
+        ): T? {
+            val wanted = title.normalized()
+            return filter { candidate -> titles(candidate).any { it.normalized() == wanted } }.singleOrNull()
+        }
+
+        private fun String.normalized(): String = lowercase().filter(Char::isLetterOrDigit)
 
         private companion object {
             const val TAG = "EnrichManga"

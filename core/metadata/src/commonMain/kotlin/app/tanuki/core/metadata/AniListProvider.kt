@@ -55,7 +55,8 @@ class AniListProvider internal constructor(
                 title = it.title.preferred(),
                 coverUrl = it.coverImage?.large,
                 year = it.startDate?.year,
-                format = it.format
+                format = it.format,
+                titles = listOfNotNull(it.title.english, it.title.romaji, it.title.native).plus(it.synonyms).filter(String::isNotBlank)
             )
         }
     }
@@ -117,7 +118,7 @@ class AniListProvider internal constructor(
             query (${'$'}search: String) {
               Page(perPage: 10) {
                 media(search: ${'$'}search, type: MANGA, sort: SEARCH_MATCH) {
-                  id format title { english romaji } coverImage { large } startDate { year }
+                  id format title { english romaji native } synonyms coverImage { large } startDate { year }
                 }
               }
             }
@@ -142,7 +143,7 @@ private data class SearchData(
 private data class PageDto(val media: List<MediaDto> = emptyList())
 
 @Serializable
-private data class TitleDto(val english: String? = null, val romaji: String? = null) {
+private data class TitleDto(val english: String? = null, val romaji: String? = null, val native: String? = null) {
     fun preferred(): String = english?.takeIf { it.isNotBlank() } ?: romaji.orEmpty()
 }
 
@@ -188,6 +189,7 @@ private data class MediaDto(
     val format: String? = null,
     val countryOfOrigin: String? = null,
     val title: TitleDto = TitleDto(),
+    val synonyms: List<String> = emptyList(),
     val description: String? = null,
     val coverImage: ImageDto? = null,
     val bannerImage: String? = null,

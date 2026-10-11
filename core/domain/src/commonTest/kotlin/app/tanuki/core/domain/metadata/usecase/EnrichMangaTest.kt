@@ -14,6 +14,9 @@ import app.tanuki.core.domain.metadata.LocalizedText
 import app.tanuki.core.domain.metadata.LocalizedTextProvider
 import app.tanuki.core.domain.metadata.MetadataProvider
 import app.tanuki.core.domain.metadata.MetadataRepository
+import app.tanuki.core.domain.metadata.TitleCandidate
+import app.tanuki.core.domain.metadata.TitleLookup
+import app.tanuki.core.domain.metadata.model.MatchedBy
 import app.tanuki.core.domain.metadata.model.MetadataSearchResult
 import app.tanuki.core.domain.metadata.model.SeriesMetadata
 import app.tanuki.core.domain.metadata.model.TrackerLink
@@ -153,6 +156,69 @@ class EnrichMangaTest {
     }
 
     @Test
+    fun `a source without ids links by an exact AniList title - case and punctuation aside`() = runTest {
+        val world = World()
+        world.loader.publishesIds = false
+        world.provider.searchResults = listOf(result(1, "Sex Study Group", "Sextudy Group"), result(2, "Sextudy Group 2"))
+        val manga = world.manga("sg", title = "SEXTUDY GROUP!")
+
+        world.enrich(manga.id)
+
+        val link = world.repository.links.value.getValue(manga.id)
+        assertEquals(1L to MatchedBy.Title, link.anilistId to link.matchedBy)
+        assertEquals(0, world.titleLookup.calls)
+        assertEquals(1, world.provider.calls)
+    }
+
+    @Test
+    fun `no exact AniList match falls back to MangaDex titles and ids`() = runTest {
+        val world = World()
+        world.loader.publishesIds = false
+        world.provider.searchResults = listOf(result(1, "Sextudy Group Season 2"))
+        world.titleLookup.candidates =
+            listOf(
+                TitleCandidate(listOf("Something Else", "Sextudy Group"), anilistId = 145493, malId = 7, mangaDexId = "md-sg"),
+                TitleCandidate(listOf("Sextudy Group"), anilistId = null, malId = null, mangaDexId = "md-no-ids")
+            )
+        val manga = world.manga("sg", ptSource, title = "Sextudy Group")
+
+        world.enrich(manga.id)
+
+        val link = world.repository.links.value.getValue(manga.id)
+        assertEquals(Triple(145493L, 7L, "md-sg"), Triple(link.anilistId, link.malId, link.mangaDexId))
+        assertEquals(MatchedBy.Title, link.matchedBy)
+    }
+
+    @Test
+    fun `an ambiguous or missing title stays unmatched and is not searched again`() = runTest {
+        val world = World()
+        world.loader.publishesIds = false
+        world.provider.searchResults = listOf(result(1, "Sextudy Group"), result(2, "Sextudy Group"))
+        val manga = world.manga("sg", title = "Sextudy Group")
+
+        world.enrich(manga.id)
+        world.enrich(manga.id)
+
+        assertEquals(MatchedBy.Unmatched, world.repository.links.value.getValue(manga.id).matchedBy)
+        assertEquals(1, world.provider.searchCalls)
+        assertEquals(1, world.titleLookup.calls)
+        assertEquals(0, world.provider.calls)
+    }
+
+    @Test
+    fun `a series the user unlinked is never matched by title`() = runTest {
+        val world = World()
+        world.provider.searchResults = listOf(result(1, "One Piece"))
+        val manga = world.manga("op")
+        world.repository.upsertLink(TrackerLink(manga.id, null, null, null, MatchedBy.User))
+
+        world.enrich(manga.id)
+
+        assertEquals(0, world.provider.searchCalls)
+        assertEquals(null, world.repository.links.value.getValue(manga.id).anilistId)
+    }
+
+    @Test
     fun `a provider failure is swallowed`() = runTest {
         val world = World()
         world.provider.failing = true
@@ -168,19 +234,21 @@ class EnrichMangaTest {
         val provider = CountingProvider()
         val loader = DetailsLoader()
         val localized = RecordingLocalizedText()
+        val titleLookup = FakeTitleLookup()
         private var held: FakeMangaRepository? = null
         val mangaRepository: FakeMangaRepository get() = checkNotNull(held)
 
         fun manga(
             key: String,
-            from: Source = source
+            from: Source = source,
+            title: String = "One Piece"
         ): Manga {
             val id = Uuid.random()
             val manga =
                 Manga(
                     id = id,
                     source = from.id,
-                    title = Text("One Piece"),
+                    title = Text(title),
                     author = null,
                     description = null,
                     cover = MangaCover(id, Url("https://mangadex.org/op.jpg")),
@@ -208,6 +276,7 @@ class EnrichMangaTest {
                 metadataRepository = repository,
                 provider = provider,
                 localizedText = localized,
+                titleLookup = titleLookup,
                 applyMangaMetadata = ApplyMangaMetadata.Default(mangaRepository, repository),
                 logger = SilentLogger
             )(mangaId, force)
@@ -260,7 +329,28 @@ internal class CountingProvider : MetadataProvider {
 
     override suspend fun byMalId(id: Long): SeriesMetadata? = byAniListId(30013)
 
-    override suspend fun search(title: String): List<MetadataSearchResult> = emptyList()
+    var searchResults: List<MetadataSearchResult> = emptyList()
+    var searchCalls = 0
+
+    override suspend fun search(title: String): List<MetadataSearchResult> {
+        searchCalls++
+        return searchResults
+    }
+}
+
+private fun result(
+    anilistId: Long,
+    vararg titles: String
+) = MetadataSearchResult(anilistId, titles.first(), coverUrl = null, year = null, format = null, titles = titles.toList())
+
+private class FakeTitleLookup : TitleLookup {
+    var candidates: List<TitleCandidate> = emptyList()
+    var calls = 0
+
+    override suspend fun byTitle(title: String): List<TitleCandidate> {
+        calls++
+        return candidates
+    }
 }
 
 private class RecordingLocalizedText : LocalizedTextProvider {
@@ -276,10 +366,12 @@ private class RecordingLocalizedText : LocalizedTextProvider {
 /** Every series' details name the same AniList/MAL ids — the source-published identity. */
 private class DetailsLoader : SourceLoader {
     var detailCalls = 0
+    var publishesIds = true
 
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing {
         detailCalls++
-        return MangaListing(mangaKey, title = "One Piece", anilistId = 30013, malId = 13, mangaDexId = "md-op")
+        return if (publishesIds) MangaListing(mangaKey, title = "One Piece", anilistId = 30013, malId = 13, mangaDexId = "md-op")
+        else MangaListing(mangaKey, title = "One Piece")
     }
 
     override suspend fun loadSource(id: String): Source = error("unused")
