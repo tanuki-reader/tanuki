@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "home_chapter_range": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ch. %1$@–%2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cap. %1$@–%2$@"
+          }
+        }
+      }
+    },
     "home_continue_reading": {
       "extractionState": "manual",
       "localizations": {
@@ -82,6 +99,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "Novos capítulos"
+          }
+        }
+      }
+    },
+    "home_new_chapters_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld chapter"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld chapters"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld capítulo"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld capítulos"
+                }
+              }
+            }
           }
         }
       }

@@ -1,7 +1,7 @@
 package app.tanuki.features.activity.composable
 
 import androidx.compose.runtime.Composable
-import app.tanuki.core.domain.history.model.ReadingActivityPoint
+import app.tanuki.features.activity.viewmodel.ActivityBar
 import app.tanuki.core.domain.history.model.TimePeriod
 import app.tanuki.features.activity.resources.Res
 import app.tanuki.features.activity.resources.activity_month_apr
@@ -26,24 +26,19 @@ import app.tanuki.features.activity.resources.activity_weekday_wed
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.resources.stringResource
 
-/** Day-of-month ticks to label on the month curve — roughly one per week, so a viewer can place "week 1". */
+/** Day-of-month ticks to label on the month chart — roughly one per week ("Oct 1, 8, 15, 22, 29"). */
 private val MONTH_TICK_DAYS = setOf(1, 8, 15, 22, 29)
 
 /**
- * Localized x-axis tick labels for the reading curve, one entry per point (`null` = no tick), chosen to
- * suit the [period]:
- *  - **week** → a weekday initial under every day,
- *  - **month** → the day-of-month number at ~weekly ticks (so the start of each week is readable),
- *  - **year** → a month abbreviation under every month.
- *
- * Weekday/month names are localized copy (resolved here); day numbers are plain content.
+ * Localized x-axis labels for the bar chart, one entry per bar (`null` = no label), chosen to suit the
+ * [period]: a weekday initial under every day of a week, the day number at ~weekly ticks of a month, a
+ * month abbreviation under every month of a year.
  */
 @Composable
-internal fun curveAxisLabels(
+internal fun barAxisLabels(
     period: TimePeriod,
-    points: List<ReadingActivityPoint>
+    bars: List<ActivityBar>
 ): List<String?> {
-    // Indexed by enum ordinal — DayOfWeek is MONDAY(0)..SUNDAY(6), Month is JANUARY(0)..DECEMBER(11).
     val weekdays =
         listOf(
             stringResource(Res.string.activity_weekday_mon),
@@ -54,36 +49,28 @@ internal fun curveAxisLabels(
             stringResource(Res.string.activity_weekday_sat),
             stringResource(Res.string.activity_weekday_sun)
         )
-    val months =
-        listOf(
-            stringResource(Res.string.activity_month_jan),
-            stringResource(Res.string.activity_month_feb),
-            stringResource(Res.string.activity_month_mar),
-            stringResource(Res.string.activity_month_apr),
-            stringResource(Res.string.activity_month_may),
-            stringResource(Res.string.activity_month_jun),
-            stringResource(Res.string.activity_month_jul),
-            stringResource(Res.string.activity_month_aug),
-            stringResource(Res.string.activity_month_sep),
-            stringResource(Res.string.activity_month_oct),
-            stringResource(Res.string.activity_month_nov),
-            stringResource(Res.string.activity_month_dec)
-        )
+    val months = monthAbbreviations()
     return when (period) {
-        TimePeriod.WEEK -> {
-            points.map { weekdays[it.date.dayOfWeek.ordinal] }
-        }
-
-        TimePeriod.YEAR -> {
-            points.map { months[it.date.month.ordinal] }
-        }
-
-        TimePeriod.MONTH -> {
-            points.map { point ->
-                point.date.day
-                    .takeIf { it in MONTH_TICK_DAYS }
-                    ?.toString()
-            }
-        }
+        TimePeriod.WEEK -> bars.map { weekdays[LocalDate(it.year, it.month, it.day).dayOfWeek.ordinal] }
+        TimePeriod.YEAR -> bars.map { months[it.month - 1] }
+        TimePeriod.MONTH -> bars.map { bar -> bar.day.takeIf { it in MONTH_TICK_DAYS }?.toString() }
     }
 }
+
+/** Jan–Dec, localized. */
+@Composable
+internal fun monthAbbreviations(): List<String> =
+    listOf(
+        stringResource(Res.string.activity_month_jan),
+        stringResource(Res.string.activity_month_feb),
+        stringResource(Res.string.activity_month_mar),
+        stringResource(Res.string.activity_month_apr),
+        stringResource(Res.string.activity_month_may),
+        stringResource(Res.string.activity_month_jun),
+        stringResource(Res.string.activity_month_jul),
+        stringResource(Res.string.activity_month_aug),
+        stringResource(Res.string.activity_month_sep),
+        stringResource(Res.string.activity_month_oct),
+        stringResource(Res.string.activity_month_nov),
+        stringResource(Res.string.activity_month_dec)
+    )

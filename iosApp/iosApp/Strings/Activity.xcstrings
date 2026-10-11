@@ -52,6 +52,40 @@
         }
       }
     },
+    "activity_chapter_range": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ch. %1$@–%2$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cap. %1$@–%2$@"
+          }
+        }
+      }
+    },
+    "activity_chapter_single": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ch. %1$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cap. %1$@"
+          }
+        }
+      }
+    },
     "activity_chapters": {
       "extractionState": "manual",
       "localizations": {
@@ -93,6 +127,40 @@
         }
       }
     },
+    "activity_chapters_per_day": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapters per day"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capítulos por dia"
+          }
+        }
+      }
+    },
+    "activity_chapters_per_month": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapters per month"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capítulos por mês"
+          }
+        }
+      }
+    },
     "activity_cover_content_description": {
       "extractionState": "manual",
       "localizations": {
@@ -106,6 +174,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "Capa de %1$@"
+          }
+        }
+      }
+    },
+    "activity_current_streak": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Current: %1$lld day"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Current: %1$lld days"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Atual: %1$lld dia"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Atual: %1$lld dias"
+                }
+              }
+            }
           }
         }
       }
@@ -127,24 +236,58 @@
         }
       }
     },
-    "activity_distribution_other": {
+    "activity_day_month": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Other"
+            "value": "%2$@ %1$lld"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Outros"
+            "value": "%1$lld de %2$@"
           }
         }
       }
     },
-    "activity_history_count": {
+    "activity_day_today": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Today"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoje"
+          }
+        }
+      }
+    },
+    "activity_day_yesterday": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yesterday"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ontem"
+          }
+        }
+      }
+    },
+    "activity_days_ago": {
       "extractionState": "manual",
       "localizations": {
         "en": {
@@ -153,13 +296,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%1$lld chapter read"
+                  "value": "%1$lld day ago"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%1$lld chapters read"
+                  "value": "%1$lld days ago"
                 }
               }
             }
@@ -171,13 +314,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%1$lld capítulo lido"
+                  "value": "Há %1$lld dia"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "%1$lld capítulos lidos"
+                  "value": "Há %1$lld dias"
                 }
               }
             }
@@ -457,53 +600,70 @@
         }
       }
     },
-    "activity_section_categories": {
+    "activity_rank_down": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By category"
+            "value": "Down %1$lld"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Por categoria"
+            "value": "Caiu %1$lld"
           }
         }
       }
     },
-    "activity_section_curve": {
+    "activity_rank_new": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading curve"
+            "value": "New"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Curva de leitura"
+            "value": "Novo"
           }
         }
       }
     },
-    "activity_section_distribution": {
+    "activity_rank_same": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "By series"
+            "value": "Same"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Por série"
+            "value": "Igual"
+          }
+        }
+      }
+    },
+    "activity_rank_up": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Up %1$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subiu %1$lld"
           }
         }
       }
@@ -525,36 +685,19 @@
         }
       }
     },
-    "activity_stat_active_days": {
+    "activity_stat_best_streak": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Active days"
+            "value": "best streak"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dias ativos"
-          }
-        }
-      }
-    },
-    "activity_stat_active_months": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Active months"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meses ativos"
+            "value": "maior sequência"
           }
         }
       }
@@ -565,13 +708,146 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chapters read"
+            "value": "chapters read"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Capítulos lidos"
+            "value": "capítulos lidos"
+          }
+        }
+      }
+    },
+    "activity_stat_chapters_month": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chapters read this month"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "capítulos lidos neste mês"
+          }
+        }
+      }
+    },
+    "activity_stat_chapters_week": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chapters read this week"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "capítulos lidos nesta semana"
+          }
+        }
+      }
+    },
+    "activity_stat_chapters_year": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chapters read this year"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "capítulos lidos neste ano"
+          }
+        }
+      }
+    },
+    "activity_stat_days_reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "of %1$lld day with reading"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "of %1$lld days with reading"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "de %1$lld dia com leitura"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "de %1$lld dias com leitura"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "activity_stat_months_reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "of %1$lld month with reading"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "of %1$lld months with reading"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "de %1$lld mês com leitura"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "de %1$lld meses com leitura"
+                }
+              }
+            }
           }
         }
       }
@@ -582,30 +858,54 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Series"
+            "value": "series"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Séries"
+            "value": "séries"
           }
         }
       }
     },
-    "activity_stat_streak": {
+    "activity_streak_days": {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Day streak"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld day"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld days"
+                }
+              }
+            }
           }
         },
         "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sequência"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld dia"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld dias"
+                }
+              }
+            }
           }
         }
       }
@@ -644,183 +944,53 @@
         }
       }
     },
-    "activity_time_days": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld day ago"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld days ago"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld dia"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld dias"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "activity_time_hours": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld h ago"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld h ago"
-                }
-              }
-            }
-          }
-        },
-        "pt-BR": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld h"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld h"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "activity_time_just_now": {
+    "activity_this_month": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Just now"
+            "value": "This month"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Agora mesmo"
+            "value": "Este mês"
           }
         }
       }
     },
-    "activity_time_minutes": {
+    "activity_this_week": {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld min ago"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld min ago"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "This week"
           }
         },
         "pt-BR": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld min"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld min"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta semana"
           }
         }
       }
     },
-    "activity_time_weeks": {
+    "activity_this_year": {
       "extractionState": "manual",
       "localizations": {
         "en": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld week ago"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "%1$lld weeks ago"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "This year"
           }
         },
         "pt-BR": {
-          "variations": {
-            "plural": {
-              "one": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld semana"
-                }
-              },
-              "other": {
-                "stringUnit": {
-                  "state": "translated",
-                  "value": "há %1$lld semanas"
-                }
-              }
-            }
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este ano"
           }
         }
       }

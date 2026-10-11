@@ -222,9 +222,9 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
 
 ### Activity (Phase 6)
 
-- [ ] History: merge entries of the same series on the same day into one row
+- [x] History: merge entries of the same series on the same day into one row
       ("Eleceed · 4 chapters · Ch. 418–421"), grouped under day headers. Done in the ViewModel.
-- [ ] History/Statistics (and Week/Month/Year) as the system segmented control; no solid-accent selected
+- [x] History/Statistics (and Week/Month/Year) as the system segmented control; no solid-accent selected
       segment (design system: selection = `accent-tint`, accent only for the one primary action).
 
 ### Library (Phase 3)
@@ -238,12 +238,12 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
 
 ### Statistics (Phase 6)
 
-- [ ] Day-streak tile: when the current streak is 0, show the best streak (or hide the tile).
-- [ ] Label every stat tile with its period ("979 · all time" vs "64 · this month"); today the two
+- [x] Day-streak tile: when the current streak is 0, show the best streak (or hide the tile).
+- [x] Label every stat tile with its period ("979 · all time" vs "64 · this month"); today the two
       "Chapters read" tiles look identical.
-- [ ] Reading curve: bars per day instead of a smoothed line (the spline invents in-between values),
+- [x] Reading curve: bars per day instead of a smoothed line (the spline invents in-between values),
       a few date labels on the x axis, value on tap.
-- [ ] "Most read" rank arrows need words or a number ("↑2 this week"); colour alone carries no meaning.
+- [x] "Most read" rank arrows need words or a number ("↑2 this week"); colour alone carries no meaning.
 
 ### Home (done in Phase 1, polish)
 
@@ -717,4 +717,36 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     library rail and the "In library" pill on the MangaDex copy.
   - **Not verified by hand:** Android on a device, a recommendation tap end to end, Retry with the
     network off, the empty-field prompt.
+- 2026-10-11 — **Phase 6: Activity** (SwiftUI; the redesign applied on both platforms; owner's choices:
+  drop the distribution donuts, Android adopts the rework).
+  - **`:features:activity:logic`** (exported to iOS): `ActivityViewModel` + a Swift-friendly
+    `ActivityState` (plain Strings/ints, no domain `Manga`): `tab` (moved out of `rememberSaveable`),
+    `HistoryDay`s of merged `HistoryRow`s (one per series per local day: count, chapter range, latest
+    time, resume chapter), `StatsState` (all-time chapters/series/current + best streak; the period's
+    chapters, reading days of days so far, bars per day — per month for a year — and the top 5 with a
+    `RankChange` `New | Same | Up(n) | Down(n)`). Delete removes every read a row merged.
+  - **Domain:** `ReadingStats` drops the distribution/category shares (and their manga/category reads),
+    gains `bestStreak`; `MostReadManga.trend` → `previousRank`.
+  - **iOS:** `Features/Activity/ActivityScreen.swift` — segmented History/Statistics, day sections with
+    swipe Delete/Series, all-time and period tiles, Swift Charts `BarMark` with `chartXSelection`
+    ("Oct 6 · 18 chapters"), Most read with rank words. The tab no longer uses the Compose bridge.
+  - **Android:** day headers + merged rows, bar chart (Canvas, tap for the value) replacing the spline,
+    labelled tiles + best/current streak, rank words; `ReadingCurveChart`/`ReadingDistributionDonut`
+    and the relative-time captions deleted.
+  - **Strings** (en + pt-BR): day labels, chapter range, streaks, period tiles, per day/month, rank words;
+    distribution, category and relative-time keys removed.
+  - **Verified:** `ActivityViewModelTest` 8 (merge/range/latest time, day split, resume + delete-all,
+    tab state + rank words + all-time, period counts and bars, lazy subscription, period switch,
+    teardown), `ReadingStreakTest` 2 + `LeaderboardRankTest` 1; `:androidApp:assembleDebug`, Debug
+    xcodebuild. Live with 8 temporary reads (removed afterwards): History showed Today / 2 days ago / a
+    date with "3 chapters · Ch. 1–3" rows; Statistics showed the all-time tiles, "8 chapters read this
+    month · of 11 days with reading" and day bars.
+  - **Not verified by hand:** Android on a device, swipe actions, bar selection by touch, Year view, pt-BR.
+  - **Follow-ups (same day):** the chart spans the whole period (empty bars for days to come, so a week's
+    first day isn't one full-width bar) and has its own margins (axis label and caption were clipped);
+    Activity rows use `surfaceRaised` like Home/Settings. **Home → New chapters** now merges the same way:
+    one row per series per day of discovery ("3 chapters · Ch. 418–421"), tap opens the earliest
+    (`NewChapterRowsTest`); not seen live — the simulator has no pending chapters.
+
+  Next: **Phase 7 — Downloads**.
 

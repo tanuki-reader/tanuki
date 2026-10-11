@@ -9,6 +9,11 @@
 
     <!-- New Chapters section -->
     <string name="home_new_chapters">New Chapters</string>
+    <plurals name="home_new_chapters_count">
+        <item quantity="one">%1$d chapter</item>
+        <item quantity="other">%1$d chapters</item>
+    </plurals>
+    <string name="home_chapter_range">Ch. %1$s–%2$s</string>
     <string name="home_cover_content_description">Cover of %1$s</string>
 
     <!-- Relative "found at" captions -->

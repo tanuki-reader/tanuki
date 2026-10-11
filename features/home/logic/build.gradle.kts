@@ -34,6 +34,7 @@ kotlin {
         commonMain.dependencies {
             api(projects.core.presentation)
             implementation(libs.metrox.viewmodel)
+            implementation(libs.kotlinx.datetime)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

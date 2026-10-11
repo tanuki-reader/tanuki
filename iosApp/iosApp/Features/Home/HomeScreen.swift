@@ -82,7 +82,7 @@ struct HomeScreen: View {
         }
         if !content.newChapters.isEmpty {
             Section(tr("home_new_chapters", table: .home)) {
-                ForEach(content.newChapters, id: \.chapterId) { item in
+                ForEach(content.newChapters, id: \.key) { item in
                     Button { model.vm.onNewChapterClick(item: item) } label: { NewChapterRow(item: item) }
                         .listRowBackground(Color.tk.surfaceRaised)
                 }
@@ -161,7 +161,7 @@ private struct NewChapterRow: View {
                     .tkStyle(.headline)
                     .foregroundStyle(Color.tk.ink)
                     .lineLimit(1)
-                if let subtitle = chapterLabel(item.chapterNumberLabel, name: item.chapterName) {
+                if let subtitle {
                     Text(subtitle)
                         .tkStyle(.body)
                         .foregroundStyle(Color.tk.inkMuted)
@@ -173,6 +173,14 @@ private struct NewChapterRow: View {
                 .tkStyle(.caption)
                 .foregroundStyle(Color.tk.inkFaint)
         }
+    }
+
+    /// One chapter: "Chapter 184" (or its title); a batch: "3 chapters · Ch. 418–421" (or just the count).
+    private var subtitle: String? {
+        guard item.chapterCount > 1 else { return chapterLabel(item.firstChapter, name: item.chapterName) }
+        let count = tr("home_new_chapters_count", Int(item.chapterCount), table: .home)
+        guard let first = item.firstChapter, let last = item.lastChapter, first != last else { return count }
+        return "\(count) · \(tr("home_chapter_range", first, last, table: .home))"
     }
 
     private func caption(_ elapsed: Elapsed) -> String {

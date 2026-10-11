@@ -35,7 +35,7 @@ import androidx.compose.ui.util.lerp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.LibraryTabIcon
 import app.tanuki.assets.designSystem.component.TrashIcon
-import app.tanuki.core.domain.history.model.HistoryEntry
+import app.tanuki.features.activity.viewmodel.HistoryRow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -56,7 +56,7 @@ private val END_PADDING = 8.dp
  */
 @Composable
 internal fun SwipeableHistoryRow(
-    entry: HistoryEntry,
+    row: HistoryRow,
     onOpenChapter: () -> Unit,
     onOpenSeries: () -> Unit,
     onDelete: () -> Unit,
@@ -120,8 +120,8 @@ internal fun SwipeableHistoryRow(
                     }
                 )
         ) {
-            HistoryRow(
-                entry = entry,
+            HistoryRowItem(
+                row = row,
                 onClick = { if (isOpen) close() else onOpenChapter() }
             )
         }

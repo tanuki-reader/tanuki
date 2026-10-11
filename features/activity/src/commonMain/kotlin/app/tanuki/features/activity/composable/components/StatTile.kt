@@ -12,14 +12,16 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.TanukiCard
 
 /**
- * A single headline metric — a large [value] over a caption [label] — inside a design-system card. Shared
+ * A single headline metric — a large [value] over a caption [label], and an optional [detail] line —
+ * inside a design-system card. Shared
  * by the all-time summary row and the per-period curve stats so every metric reads identically.
  */
 @Composable
 internal fun StatTile(
     value: String,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    detail: String? = null
 ) {
     TanukiCard(modifier = modifier) {
         Column(
@@ -37,9 +39,12 @@ internal fun StatTile(
                 text = label,
                 style = TanukiTheme.typography.caption,
                 color = TanukiTheme.colors.textFaint,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+            detail?.let {
+                Text(text = it, style = TanukiTheme.typography.caption, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+            }
         }
     }
 }

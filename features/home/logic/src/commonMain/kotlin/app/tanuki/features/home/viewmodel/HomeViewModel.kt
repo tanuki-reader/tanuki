@@ -23,6 +23,8 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlin.math.floor
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
@@ -95,7 +97,7 @@ class HomeViewModel(
             Content(
                 segment = segment,
                 continueReading = history.toContinueReading(),
-                newChapters = updates.map(NewChapter::toItem).take(NEW_CHAPTERS_LIMIT),
+                newChapters = updates.toItems().take(NEW_CHAPTERS_LIMIT),
                 sourceGroups = installed.toLanguageGroups(expanded)
             )
         }
@@ -208,31 +210,37 @@ class HomeViewModel(
 }
 
 /**
- * Projects a resolved [NewChapter] onto its row. No filtering happens here — the domain already decided
- * this chapter is still pending, and duplicating that rule in the ViewModel is how the list and the
- * notification would drift apart.
+ * Merges the pending chapters into rows: one per series per local day of discovery, newest row first
+ * (the domain lists chapters newest first, and `groupBy` keeps first-seen order). No filtering happens
+ * here — the domain already decided which chapters are pending, and duplicating that rule in the
+ * ViewModel is how the list and the notification would drift apart.
  */
-private fun NewChapter.toItem(): NewChapterItem =
-    NewChapterItem(
-        chapterId = chapter.id,
+internal fun List<NewChapter>.toItems(zone: TimeZone = TimeZone.currentSystemDefault()): List<NewChapterItem> =
+    groupBy { "${it.manga.id}/${it.discoveredAt.toLocalDateTime(zone).date}" }
+        .map { (key, group) -> group.toItem(key) }
+
+private fun List<NewChapter>.toItem(key: String): NewChapterItem {
+    val newest = maxBy { it.discoveredAt }
+    // The first to read: lowest number, else the earliest found.
+    val first = minWith(compareBy<NewChapter> { it.chapter.chapterNumber?.value ?: Double.MAX_VALUE }.thenBy { it.discoveredAt })
+    val numbers = mapNotNull { it.chapter.chapterNumber?.value }
+    val manga = newest.manga
+    return NewChapterItem(
+        key = key,
+        chapterId = first.chapter.id,
         mangaId = manga.id,
         title = manga.title.value,
-        coverUrl =
-            manga.cover.url
-                ?.value,
+        coverUrl = manga.cover.url?.value,
         coverHeaders = manga.cover.headers,
-        chapterNumberLabel =
-            chapter.chapterNumber
-                ?.value
-                ?.formatChapterNumber(),
-        chapterName =
-            chapter.name
-                ?.value
-                .orEmpty(),
+        chapterCount = size,
+        firstChapter = numbers.minOrNull()?.formatChapterNumber(),
+        lastChapter = numbers.maxOrNull()?.formatChapterNumber(),
+        chapterName = first.chapter.name?.value.orEmpty(),
         // ponytail: bucketed when the list emits, not on a timer, so a caption can lag while the screen
         // sits open. Same as the composable it replaced; add a ticking input if that ever shows.
-        discoveredAgo = elapsedSince(discoveredAt)
+        discoveredAgo = elapsedSince(newest.discoveredAt)
     )
+}
 
 /**
  * Formats a chapter number for display: whole chapters lose the decimal ("7"), subchapters keep it

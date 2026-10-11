@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewmodel.viewModelFactory
 import app.tanuki.core.domain.source.model.SourceListing
+import app.tanuki.features.activity.viewmodel.ActivityViewModel
 import app.tanuki.features.home.viewmodel.HomeViewModel
 import app.tanuki.features.library.viewmodel.LibraryViewModel
 import app.tanuki.features.manga.viewmodel.MangaViewModel
@@ -61,6 +62,8 @@ class ScreenScope internal constructor(
 // [ScreenScope.assistedViewModel]; Manga and Reader get theirs when they migrate.
 
 fun ScreenScope.homeViewModel(): HomeViewModel = viewModel(HomeViewModel::class)
+
+fun ScreenScope.activityViewModel(): ActivityViewModel = viewModel(ActivityViewModel::class)
 
 fun ScreenScope.libraryViewModel(): LibraryViewModel = viewModel(LibraryViewModel::class)
 

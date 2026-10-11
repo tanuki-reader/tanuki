@@ -11,29 +11,16 @@
     <string name="activity_cover_content_description">Capa de %1$s</string>
     <string name="activity_action_series">Série</string>
     <string name="activity_action_delete">Excluir</string>
-    <plurals name="activity_history_count">
-        <item quantity="one">%1$d capítulo lido</item>
-        <item quantity="other">%1$d capítulos lidos</item>
+    <string name="activity_day_today">Hoje</string>
+    <string name="activity_day_yesterday">Ontem</string>
+    <plurals name="activity_days_ago">
+        <item quantity="one">Há %1$d dia</item>
+        <item quantity="other">Há %1$d dias</item>
     </plurals>
-
-    <!-- Legendas de "lido em" relativas -->
-    <string name="activity_time_just_now">Agora mesmo</string>
-    <plurals name="activity_time_minutes">
-        <item quantity="one">há %1$d min</item>
-        <item quantity="other">há %1$d min</item>
-    </plurals>
-    <plurals name="activity_time_hours">
-        <item quantity="one">há %1$d h</item>
-        <item quantity="other">há %1$d h</item>
-    </plurals>
-    <plurals name="activity_time_days">
-        <item quantity="one">há %1$d dia</item>
-        <item quantity="other">há %1$d dias</item>
-    </plurals>
-    <plurals name="activity_time_weeks">
-        <item quantity="one">há %1$d semana</item>
-        <item quantity="other">há %1$d semanas</item>
-    </plurals>
+    <!-- Uma data sem o ano: dia do mês e a abreviação do mês ("6 de out") -->
+    <string name="activity_day_month">%1$d de %2$s</string>
+    <string name="activity_chapter_single">Cap. %1$s</string>
+    <string name="activity_chapter_range">Cap. %1$s–%2$s</string>
 
     <!-- Aba de estatísticas: seletor de período -->
     <string name="activity_period_week">Semana</string>
@@ -41,20 +28,42 @@
     <string name="activity_period_year">Ano</string>
     <string name="activity_curve_empty">Nenhuma leitura neste período ainda.</string>
     <string name="activity_all_time">Todo o período</string>
+    <string name="activity_this_week">Esta semana</string>
+    <string name="activity_this_month">Este mês</string>
+    <string name="activity_this_year">Este ano</string>
 
-    <!-- Aba de estatísticas: cabeçalhos de seção -->
-    <string name="activity_section_curve">Curva de leitura</string>
+    <!-- Aba de estatísticas: blocos -->
+    <string name="activity_stat_chapters">capítulos lidos</string>
+    <string name="activity_stat_series">séries</string>
+    <string name="activity_stat_best_streak">maior sequência</string>
+    <plurals name="activity_streak_days">
+        <item quantity="one">%1$d dia</item>
+        <item quantity="other">%1$d dias</item>
+    </plurals>
+    <plurals name="activity_current_streak">
+        <item quantity="one">Atual: %1$d dia</item>
+        <item quantity="other">Atual: %1$d dias</item>
+    </plurals>
+    <string name="activity_stat_chapters_week">capítulos lidos nesta semana</string>
+    <string name="activity_stat_chapters_month">capítulos lidos neste mês</string>
+    <string name="activity_stat_chapters_year">capítulos lidos neste ano</string>
+    <plurals name="activity_stat_days_reading">
+        <item quantity="one">de %1$d dia com leitura</item>
+        <item quantity="other">de %1$d dias com leitura</item>
+    </plurals>
+    <plurals name="activity_stat_months_reading">
+        <item quantity="one">de %1$d mês com leitura</item>
+        <item quantity="other">de %1$d meses com leitura</item>
+    </plurals>
+
+    <!-- Aba de estatísticas: seções -->
+    <string name="activity_chapters_per_day">Capítulos por dia</string>
+    <string name="activity_chapters_per_month">Capítulos por mês</string>
     <string name="activity_section_most_read">Mais lidos</string>
-    <string name="activity_section_distribution">Por série</string>
-    <string name="activity_section_categories">Por categoria</string>
-
-    <!-- Aba de estatísticas: rótulos de métrica -->
-    <string name="activity_stat_chapters">Capítulos lidos</string>
-    <string name="activity_stat_series">Séries</string>
-    <string name="activity_stat_streak">Sequência</string>
-    <string name="activity_stat_active_days">Dias ativos</string>
-    <string name="activity_stat_active_months">Meses ativos</string>
-    <string name="activity_distribution_other">Outros</string>
+    <string name="activity_rank_up">Subiu %1$d</string>
+    <string name="activity_rank_down">Caiu %1$d</string>
+    <string name="activity_rank_new">Novo</string>
+    <string name="activity_rank_same">Igual</string>
     <plurals name="activity_chapters">
         <item quantity="one">%1$d capítulo</item>
         <item quantity="other">%1$d capítulos</item>

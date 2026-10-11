@@ -19,9 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -35,20 +32,15 @@ import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.activity.composable.HistoryList
 import app.tanuki.features.activity.composable.StatisticsView
 import app.tanuki.features.activity.resources.Res
-import app.tanuki.features.activity.resources.activity_history_count
-import app.tanuki.features.activity.resources.activity_history_empty
 import app.tanuki.features.activity.resources.activity_tab_curve
 import app.tanuki.features.activity.resources.activity_tab_history
 import app.tanuki.features.activity.resources.activity_title
 import app.tanuki.features.activity.viewmodel.ActivityState.Loaded
+import app.tanuki.features.activity.viewmodel.ActivityTab
 import app.tanuki.features.activity.viewmodel.ActivityState.Loading
 import app.tanuki.features.activity.viewmodel.ActivityViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-
-/** The two top-level tabs of the Activity screen. */
-private enum class ActivityTab { HISTORY, CURVE }
 
 /**
  * Stateful entry point for the Activity tab: resolves the [ActivityViewModel] from Metro, collects its
@@ -85,9 +77,6 @@ private fun ActivityScreen(
     viewModel: ActivityViewModel
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // Two tabs → a boolean is enough and is trivially saveable across config changes.
-    var showCurve by rememberSaveable { mutableStateOf(false) }
-    val selectedTab = if (showCurve) ActivityTab.CURVE else ActivityTab.HISTORY
 
     Column(
         modifier =
@@ -115,11 +104,11 @@ private fun ActivityScreen(
                 TanukiSegmentedControl(
                     segments =
                         listOf(
-                            Segment(ActivityTab.HISTORY, stringResource(Res.string.activity_tab_history)),
-                            Segment(ActivityTab.CURVE, stringResource(Res.string.activity_tab_curve))
+                            Segment(ActivityTab.History, stringResource(Res.string.activity_tab_history)),
+                            Segment(ActivityTab.Statistics, stringResource(Res.string.activity_tab_curve))
                         ),
-                    selected = selectedTab,
-                    onSelect = { showCurve = it == ActivityTab.CURVE },
+                    selected = current.tab,
+                    onSelect = viewModel::onTabChange,
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -127,7 +116,7 @@ private fun ActivityScreen(
                 )
 
                 AnimatedContent(
-                    targetState = selectedTab,
+                    targetState = current.tab,
                     transitionSpec = {
                         val forward = targetState.ordinal > initialState.ordinal
                         val width = { full: Int -> if (forward) full else -full }
@@ -143,24 +132,17 @@ private fun ActivityScreen(
                     modifier = Modifier.weight(1f)
                 ) { tab ->
                     when (tab) {
-                        ActivityTab.HISTORY -> {
+                        ActivityTab.History -> {
                             HistoryList(
-                                entries = current.history,
-                                countLabel =
-                                    pluralStringResource(
-                                        Res.plurals.activity_history_count,
-                                        current.history.size,
-                                        current.history.size
-                                    ),
-                                emptyMessage = stringResource(Res.string.activity_history_empty),
-                                onEntryClick = viewModel::onHistoryClick,
-                                onOpenSeries = { viewModel.onOpenSeries(it.manga.id) },
-                                onDeleteEntry = viewModel::onDeleteHistory,
+                                days = current.history,
+                                onRowClick = viewModel::onRowClick,
+                                onOpenSeries = { viewModel.onOpenSeries(it.mangaId) },
+                                onDeleteRow = viewModel::onDeleteRow,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
 
-                        ActivityTab.CURVE -> {
+                        ActivityTab.Statistics -> {
                             Column(
                                 modifier =
                                     Modifier
@@ -168,12 +150,9 @@ private fun ActivityScreen(
                                         .verticalScroll(rememberScrollState())
                             ) {
                                 StatisticsView(
-                                    period = current.period,
-                                    activity = current.activity,
-                                    mostRead = current.mostRead,
                                     stats = current.stats,
                                     onPeriodChange = viewModel::onPeriodChange,
-                                    onOpenSeries = { viewModel.onOpenSeries(it.manga.id) }
+                                    onOpenSeries = viewModel::onOpenSeries
                                 )
                             }
                         }

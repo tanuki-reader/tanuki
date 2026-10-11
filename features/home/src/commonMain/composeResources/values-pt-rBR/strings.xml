@@ -9,6 +9,11 @@
 
     <!-- Seção de novos capítulos -->
     <string name="home_new_chapters">Novos capítulos</string>
+    <plurals name="home_new_chapters_count">
+        <item quantity="one">%1$d capítulo</item>
+        <item quantity="other">%1$d capítulos</item>
+    </plurals>
+    <string name="home_chapter_range">Cap. %1$s–%2$s</string>
     <string name="home_cover_content_description">Capa de %1$s</string>
 
     <!-- Legendas relativas de quando o capítulo foi encontrado -->

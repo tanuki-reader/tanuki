@@ -11,29 +11,16 @@
     <string name="activity_cover_content_description">Cover of %1$s</string>
     <string name="activity_action_series">Series</string>
     <string name="activity_action_delete">Delete</string>
-    <plurals name="activity_history_count">
-        <item quantity="one">%1$d chapter read</item>
-        <item quantity="other">%1$d chapters read</item>
-    </plurals>
-
-    <!-- Relative "read at" captions -->
-    <string name="activity_time_just_now">Just now</string>
-    <plurals name="activity_time_minutes">
-        <item quantity="one">%1$d min ago</item>
-        <item quantity="other">%1$d min ago</item>
-    </plurals>
-    <plurals name="activity_time_hours">
-        <item quantity="one">%1$d h ago</item>
-        <item quantity="other">%1$d h ago</item>
-    </plurals>
-    <plurals name="activity_time_days">
+    <string name="activity_day_today">Today</string>
+    <string name="activity_day_yesterday">Yesterday</string>
+    <plurals name="activity_days_ago">
         <item quantity="one">%1$d day ago</item>
         <item quantity="other">%1$d days ago</item>
     </plurals>
-    <plurals name="activity_time_weeks">
-        <item quantity="one">%1$d week ago</item>
-        <item quantity="other">%1$d weeks ago</item>
-    </plurals>
+    <!-- A date without its year: day of month, then the month abbreviation ("Oct 6") -->
+    <string name="activity_day_month">%2$s %1$d</string>
+    <string name="activity_chapter_single">Ch. %1$s</string>
+    <string name="activity_chapter_range">Ch. %1$s–%2$s</string>
 
     <!-- Statistics tab: period selector -->
     <string name="activity_period_week">Week</string>
@@ -41,20 +28,42 @@
     <string name="activity_period_year">Year</string>
     <string name="activity_curve_empty">No reads in this period yet.</string>
     <string name="activity_all_time">All time</string>
+    <string name="activity_this_week">This week</string>
+    <string name="activity_this_month">This month</string>
+    <string name="activity_this_year">This year</string>
 
-    <!-- Statistics tab: section headers -->
-    <string name="activity_section_curve">Reading curve</string>
+    <!-- Statistics tab: tiles -->
+    <string name="activity_stat_chapters">chapters read</string>
+    <string name="activity_stat_series">series</string>
+    <string name="activity_stat_best_streak">best streak</string>
+    <plurals name="activity_streak_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <plurals name="activity_current_streak">
+        <item quantity="one">Current: %1$d day</item>
+        <item quantity="other">Current: %1$d days</item>
+    </plurals>
+    <string name="activity_stat_chapters_week">chapters read this week</string>
+    <string name="activity_stat_chapters_month">chapters read this month</string>
+    <string name="activity_stat_chapters_year">chapters read this year</string>
+    <plurals name="activity_stat_days_reading">
+        <item quantity="one">of %1$d day with reading</item>
+        <item quantity="other">of %1$d days with reading</item>
+    </plurals>
+    <plurals name="activity_stat_months_reading">
+        <item quantity="one">of %1$d month with reading</item>
+        <item quantity="other">of %1$d months with reading</item>
+    </plurals>
+
+    <!-- Statistics tab: sections -->
+    <string name="activity_chapters_per_day">Chapters per day</string>
+    <string name="activity_chapters_per_month">Chapters per month</string>
     <string name="activity_section_most_read">Most read</string>
-    <string name="activity_section_distribution">By series</string>
-    <string name="activity_section_categories">By category</string>
-
-    <!-- Statistics tab: metric labels -->
-    <string name="activity_stat_chapters">Chapters read</string>
-    <string name="activity_stat_series">Series</string>
-    <string name="activity_stat_streak">Day streak</string>
-    <string name="activity_stat_active_days">Active days</string>
-    <string name="activity_stat_active_months">Active months</string>
-    <string name="activity_distribution_other">Other</string>
+    <string name="activity_rank_up">Up %1$d</string>
+    <string name="activity_rank_down">Down %1$d</string>
+    <string name="activity_rank_new">New</string>
+    <string name="activity_rank_same">Same</string>
     <plurals name="activity_chapters">
         <item quantity="one">%1$d chapter</item>
         <item quantity="other">%1$d chapters</item>

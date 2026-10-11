@@ -14,7 +14,7 @@ struct DestinationView: View {
             case .home: HomeScreen(path: $path)
             case .settings: SettingsScreen(path: $path)
             case .library: LibraryScreen(path: $path)
-            case .activity: bridge
+            case .activity: ActivityScreen(path: $path)
             case .search: GlobalSearchScreen(query: nil, path: $path)
             }
         case .settingsAppearance: AppearanceScreen()

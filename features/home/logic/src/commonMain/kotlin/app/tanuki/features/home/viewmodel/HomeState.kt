@@ -61,30 +61,33 @@ data class ContinueReadingItem(
 )
 
 /**
- * One row in the For You "New Chapters" list: a chapter that arrived in a followed series and hasn't
- * been opened yet.
+ * One row in the For You "New Chapters" list: the unopened chapters a followed series got **on one day**,
+ * merged — the same rule as the Activity history ("Eleceed · 4 chapters · Ch. 418–421"), so a series that
+ * drops a batch takes one row instead of filling the list. Newest row first.
  *
- * Flat rather than grouped per series — a series that drops several chapters at once contributes one
- * row each, newest first, so a tap always resumes *a specific chapter* rather than dropping the user on
- * a detail screen to pick one.
- *
- * @property chapterId the chapter to open, and the row's stable list key.
+ * @property key the row's stable list key: the series and the day.
+ * @property chapterId the chapter a tap opens — the **earliest** of them, so the batch reads in order;
+ *   opening it drops it from the row.
  * @property mangaId the series it belongs to, carried for navigation and as the cover seed.
  * @property title series title (source content, not localizable).
  * @property coverUrl remote cover URL, or `null` for the gradient fallback.
  * @property coverHeaders headers the cover fetch must carry; empty for almost every source.
- * @property chapterNumberLabel the chapter's number formatted for display (e.g. "7", "15.3"), or `null`
- *   when the source gave no recognizable number.
- * @property chapterName the chapter's own name, shown when [chapterNumberLabel] is `null`.
- * @property discoveredAgo how long ago the chapter was found, for the row's relative caption.
+ * @property chapterCount how many new chapters the row stands for.
+ * @property firstChapter / [lastChapter] the lowest and highest chapter number, formatted for display
+ *   (e.g. "7", "15.3"); equal for one chapter, `null` when the source gave no recognizable numbers.
+ * @property chapterName the single chapter's own name, shown when it has no number.
+ * @property discoveredAgo how long ago the newest of them was found, for the row's relative caption.
  */
 data class NewChapterItem(
+    val key: String,
     val chapterId: Uuid,
     val mangaId: Uuid,
     val title: String,
     val coverUrl: String?,
     val coverHeaders: Map<String, String>,
-    val chapterNumberLabel: String?,
+    val chapterCount: Int,
+    val firstChapter: String?,
+    val lastChapter: String?,
     val chapterName: String,
     val discoveredAgo: Elapsed
 )

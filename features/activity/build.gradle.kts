@@ -42,6 +42,7 @@ kotlin {
             implementation(libs.metrox.android)
         }
         commonMain.dependencies {
+            api(projects.features.activity.logic)
             implementation(projects.core.presentation)
             implementation(projects.core.navigation)
             implementation(projects.core.domain)
@@ -56,10 +57,6 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
-        }
-        commonTest.dependencies {
-            implementation(libs.kotlin.test)
-            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }

@@ -2,10 +2,6 @@ package app.tanuki.core.domain.history.usecase
 
 import app.tanuki.core.domain.history.model.ChapterHistory
 import app.tanuki.core.domain.history.model.MostReadManga
-import app.tanuki.core.domain.history.model.MostReadManga.ReadTrend
-import app.tanuki.core.domain.history.model.MostReadManga.ReadTrend.DOWN
-import app.tanuki.core.domain.history.model.MostReadManga.ReadTrend.FLAT
-import app.tanuki.core.domain.history.model.MostReadManga.ReadTrend.UP
 import app.tanuki.core.domain.history.model.TimePeriod
 import app.tanuki.core.domain.history.model.previousStartInstant
 import app.tanuki.core.domain.history.model.startInstant
@@ -24,8 +20,8 @@ import kotlin.uuid.Uuid
 
 /**
  * Use case: the "most read" leaderboard for a [TimePeriod] — every manga with at least one chapter
- * read within the current week/month/year, ranked most-read first, each carrying a trend versus the
- * previous equivalent period.
+ * read within the current week/month/year, ranked most-read first, each carrying its rank on the
+ * previous equivalent period's leaderboard (`null` when it wasn't on it).
  *
  * Returns the *full* ranked list, not a top-N: how many rows to show is a presentation decision left
  * to the caller (a period is naturally bounded, so the list stays small). Truncate at the UI if needed.
@@ -55,6 +51,7 @@ interface GetMostRead {
                 .map { history ->
                     val current = history.countByMangaWhere { it >= currentStart }
                     val previous = history.countByMangaWhere { it < currentStart }
+                    val previousRank = previous.ranked()
                     // One batch read for the whole leaderboard, not a query per ranked series.
                     val mangaById = mangaRepository.getMangaByIds(current.keys).associateBy(Manga::id)
 
@@ -66,7 +63,7 @@ interface GetMostRead {
                             MostReadManga(
                                 manga = manga,
                                 readCount = readCount,
-                                trend = trendOf(current = readCount, previous = previous[mangaId] ?: 0)
+                                previousRank = previousRank[mangaId]
                             )
                         }
                 }
@@ -77,15 +74,12 @@ interface GetMostRead {
             filter { inWindow(it.readAt) }
                 .groupingBy(ChapterHistory::mangaId)
                 .eachCount()
-
-        private fun trendOf(
-            current: Int,
-            previous: Int
-        ): ReadTrend =
-            when {
-                current > previous -> UP
-                current < previous -> DOWN
-                else -> FLAT
-            }
     }
 }
+
+/** 1-based leaderboard position per series, most-read first (ties keep a stable order). */
+internal fun Map<Uuid, Int>.ranked(): Map<Uuid, Int> =
+    entries
+        .sortedByDescending(Map.Entry<Uuid, Int>::value)
+        .withIndex()
+        .associate { (index, entry) -> entry.key to index + 1 }

@@ -20,7 +20,9 @@ import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.features.home.resources.Res
+import app.tanuki.features.home.resources.home_chapter_range
 import app.tanuki.features.home.resources.home_continue_reading_chapter
+import app.tanuki.features.home.resources.home_new_chapters_count
 import app.tanuki.features.home.resources.home_cover_content_description
 import app.tanuki.features.home.resources.home_time_days
 import app.tanuki.features.home.resources.home_time_hours
@@ -95,12 +97,22 @@ internal fun NewChapterRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            // A source that numbers its chapters gets "Chapter 184"; one that only titles them shows the
-            // title. Untitled *and* unnumbered leaves the line off rather than inventing a label.
+            // One chapter: "Chapter 184", or its title when the source only titles them (untitled *and*
+            // unnumbered leaves the line off). A batch: "3 chapters · Ch. 418–421" (or just the count).
+            val first = item.firstChapter
+            val last = item.lastChapter
             val subtitle =
-                item.chapterNumberLabel
-                    ?.let { stringResource(Res.string.home_continue_reading_chapter, it) }
-                    ?: item.chapterName.takeIf { it.isNotBlank() }
+                if (item.chapterCount > 1) {
+                    val count = pluralStringResource(Res.plurals.home_new_chapters_count, item.chapterCount, item.chapterCount)
+                    if (first != null && last != null && first != last) {
+                        count + " · " + stringResource(Res.string.home_chapter_range, first, last)
+                    } else {
+                        count
+                    }
+                } else {
+                    first?.let { stringResource(Res.string.home_continue_reading_chapter, it) }
+                        ?: item.chapterName.takeIf { it.isNotBlank() }
+                }
             if (subtitle != null) {
                 Text(
                     text = subtitle,
