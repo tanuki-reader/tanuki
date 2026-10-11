@@ -16,17 +16,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.assets.designSystem.component.TanukiBottomSheet
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiFilterChip
@@ -78,14 +76,7 @@ internal fun ChapterFilterSheet(
     modifier: Modifier = Modifier
 ) {
     val spacing = TanukiTheme.spacing
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = modifier,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = TanukiRadii.sheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        scrimColor = TanukiTheme.colors.scrim
-    ) {
+    TanukiBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Text(
             text = stringResource(Res.string.manga_filter_title),
             style = TanukiTheme.typography.title,

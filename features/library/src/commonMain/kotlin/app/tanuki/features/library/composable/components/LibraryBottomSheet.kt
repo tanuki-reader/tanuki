@@ -25,9 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -41,6 +39,7 @@ import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ArrowDownwardIcon
 import app.tanuki.assets.designSystem.component.ArrowUpwardIcon
 import app.tanuki.assets.designSystem.component.Segment
+import app.tanuki.assets.designSystem.component.TanukiBottomSheet
 import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiFilterChip
@@ -143,14 +142,7 @@ internal fun LibraryBottomSheet(
 ) {
     val spacing = TanukiTheme.spacing
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = modifier,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = TanukiRadii.sheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        scrimColor = TanukiTheme.colors.scrim
-    ) {
+    TanukiBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Text(
             text = stringResource(Res.string.library_sheet_title),
             style = TanukiTheme.typography.title,

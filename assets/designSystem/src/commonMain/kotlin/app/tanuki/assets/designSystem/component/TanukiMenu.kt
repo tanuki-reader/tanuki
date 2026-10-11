@@ -50,7 +50,7 @@ fun TanukiMenu(
         expanded = expanded,
         onDismissRequest = onDismissRequest,
         modifier = modifier,
-        shape = TanukiRadii.containerShape,
+        shape = TanukiRadii.menuShape,
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = TanukiElevation.level0,
         shadowElevation = TanukiElevation.level3,

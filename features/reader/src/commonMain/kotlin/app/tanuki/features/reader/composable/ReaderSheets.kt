@@ -22,7 +22,6 @@ import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +38,7 @@ import app.tanuki.assets.designSystem.ReaderColors
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCover
 import app.tanuki.assets.designSystem.component.Segment
+import app.tanuki.assets.designSystem.component.TanukiBottomSheet
 import app.tanuki.assets.designSystem.component.TanukiChoiceRow
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
@@ -98,7 +98,7 @@ internal fun ReaderSheets(
     onBackgroundChange: (ReaderBackground) -> Unit
 ) {
     val sheet = content.sheet ?: return
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    TanukiBottomSheet(onDismissRequest = onDismiss, skipPartiallyExpanded = false) {
         when (sheet) {
             ReaderSheet.Chapters ->
                 ChaptersSheet(content, onChaptersTabChange, onChapterSelected, onBookmarkSelected)

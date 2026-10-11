@@ -41,7 +41,7 @@ private val HeroCardHeight = 168.dp
 private val HeroCardCoverWidth = 92.dp
 
 /** Corner radius of the card panel — the sheet radius (16.dp), softer than a cover's. */
-private val HeroCardCorner = TanukiRadii.sheet
+private val HeroCardCorner = TanukiRadii.card
 
 /** Blur softening the cover backdrop into a colour wash rather than legible art behind the title. */
 private val HeroCardBackdropBlur = 16.dp

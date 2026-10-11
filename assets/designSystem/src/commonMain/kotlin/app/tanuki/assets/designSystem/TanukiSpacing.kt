@@ -46,17 +46,19 @@ object TanukiRadii {
     val container: Dp = 4.dp // --r-android: Material filled container
     val chip: Dp = 8.dp // Material chip / tag
     val cover: Dp = 6.dp // manga cover art corners
-    val sheet: Dp = 16.dp // bottom sheet
+    val card: Dp = 16.dp // --radius-lg: cards, menus, dialogs
+    val sheet: Dp = 28.dp // --radius-xl: bottom sheet top corners
     val pill: Dp = 999.dp // search pill, FAB, badges
 
     val containerShape = RoundedCornerShape(container)
+    val menuShape = RoundedCornerShape(card)
     val chipShape = RoundedCornerShape(chip)
     val coverShape = RoundedCornerShape(cover)
     val sheetShape = RoundedCornerShape(topStart = sheet, topEnd = sheet)
     val pillShape = RoundedCornerShape(pill)
 
-    /** All-corner radius for a centered dialog card (the `sheet` radius on every corner). */
-    val dialogShape = RoundedCornerShape(sheet)
+    /** All-corner radius for a centered dialog card. */
+    val dialogShape = RoundedCornerShape(card)
 }
 
 /** Material elevation steps (dp). Used as Compose `tonalElevation` / `shadowElevation`. */

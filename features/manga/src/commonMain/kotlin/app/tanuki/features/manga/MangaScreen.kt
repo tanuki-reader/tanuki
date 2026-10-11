@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -32,6 +31,7 @@ import androidx.navigationevent.NavigationEventInfo
 import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.assets.designSystem.component.TanukiBottomSheet
 import app.tanuki.assets.designSystem.component.TanukiDetailTopBar
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.core.navigation.Destination
@@ -264,7 +264,7 @@ private fun MangaScreen(
 
         if (content?.sheet == MangaSheet.About) {
             // Reference material, off the main list: the former Info tab's content plus the metadata.
-            ModalBottomSheet(onDismissRequest = viewModel::onDismissSheet) {
+            TanukiBottomSheet(onDismissRequest = viewModel::onDismissSheet, skipPartiallyExpanded = false) {
                 MangaInfoTab(
                     manga = content.manga,
                     source = content.source,

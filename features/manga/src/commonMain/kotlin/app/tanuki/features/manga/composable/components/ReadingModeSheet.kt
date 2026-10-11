@@ -9,13 +9,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
+import app.tanuki.assets.designSystem.component.TanukiBottomSheet
 import app.tanuki.assets.designSystem.component.TanukiFilterChip
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.features.manga.resources.Res
@@ -51,14 +49,7 @@ internal fun ReadingModeSheet(
     modifier: Modifier = Modifier
 ) {
     val spacing = TanukiTheme.spacing
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        modifier = modifier,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = TanukiRadii.sheetShape,
-        containerColor = MaterialTheme.colorScheme.surface,
-        scrimColor = TanukiTheme.colors.scrim
-    ) {
+    TanukiBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Text(
             text = stringResource(Res.string.manga_reading_mode_title),
             style = TanukiTheme.typography.title,
