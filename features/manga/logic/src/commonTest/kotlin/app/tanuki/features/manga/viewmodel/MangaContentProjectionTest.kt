@@ -12,6 +12,8 @@ import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.metadata.model.MatchedBy
+import app.tanuki.core.domain.metadata.model.MetadataRecommendation
+import app.tanuki.core.domain.metadata.model.MetadataTag
 import app.tanuki.core.domain.metadata.model.SeriesMetadata
 import app.tanuki.core.domain.metadata.model.TrackerLink
 import app.tanuki.core.domain.metadata.usecase.MangaMetadata
@@ -118,11 +120,68 @@ class MangaContentProjectionTest {
         assertEquals("https://md/vol3.jpg", picked.header.coverUrl)
     }
 
+    @Test
+    fun `genres and tags merge into one deduplicated list - spoilers kept but off the row`() {
+        val metadata =
+            series(
+                genres = listOf("Action", "Fantasy"),
+                tags = listOf(
+                    MetadataTag("action", rank = 99, spoiler = false),
+                    MetadataTag("Martial Arts", rank = 90, spoiler = false),
+                    MetadataTag("Time Travel", rank = 95, spoiler = true),
+                    MetadataTag("Revenge", rank = 70, spoiler = false)
+                )
+            )
+
+        val content = content(emptyList()).copy(metadata = MangaMetadata(link(), metadata))
+
+        assertEquals(listOf("Action", "Fantasy", "Time Travel", "Martial Arts", "Revenge"), content.tags.map { it.name })
+        assertEquals(listOf("Action", "Fantasy", "Martial Arts"), content.tagRow.visible)
+        assertEquals(2, content.tagRow.overflow)
+    }
+
+    @Test
+    fun `recommendations sit above the chapters until the series is in the library`() {
+        val withRecs = series(recommendations = listOf(MetadataRecommendation(2, null, "Bleach", null, "https://anilist.co/manga/2")))
+
+        val browsing = content(emptyList(), inLibrary = false).copy(metadata = MangaMetadata(link(), withRecs))
+        val owned = content(emptyList(), inLibrary = true).copy(metadata = MangaMetadata(link(), withRecs))
+        val nothing = content(emptyList()).copy(metadata = MangaMetadata(link(), series()))
+
+        assertEquals(RecommendationsPlacement.AboveChapters, browsing.recommendationsPlacement)
+        assertEquals(RecommendationsPlacement.AboutOnly, owned.recommendationsPlacement)
+        assertEquals(RecommendationsPlacement.None, nothing.recommendationsPlacement)
+    }
+
+    @Test
+    fun `the hero line drops an unknown status and an absent rating`() {
+        val plain = content(listOf(chapter(1.0))).copy(manga = manga.copy(publishStatus = PublishStatus.UNKNOWN))
+        assertEquals(HeroLine(status = null, chapterCount = 1, rating = null), plain.heroLine)
+
+        val rated = content(listOf(chapter(1.0))).copy(metadata = MangaMetadata(link(), series(score = 82)))
+        assertEquals("8.2", rated.heroLine.rating)
+    }
+
+    private fun link() = TrackerLink(mangaId, anilistId = 1, malId = null, mangaDexId = null, matchedBy = MatchedBy.Source)
+
+    private fun series(
+        score: Int? = null,
+        genres: List<String> = emptyList(),
+        tags: List<MetadataTag> = emptyList(),
+        recommendations: List<MetadataRecommendation> = emptyList()
+    ) = SeriesMetadata(
+        anilistId = 1, malId = null, title = "T", synopsis = null, coverUrl = null, bannerUrl = null, score = score,
+        popularity = null, genres = genres, tags = tags, status = PublishStatus.ONGOING, year = null,
+        characters = emptyList(), reviews = emptyList(), recommendations = recommendations,
+        siteUrl = "https://anilist.co/manga/1", fetchedAt = Instant.DISTANT_PAST
+    )
+
     private fun content(
         chapters: List<Chapter>,
-        downloads: Map<Uuid, ChapterDownload> = emptyMap()
+        downloads: Map<Uuid, ChapterDownload> = emptyMap(),
+        inLibrary: Boolean = true
     ) = MangaState.Content(
-        manga = manga,
+        manga = if (inLibrary) manga else manga.copy(dateAdded = null),
         chapters = chapters,
         resumeChapter = chapters.firstOrNull(),
         chapterSortAscending = true,

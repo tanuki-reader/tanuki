@@ -47,7 +47,7 @@ import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_categories_add
 import app.tanuki.features.manga.resources.manga_categories_more
 import app.tanuki.features.manga.resources.manga_categories_title
-import app.tanuki.features.manga.resources.manga_chapter_count
+import app.tanuki.features.manga.resources.manga_chapter_count_short
 import app.tanuki.features.manga.resources.manga_reading_status_set
 import app.tanuki.features.manga.resources.manga_status_cancelled
 import app.tanuki.features.manga.resources.manga_status_completed
@@ -55,6 +55,8 @@ import app.tanuki.features.manga.resources.manga_status_hiatus
 import app.tanuki.features.manga.resources.manga_status_licensed
 import app.tanuki.features.manga.resources.manga_status_ongoing
 import app.tanuki.features.manga.resources.manga_status_publishing_finished
+import app.tanuki.features.manga.viewmodel.HeroLine
+import app.tanuki.features.manga.viewmodel.MangaHeader
 import coil3.compose.AsyncImage
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
@@ -93,12 +95,14 @@ private val CategoryGlyphSize = 16.dp
  * until the domain [Manga] model carries them.
  *
  * @param manga the series to present.
- * @param chapterCount how many chapters the manga has, shown next to the status chip.
+ * @param header the merged header (title, cover) the page shows.
+ * @param heroLine the one metadata line: status, chapter count, rating.
  */
 @Composable
 internal fun MangaHero(
     manga: Manga,
-    chapterCount: Int,
+    header: MangaHeader,
+    heroLine: HeroLine,
     categoryNames: List<String>,
     onManageCategories: () -> Unit,
     onEditReadingStatus: () -> Unit,
@@ -109,9 +113,10 @@ internal fun MangaHero(
     val backdropAlpha = HERO_BACKDROP_ALPHA_LIGHT
     val scrimTopAlpha = HERO_SCRIM_TOP_LIGHT
     val seed = manga.id.toString()
-    val coverUrl = manga.cover.url?.value
-    val coverHeaders = manga.cover.headers
-    val statusLabel = manga.publishStatus.labelResource()?.let { stringResource(it) }
+    // The merged header (matched metadata unless the user prefers the source's) — same as iOS.
+    val coverUrl = header.coverUrl
+    val coverHeaders = header.coverHeaders
+    val statusLabel = heroLine.status?.labelResource()?.let { stringResource(it) }
 
     Box(modifier = modifier.fillMaxWidth()) {
         // Cover-derived backdrop: the cover art, blurred and dimmed, so its colours wash the header.
@@ -164,7 +169,7 @@ internal fun MangaHero(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = manga.title.value,
+                    text = header.title,
                     style = TanukiTheme.typography.title,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 3,
@@ -176,9 +181,18 @@ internal fun MangaHero(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(spacing.sm)
                 ) {
+                    // The one metadata line: status · N ch. · ★ rating (the ViewModel's HeroLine).
                     statusLabel?.let { TanukiTag(text = it) }
                     Text(
-                        text = pluralStringResource(Res.plurals.manga_chapter_count, chapterCount, chapterCount),
+                        text =
+                            listOfNotNull(
+                                pluralStringResource(
+                                    Res.plurals.manga_chapter_count_short,
+                                    heroLine.chapterCount,
+                                    heroLine.chapterCount
+                                ),
+                                heroLine.rating?.let { "★ $it" }
+                            ).joinToString(" · "),
                         style = TanukiTheme.typography.caption.copy(fontWeight = FontWeight.Medium),
                         color = TanukiTheme.colors.textFaint
                     )

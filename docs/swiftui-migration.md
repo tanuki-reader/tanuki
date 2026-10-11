@@ -209,11 +209,14 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
 - [x] Bug: synopsis shows HTML entities (`Murim&#039;s`). Decoded host-side in `Mappers.kt`.
 - [x] Bug: white strip under bottom content on Compose-rendered iOS screens; the bridge now ignores both
       vertical safe areas.
-- [x] One scrolling page (iOS): hero → glass actions (Reading status menu, Categories) → synopsis →
-      Source / Reading mode rows → chapter list. Genre chips wait for Phase 5b (sources don't persist
-      genres; AniList will).
-- [x] Primary action: floating `.glassProminent` "Read Chapter N"; "Remove from library" lives in the
-      Reading status menu.
+- [x] One scrolling page, de-crowded (both platforms): hero with ONE metadata line ("Ongoing · 143 ch.
+      · ★ 8.2") → Reading status + Categories → synopsis (3 lines) → one merged tag row ("+N") →
+      recommendations (only when not in the library) → chapters. Full synopsis, all tags, AniList
+      rating, characters, reviews, library-series recommendations and the Source / Reading mode rows
+      live in an **About** sheet ("Show more" or the tag row). Android dropped its Chapters/Info tabs.
+- [x] Primary action: floating `.glassProminent` "Read Ch. N" capsule sized to its label (not a
+      full-width bar), in `.safeAreaInset(edge: .bottom)`; "Remove from library" lives in the Reading
+      status menu; "Matched on AniList" moved out of the hero into the ⋯ menu.
 - [x] **Phase 5b — metadata enrichment** (AniList + MangaDex covers), per
       `docs/design-manga-metadata.md`.
 
@@ -637,4 +640,27 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     offline open.
 
   Next: **global search** (see below), or **Phase 6 — Activity**.
+- 2026-10-11 — **Manga detail de-crowded** (from the 17-09-42 recording: chapters 2+ screens down,
+  genres and source shown twice, 5-line hero, Read bar over content).
+  - **Shared state (`MangaState.Content`)**: `heroLine` (status/chapter count/rating pieces, no source,
+    no match line), `tags` (header genres + AniList tags by rank, case-insensitive dedup, spoilers
+    flagged), `tagRow` (first 3 non-spoiler tags + overflow count), `recommendationsPlacement`
+    (`AboveChapters` when not in the library, `AboutOnly` when it is, `None`), and `MangaSheet.About`
+    on the existing `sheet` input flow. Neither UI orders sections itself.
+  - **iOS**: hero → actions → synopsis ("Show more" → About) → tag row (tap → About) →
+    recommendations if `AboveChapters` → chapters; About sheet (detents) with full synopsis, AniList
+    rating, all tags (spoilers blurred), characters, reviews, recommendations if `AboutOnly`, Source /
+    Reading mode rows. Read button: content-sized `.glassProminent` capsule, "Read Ch. N".
+  - **Android**: Chapters/Info tabs removed; one `LazyColumn` (synopsis, tag row, recommendations if
+    `AboveChapters`, chapters) under the collapsing hero, which now shows the merged title/cover and the
+    one-line `heroLine`; the former Info content is an M3 `ModalBottomSheet` About sheet.
+  - **Strings** (en + pt-BR): `manga_about_title`, `manga_tags_more`, `manga_chapter_count_short`,
+    `manga_read_chapter_short`, `manga_about_rating`.
+  - **Verified:** `MangaContentProjectionTest` 6 (tag merge/dedup + spoilers + overflow, placement in
+    and out of the library, hero line), host + iOS; `:androidApp:assembleDebug`, framework link,
+    Debug xcodebuild. Live: a not-in-library series shows recommendations above the chapters; after
+    adding it to the library (DB row checked) they leave the page and chapters follow the tag row
+    within the first screen; the About sheet opens with the full synopsis and the AniList rating.
+  - **Not verified by hand:** Android on a device (layout compiles; the collapsing hero over a single
+    list is unchanged code), the About sheet's lower sections on a series with many characters.
 

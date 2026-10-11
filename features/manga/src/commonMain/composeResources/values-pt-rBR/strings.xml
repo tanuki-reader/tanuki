@@ -163,4 +163,12 @@
     <string name="manga_metadata_cover_volume">Vol. %1$s</string>
     <string name="manga_metadata_search_empty">Nenhum resultado</string>
     <string name="manga_metadata_score">Nota</string>
+    <string name="manga_about_title">Sobre</string>
+    <string name="manga_tags_more">+%1$d</string>
+    <plurals name="manga_chapter_count_short">
+        <item quantity="one">%1$d cap.</item>
+        <item quantity="other">%1$d caps.</item>
+    </plurals>
+    <string name="manga_read_chapter_short">Ler cap. %1$s</string>
+    <string name="manga_about_rating">Nota no AniList</string>
 </resources>

@@ -41,22 +41,18 @@ struct MangaScreen: View {
                 MangaHero(
                     header: content.header,
                     seed: seed,
-                    scoreLabel: content.scoreLabel,
-                    isMatched: content.isMatched,
-                    onChangeMatch: { model.vm.onOpenMatchSearch() },
+                    line: heroLineText(content.heroLine),
                     onChooseCover: { model.vm.onOpenCoverPicker() }
                 )
                 if !selecting { actions(content) }
-                MangaSynopsis(text: content.header.synopsis)
-                if !content.header.genres.isEmpty {
-                    FlowLayout {
-                        ForEach(content.header.genres, id: \.self) { TagChip(text: $0) }
-                    }
-                    .padding(.horizontal, TK.Space.s5)
+                MangaSynopsis(text: content.header.synopsis) { model.vm.onOpenSheet(sheet: .about) }
+                if !content.tagRow.visible.isEmpty {
+                    TagRowView(row: content.tagRow) { model.vm.onOpenSheet(sheet: .about) }
                 }
-                infoRows(content)
-                if let series = content.series {
-                    MetadataSections(series: series)
+                // Placement is the ViewModel's call: above the chapters only while the series isn't in the
+                // library (still being decided on); otherwise suggestions live in About.
+                if content.recommendationsPlacement == .aboveChapters, let series = content.series {
+                    RecommendationsRail(recommendations: series.recommendations)
                 }
                 chapters(content)
             }
@@ -82,6 +78,7 @@ struct MangaScreen: View {
         .sheet(isPresented: sheetBinding(content, .categories)) { categoriesSheet(content) }
         .sheet(isPresented: sheetBinding(content, .chapterFilter)) { filterSheet(content) }
         .sheet(isPresented: sheetBinding(content, .readingMode)) { readingModeSheet(content) }
+        .sheet(isPresented: sheetBinding(content, .about)) { aboutSheet(content) }
         .sheet(isPresented: sheetBinding(content, .coverPicker)) { coverPickerSheet(content) }
         .sheet(isPresented: sheetBinding(content, .matchSearch)) { MatchSearchSheet(editor: content.editor, vm: model.vm) }
         .alert(
@@ -157,7 +154,7 @@ struct MangaScreen: View {
                     .compactMap { $0 }.joined(separator: " · ")
             )
             Divider().padding(.leading, TK.Space.s4)
-            Button { model.vm.onOpenSheet(sheet: .readingMode) } label: {
+            Button { model.vm.onOpenSheet(sheet: .readingMode) } label: { // replaces About as the open sheet
                 infoRow(tr("manga_reading_mode_title", table: .manga), value: readingModeTitle(header.readingMode), chevron: true)
             }
             .buttonStyle(.plain)
@@ -233,17 +230,18 @@ struct MangaScreen: View {
     private func readButton(_ content: MangaStateContent) -> some View {
         Button { model.vm.onReadClick() } label: {
             Label(
-                content.resumeNumberLabel.map { tr("manga_read_chapter", $0, table: .manga) }
+                content.resumeNumberLabel.map { tr("manga_read_chapter_short", $0, table: .manga) }
                     ?? tr("manga_read_action", table: .manga),
                 systemImage: "play.fill"
             )
             .tkStyle(.headline)
-            .frame(maxWidth: .infinity, minHeight: 36)
+            .padding(.horizontal, TK.Space.s4)
         }
+        // A floating capsule sized to its label, not a full-width bar; `.safeAreaInset` (on the page) keeps
+        // it from covering the last rows.
         .buttonStyle(.glassProminent)
         .tint(Color.tk.accent)
         .controlSize(.large)
-        .padding(.horizontal, TK.Space.s5)
         .padding(.bottom, TK.Space.s2)
     }
 
@@ -402,6 +400,43 @@ struct MangaScreen: View {
         .presentationDetents([.medium, .large])
     }
 
+    /// Reference material, off the main page: full synopsis, every tag, the rating, characters, reviews,
+    /// suggestions (for a library series) and the Source / Reading mode rows.
+    private func aboutSheet(_ content: MangaStateContent) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: TK.Space.s6) {
+                    if let synopsis = content.header.synopsis {
+                        Text(synopsis)
+                            .tkStyle(.bodyLarge)
+                            .foregroundStyle(Color.tk.ink)
+                            .padding(.horizontal, TK.Space.s5)
+                    }
+                    if let rating = content.heroLine.rating {
+                        // A String, not a literal: an interpolated literal is a LocalizedStringKey, and Xcode
+                        // would extract it into the generated catalog.
+                        Label(tr("manga_about_rating", table: .manga) + " " + rating, systemImage: "star.fill")
+                            .tkStyle(.label)
+                            .foregroundStyle(Color.tk.accent)
+                            .padding(.horizontal, TK.Space.s5)
+                    }
+                    AboutTags(tags: content.tags)
+                    if let series = content.series {
+                        MetadataSections(
+                            series: series,
+                            showRecommendations: content.recommendationsPlacement == .aboutOnly
+                        )
+                    }
+                    infoRows(content)
+                }
+                .padding(.vertical, TK.Space.s4)
+            }
+            .navigationTitle(tr("manga_about_title", table: .manga))
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.medium, .large])
+    }
+
     private func coverPickerSheet(_ content: MangaStateContent) -> some View {
         NavigationStack {
             ScrollView {
@@ -473,13 +508,12 @@ struct MangaScreen: View {
 
 // MARK: - Pieces
 
-/// The hero: cover, title, author and a status line ("Ongoing · 143 chapters · MangaFire").
+/// The hero: cover, title, author and ONE metadata line ("Ongoing · 143 ch. · ★ 8.2"). The source and
+/// the AniList match live elsewhere (About, the ⋯ menu).
 private struct MangaHero: View {
     let header: MangaHeader
     let seed: String
-    let scoreLabel: String?
-    let isMatched: Bool
-    let onChangeMatch: () -> Void
+    let line: String
     let onChooseCover: () -> Void
 
     var body: some View {
@@ -497,56 +531,33 @@ private struct MangaHero: View {
                 if let author = header.author {
                     Text(author).tkStyle(.body).foregroundStyle(Color.tk.inkMuted).lineLimit(2)
                 }
-                Label(statusLine, systemImage: "clock")
+                Text(line)
                     .tkStyle(.caption)
                     .foregroundStyle(Color.tk.inkMuted)
-                if let scoreLabel {
-                    Label(scoreLabel, systemImage: "star.fill")
-                        .tkStyle(.label)
-                        .foregroundStyle(Color.tk.accent)
-                        .accessibilityLabel("\(tr("manga_metadata_score", table: .manga)) \(scoreLabel)")
-                }
-                if isMatched {
-                    Button(action: onChangeMatch) {
-                        Text("\(tr("manga_metadata_matched", table: .manga)) · \(tr("manga_metadata_change", table: .manga))")
-                            .tkStyle(.caption)
-                    }
-                    .tint(Color.tk.inkMuted)
-                }
+                    .lineLimit(1)
             }
             .padding(.bottom, TK.Space.s1)
         }
         .padding(.horizontal, TK.Space.s5)
         .padding(.top, TK.Space.s4)
     }
-
-    private var statusLine: String {
-        [
-            publishStatusTitle(header.publishStatus),
-            tr("manga_chapter_count", Int(header.chapterCount), table: .manga),
-            header.sourceName
-        ].compactMap { $0 }.joined(separator: " · ")
-    }
 }
 
-/// The synopsis, clamped to three lines with a "More"/"Less" toggle. The expansion is view chrome, not
-/// screen state, so it stays here.
+/// The synopsis, clamped to three lines. "Show more" opens the About sheet, where the full text lives.
 private struct MangaSynopsis: View {
     let text: String?
-    @State private var expanded = false
+    let onMore: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: TK.Space.s1) {
             Text(text ?? tr("manga_info_no_description", table: .manga))
                 .tkStyle(.bodyLarge)
                 .foregroundStyle(text == nil ? Color.tk.inkMuted : Color.tk.ink)
-                .lineLimit(expanded ? nil : 3)
+                .lineLimit(3)
             if text != nil {
-                Button(tr(expanded ? "manga_info_show_less" : "manga_info_show_more", table: .manga)) {
-                    withAnimation(TK.Motion.enter) { expanded.toggle() }
-                }
-                .tkStyle(.label)
-                .tint(Color.tk.accent)
+                Button(tr("manga_info_show_more", table: .manga), action: onMore)
+                    .tkStyle(.label)
+                    .tint(Color.tk.accent)
             }
         }
         .padding(.horizontal, TK.Space.s5)
@@ -662,35 +673,100 @@ private struct TagChip: View {
     }
 }
 
+/// The page's one chip row: a few tags and a "+N" chip; tapping it opens About.
+private struct TagRowView: View {
+    let row: TagRow
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: TK.Space.s2) {
+                ForEach(row.visible, id: \.self) { TagChip(text: $0) }
+                if row.overflow > 0 {
+                    TagChip(text: tr("manga_tags_more", Int(row.overflow), table: .manga))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, TK.Space.s5)
+        .accessibilityLabel(tr("manga_about_title", table: .manga))
+    }
+}
+
+/// Every tag, spoilers blurred until asked.
+private struct AboutTags: View {
+    let tags: [TagItem]
+    @State private var showSpoilers = false
+
+    var body: some View {
+        if !tags.isEmpty {
+            VStack(alignment: .leading, spacing: TK.Space.s3) {
+                Text(tr("manga_metadata_tags", table: .manga))
+                    .tkStyle(.titleL)
+                    .foregroundStyle(Color.tk.ink)
+                FlowLayout {
+                    ForEach(tags, id: \.name) { tag in
+                        TagChip(text: tag.name, blurred: tag.spoiler && !showSpoilers)
+                    }
+                }
+                if tags.contains(where: \.spoiler) && !showSpoilers {
+                    Button(tr("manga_metadata_show_spoilers", table: .manga)) { showSpoilers = true }
+                        .tkStyle(.label)
+                        .tint(Color.tk.accent)
+                }
+            }
+            .padding(.horizontal, TK.Space.s5)
+        }
+    }
+}
+
+/// "You might also like": a cover rail; a tap opens the title on AniList (a source search once global
+/// search lands).
+private struct RecommendationsRail: View {
+    let recommendations: [MetadataRecommendation]
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: TK.Space.s3) {
+            Text(tr("manga_metadata_recommendations", table: .manga))
+                .tkStyle(.titleL)
+                .foregroundStyle(Color.tk.ink)
+                .padding(.horizontal, TK.Space.s5)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: TK.Space.s3) {
+                    ForEach(recommendations, id: \.anilistId) { recommendation in
+                        Button { if let url = URL(string: recommendation.siteUrl) { openURL(url) } } label: {
+                            CoverTile(
+                                seed: "\(recommendation.anilistId)",
+                                title: recommendation.title,
+                                coverUrl: recommendation.coverUrl,
+                                accessibilityLabel: recommendation.title
+                            )
+                            .frame(width: 112)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .contentMargins(.horizontal, TK.Space.s5, for: .scrollContent)
+        }
+    }
+}
+
 /// What the metadata adds below the info rows: tags, characters, reviews and recommendations. Rendered
 /// only once enrichment has landed, so the page above never waits for it.
 private struct MetadataSections: View {
     let series: SeriesMetadata
-    @State private var showSpoilers = false
+    let showRecommendations: Bool
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         VStack(alignment: .leading, spacing: TK.Space.s6) {
-            if !series.tags.isEmpty { tags }
             if !series.characters.isEmpty { characters }
             if !series.reviews.isEmpty { reviews }
-            if !series.recommendations.isEmpty { recommendations }
-        }
-    }
-
-    private var tags: some View {
-        section(tr("manga_metadata_tags", table: .manga)) {
-            FlowLayout {
-                ForEach(series.tags.prefix(12), id: \.name) { tag in
-                    TagChip(text: tag.name, blurred: tag.spoiler && !showSpoilers)
-                }
-            }
-            .padding(.horizontal, TK.Space.s5)
-            if series.tags.contains(where: \.spoiler) && !showSpoilers {
-                Button(tr("manga_metadata_show_spoilers", table: .manga)) { showSpoilers = true }
-                    .tkStyle(.label)
-                    .tint(Color.tk.accent)
-                    .padding(.horizontal, TK.Space.s5)
+            if showRecommendations && !series.recommendations.isEmpty {
+                RecommendationsRail(recommendations: series.recommendations)
             }
         }
     }
@@ -742,28 +818,6 @@ private struct MetadataSections: View {
                 }
             }
             .padding(.horizontal, TK.Space.s5)
-        }
-    }
-
-    private var recommendations: some View {
-        section(tr("manga_metadata_recommendations", table: .manga)) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: TK.Space.s3) {
-                    ForEach(series.recommendations, id: \.anilistId) { recommendation in
-                        Button { if let url = URL(string: recommendation.siteUrl) { openURL(url) } } label: {
-                            CoverTile(
-                                seed: "\(recommendation.anilistId)",
-                                title: recommendation.title,
-                                coverUrl: recommendation.coverUrl,
-                                accessibilityLabel: recommendation.title
-                            )
-                            .frame(width: 112)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .contentMargins(.horizontal, TK.Space.s5, for: .scrollContent)
         }
     }
 
@@ -819,6 +873,15 @@ private struct MatchSearchSheet: View {
 }
 
 // MARK: - Copy
+
+/// "Ongoing · 143 ch. · ★ 8.2"; absent pieces are left out.
+private func heroLineText(_ line: HeroLine) -> String {
+    [
+        line.status.flatMap(publishStatusTitle),
+        tr("manga_chapter_count_short", Int(line.chapterCount), table: .manga),
+        line.rating.map { "★ \($0)" }
+    ].compactMap { $0 }.joined(separator: " · ")
+}
 
 private func readingStatusTitle(_ status: ReadingStatus) -> String {
     switch status {

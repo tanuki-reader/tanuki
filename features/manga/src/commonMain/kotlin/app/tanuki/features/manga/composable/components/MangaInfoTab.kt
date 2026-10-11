@@ -28,8 +28,11 @@ import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.ReadingMode
+import app.tanuki.core.domain.metadata.model.MetadataRecommendation
 import app.tanuki.core.domain.source.model.Source
+import app.tanuki.features.manga.composable.RecommendationsRow
 import app.tanuki.features.manga.resources.Res
+import app.tanuki.features.manga.resources.manga_about_rating
 import app.tanuki.features.manga.resources.manga_info_add_to_library
 import app.tanuki.features.manga.resources.manga_info_author
 import app.tanuki.features.manga.resources.manga_info_description
@@ -39,8 +42,8 @@ import app.tanuki.features.manga.resources.manga_info_show_less
 import app.tanuki.features.manga.resources.manga_info_show_more
 import app.tanuki.features.manga.resources.manga_info_source
 import app.tanuki.features.manga.resources.manga_info_source_unknown
+import app.tanuki.features.manga.resources.manga_metadata_characters
 import app.tanuki.features.manga.resources.manga_metadata_matched
-import app.tanuki.features.manga.resources.manga_metadata_score
 import app.tanuki.features.manga.resources.manga_metadata_tags
 import app.tanuki.features.manga.resources.manga_metadata_use_source
 import app.tanuki.features.manga.resources.manga_reading_mode_title
@@ -101,7 +104,7 @@ internal fun MangaInfoTab(
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     info.scoreLabel?.let { score ->
                         Text(
-                            text = stringResource(Res.string.manga_metadata_score) + " ★ " + score,
+                            text = stringResource(Res.string.manga_about_rating) + " ★ " + score,
                             style = TanukiTheme.typography.label,
                             color = TanukiTheme.colors.accent
                         )
@@ -120,6 +123,13 @@ internal fun MangaInfoTab(
                             color = TanukiTheme.colors.textFaint
                         )
                     }
+                    if (info.characters.isNotEmpty()) {
+                        Text(
+                            text = stringResource(Res.string.manga_metadata_characters) + ": " + info.characters.joinToString(", "),
+                            style = TanukiTheme.typography.caption,
+                            color = TanukiTheme.colors.textFaint
+                        )
+                    }
                     TanukiSwitchRow(
                         title = stringResource(Res.string.manga_metadata_use_source),
                         checked = info.useSourceInfo,
@@ -128,6 +138,8 @@ internal fun MangaInfoTab(
                 }
             }
         }
+
+        metadata?.recommendations?.takeIf { it.isNotEmpty() }?.let { RecommendationsRow(it) }
 
         manga.author?.let { author ->
             InfoSection(title = stringResource(Res.string.manga_info_author)) {
@@ -306,6 +318,8 @@ internal data class InfoMetadata(
     val scoreLabel: String?,
     val genres: List<String>,
     val tags: List<String>,
-    val useSourceInfo: Boolean
+    val useSourceInfo: Boolean,
+    val characters: List<String> = emptyList(),
+    val recommendations: List<MetadataRecommendation> = emptyList()
 )
 

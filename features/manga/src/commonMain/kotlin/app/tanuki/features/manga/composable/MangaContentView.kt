@@ -1,31 +1,29 @@
 package app.tanuki.features.manga.composable
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -37,25 +35,29 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
-import app.tanuki.assets.designSystem.component.Segment
-import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
+import app.tanuki.assets.designSystem.component.MangaCoverTile
+import app.tanuki.assets.designSystem.component.TanukiTag
 import app.tanuki.core.domain.chapter.model.Chapter
-import app.tanuki.features.manga.composable.components.InfoMetadata
+import app.tanuki.core.domain.metadata.model.MetadataRecommendation
 import app.tanuki.features.manga.composable.components.MangaHero
-import app.tanuki.features.manga.composable.components.MangaInfoTab
 import app.tanuki.features.manga.composable.components.chapterList
 import app.tanuki.features.manga.resources.Res
-import app.tanuki.features.manga.resources.manga_chapters_title
-import app.tanuki.features.manga.resources.manga_tab_info
+import app.tanuki.features.manga.resources.manga_info_no_description
+import app.tanuki.features.manga.resources.manga_info_show_more
+import app.tanuki.features.manga.resources.manga_metadata_recommendations
+import app.tanuki.features.manga.resources.manga_tags_more
 import app.tanuki.features.manga.viewmodel.MangaState.Content
+import app.tanuki.features.manga.viewmodel.RecommendationsPlacement
+import app.tanuki.features.manga.viewmodel.TagRow
 import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.stringResource
 
 /** The two panes of the detail body's tabbed section. Ordinal order drives the slide direction. */
-private enum class MangaTab { Chapters, Info }
 
 /** Matches the design system's detail app-bar height; the hero collapses down to this (under the bar). */
 private val DetailBarHeight = 56.dp
@@ -87,7 +89,6 @@ fun MangaContentView(
     onOpenChapterFilter: () -> Unit,
     onManageCategories: () -> Unit,
     onEditReadingStatus: () -> Unit,
-    onEditReadingMode: () -> Unit,
     onChapterClick: (Chapter) -> Unit,
     onChapterLongClick: (Chapter) -> Unit,
     onChapterDownloadClick: (Chapter) -> Unit,
@@ -100,18 +101,11 @@ fun MangaContentView(
     onDeleteSelectionDownloads: () -> Unit,
     onClearSelection: () -> Unit,
     onReadClick: () -> Unit,
-    onAddToLibrary: () -> Unit,
-    onRemoveFromLibrary: () -> Unit,
-    onUseSourceInfoChange: (Boolean) -> Unit,
+    onOpenAbout: () -> Unit,
     onHeroCollapsedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val spacing = TanukiTheme.spacing
-    var tab by remember { mutableStateOf(MangaTab.Chapters) }
-    // A selection belongs to the chapter list; carrying it over to Info would leave the selection bars
-    // hovering around a screen with nothing selectable on it.
-    LaunchedEffect(tab) { if (tab != MangaTab.Chapters) onClearSelection() }
-    // Hoisted so the chapter scroll position survives switching to the Info tab and back.
     val chapterListState = rememberLazyListState()
 
     val density = LocalDensity.current
@@ -178,7 +172,8 @@ fun MangaContentView(
         ) {
             MangaHero(
                 manga = state.manga,
-                chapterCount = state.chapters.size,
+                header = state.header,
+                heroLine = state.heroLine,
                 categoryNames = state.categories.filter { it.isMember }.map { it.category.name.value },
                 onManageCategories = onManageCategories,
                 onEditReadingStatus = onEditReadingStatus,
@@ -192,91 +187,44 @@ fun MangaContentView(
             )
         }
 
-        TanukiSegmentedControl(
-            segments =
-                listOf(
-                    Segment(MangaTab.Chapters, stringResource(Res.string.manga_chapters_title)),
-                    Segment(MangaTab.Info, stringResource(Res.string.manga_tab_info))
-                ),
-            selected = tab,
-            onSelect = { tab = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.gutter, vertical = spacing.sm)
-        )
-
-        AnimatedContent(
-            targetState = tab,
-            transitionSpec = {
-                val forward = targetState.ordinal > initialState.ordinal
-                val width = { full: Int -> if (forward) full else -full }
-                // sizeTransform = null: the panes fill a fixed slot, so we want only the horizontal slide —
-                // without this, AnimatedContent's default size animation adds a second (clipping) pass as
-                // the Read bar below resizes the slot, which reads as the content animating twice.
-                ContentTransform(
-                    targetContentEnter = slideInHorizontally(initialOffsetX = width) + fadeIn(),
-                    initialContentExit = slideOutHorizontally(targetOffsetX = { -width(it) }) + fadeOut(),
-                    sizeTransform = null
-                )
-            },
-            label = "mangaTab",
+        // One list: synopsis, one tag row, suggestions (only for a series not yet in the library — the
+        // ViewModel decides), then the chapters. Reference material lives in the About sheet.
+        LazyColumn(
+            state = chapterListState,
+            contentPadding = PaddingValues(bottom = spacing.xl),
             modifier = Modifier.fillMaxWidth().weight(1f)
-        ) { current ->
-            when (current) {
-                MangaTab.Chapters -> {
-                    LazyColumn(
-                        state = chapterListState,
-                        contentPadding = PaddingValues(bottom = spacing.xl),
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        chapterList(
-                            chapters = state.chapters,
-                            ascending = state.chapterSortAscending,
-                            canFilter = state.canFilterScanlators,
-                            filterActive = state.isChapterFilterActive,
-                            selectedIds = state.selection.ids,
-                            downloads = state.downloads,
-                            onToggleSort = onToggleSort,
-                            onOpenFilter = onOpenChapterFilter,
-                            onChapterClick = onChapterClick,
-                            onChapterLongClick = onChapterLongClick,
-                            onChapterDownloadClick = onChapterDownloadClick,
-                            onChapterDownloadDelete = onChapterDownloadDelete
-                        )
-                    }
-                }
-
-                MangaTab.Info -> {
-                    MangaInfoTab(
-                        manga = state.manga,
-                        source = state.source,
-                        inLibrary = state.inLibrary,
-                        onEditReadingMode = onEditReadingMode,
-                        onAddToLibrary = onAddToLibrary,
-                        onRemoveFromLibrary = onRemoveFromLibrary,
-                        synopsis = state.header.synopsis,
-                        metadata =
-                            state.series?.takeIf { state.isMatched }?.let { series ->
-                                InfoMetadata(
-                                    scoreLabel = state.scoreLabel,
-                                    genres = series.genres,
-                                    tags = series.tags.filterNot { it.spoiler }.take(10).map { it.name },
-                                    useSourceInfo = state.useSourceInfo
-                                )
-                            },
-                        onUseSourceInfoChange = onUseSourceInfoChange,
-                        modifier = Modifier.fillMaxSize()
-                    )
+        ) {
+            item(key = "synopsis") {
+                SynopsisPreview(text = state.header.synopsis, onMore = onOpenAbout)
+            }
+            if (state.tagRow.visible.isNotEmpty()) {
+                item(key = "tags") { TagRowPreview(row = state.tagRow, onClick = onOpenAbout) }
+            }
+            if (state.recommendationsPlacement == RecommendationsPlacement.AboveChapters) {
+                state.series?.recommendations?.let { recommendations ->
+                    item(key = "recommendations") { RecommendationsRow(recommendations) }
                 }
             }
+            chapterList(
+                chapters = state.chapters,
+                ascending = state.chapterSortAscending,
+                canFilter = state.canFilterScanlators,
+                filterActive = state.isChapterFilterActive,
+                selectedIds = state.selection.ids,
+                downloads = state.downloads,
+                onToggleSort = onToggleSort,
+                onOpenFilter = onOpenChapterFilter,
+                onChapterClick = onChapterClick,
+                onChapterLongClick = onChapterLongClick,
+                onChapterDownloadClick = onChapterDownloadClick,
+                onChapterDownloadDelete = onChapterDownloadDelete
+            )
         }
 
-        // The bottom bar belongs to the Chapters tab only; it slides down out of view on Info. Within the
-        // tab it swaps between reading and acting on a selection — a swap in place, not a second bar
+        // The bottom bar swaps between reading and acting on a selection — a swap in place, not a second bar
         // stacked on the first, because the two are alternatives: nothing is being resumed mid-selection.
-        AnimatedVisibility(
-            visible = tab == MangaTab.Chapters,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut()
-        ) {
+        // It sits below the list (not over it), so the last chapter is never covered.
+        Box {
             AnimatedContent(targetState = state.selection.isActive, label = "chapterBottomBar") { selecting ->
                 if (selecting) {
                     ChapterSelectionBar(
@@ -298,3 +246,75 @@ fun MangaContentView(
         }
     }
 }
+
+/** The synopsis, three lines; "Show more" opens the About sheet with the full text. */
+@Composable
+private fun SynopsisPreview(
+    text: String?,
+    onMore: () -> Unit
+) {
+    val spacing = TanukiTheme.spacing
+    Column(Modifier.padding(horizontal = spacing.gutter, vertical = spacing.sm)) {
+        Text(
+            text = text ?: stringResource(Res.string.manga_info_no_description),
+            style = TanukiTheme.typography.body,
+            color = if (text == null) TanukiTheme.colors.textFaint else MaterialTheme.colorScheme.onSurface,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (text != null) {
+            Text(
+                text = stringResource(Res.string.manga_info_show_more),
+                style = TanukiTheme.typography.label,
+                color = TanukiTheme.colors.accent,
+                modifier = Modifier.padding(top = spacing.xs).clickable(onClick = onMore)
+            )
+        }
+    }
+}
+
+/** The one tag row: a few tags and "+N"; tapping it opens About. */
+@Composable
+private fun TagRowPreview(
+    row: TagRow,
+    onClick: () -> Unit
+) {
+    val spacing = TanukiTheme.spacing
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(spacing.sm),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = spacing.gutter, vertical = spacing.sm)
+    ) {
+        row.visible.forEach { TanukiTag(text = it) }
+        if (row.overflow > 0) TanukiTag(text = stringResource(Res.string.manga_tags_more, row.overflow))
+    }
+}
+
+/** "You might also like": covers that open the title on AniList. */
+@Composable
+internal fun RecommendationsRow(recommendations: List<MetadataRecommendation>) {
+    val spacing = TanukiTheme.spacing
+    val uriHandler = LocalUriHandler.current
+    Column(Modifier.padding(vertical = spacing.sm), verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+        Text(
+            text = stringResource(Res.string.manga_metadata_recommendations),
+            style = TanukiTheme.typography.title,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = spacing.gutter)
+        )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = spacing.gutter),
+            horizontalArrangement = Arrangement.spacedBy(spacing.md)
+        ) {
+            items(recommendations, key = { it.anilistId }) { recommendation ->
+                MangaCoverTile(
+                    seed = recommendation.anilistId.toString(),
+                    title = recommendation.title,
+                    coverUrl = recommendation.coverUrl,
+                    onClick = { runCatching { uriHandler.openUri(recommendation.siteUrl) } },
+                    modifier = Modifier.width(112.dp)
+                )
+            }
+        }
+    }
+}
+

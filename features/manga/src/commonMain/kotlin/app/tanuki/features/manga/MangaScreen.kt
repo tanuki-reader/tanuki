@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -38,8 +39,10 @@ import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.manga.composable.MangaContentView
 import app.tanuki.features.manga.composable.components.ChapterFilterSheet
 import app.tanuki.features.manga.composable.components.ChapterSelectionTopBar
+import app.tanuki.features.manga.composable.components.InfoMetadata
 import app.tanuki.features.manga.composable.components.MangaCategoriesSheet
 import app.tanuki.features.manga.composable.components.MangaDownloadMenu
+import app.tanuki.features.manga.composable.components.MangaInfoTab
 import app.tanuki.features.manga.composable.components.MangaRefreshError
 import app.tanuki.features.manga.composable.components.ReadingModeSheet
 import app.tanuki.features.manga.composable.components.ReadingStatusSheet
@@ -51,6 +54,7 @@ import app.tanuki.features.manga.viewmodel.MangaState.Content
 import app.tanuki.features.manga.viewmodel.MangaState.Loading
 import app.tanuki.features.manga.viewmodel.MangaState.NotFound
 import app.tanuki.features.manga.viewmodel.MangaViewModel
+import app.tanuki.features.manga.viewmodel.RecommendationsPlacement
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.delay
@@ -157,7 +161,6 @@ private fun MangaScreen(
                             onOpenChapterFilter = { viewModel.onOpenSheet(MangaSheet.ChapterFilter) },
                             onManageCategories = { viewModel.onOpenSheet(MangaSheet.Categories) },
                             onEditReadingStatus = { viewModel.onOpenSheet(MangaSheet.ReadingStatus) },
-                            onEditReadingMode = { viewModel.onOpenSheet(MangaSheet.ReadingMode) },
                             onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
                             onChapterLongClick = { chapter -> viewModel.onChapterLongClick(chapter.id) },
                             onChapterDownloadClick = { chapter -> viewModel.onChapterDownloadClick(chapter.id) },
@@ -170,9 +173,7 @@ private fun MangaScreen(
                             onDeleteSelectionDownloads = viewModel::onDeleteSelectionDownloads,
                             onClearSelection = viewModel::onClearSelection,
                             onReadClick = viewModel::onReadClick,
-                            onAddToLibrary = viewModel::onAddToLibrary,
-                            onRemoveFromLibrary = viewModel::onRemoveFromLibrary,
-                            onUseSourceInfoChange = viewModel::onUseSourceInfoChange,
+                            onOpenAbout = { viewModel.onOpenSheet(MangaSheet.About) },
                             onHeroCollapsedChange = { heroCollapsed = it },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -260,6 +261,35 @@ private fun MangaScreen(
             )
         }
 
+        if (content?.sheet == MangaSheet.About) {
+            // Reference material, off the main list: the former Info tab's content plus the metadata.
+            ModalBottomSheet(onDismissRequest = viewModel::onDismissSheet) {
+                MangaInfoTab(
+                    manga = content.manga,
+                    source = content.source,
+                    inLibrary = content.inLibrary,
+                    onEditReadingMode = { viewModel.onOpenSheet(MangaSheet.ReadingMode) },
+                    onAddToLibrary = viewModel::onAddToLibrary,
+                    onRemoveFromLibrary = viewModel::onRemoveFromLibrary,
+                    synopsis = content.header.synopsis,
+                    metadata =
+                        content.series?.takeIf { content.isMatched }?.let { series ->
+                            InfoMetadata(
+                                scoreLabel = content.scoreLabel,
+                                genres = emptyList(),
+                                tags = content.tags.filterNot { it.spoiler }.map { it.name },
+                                useSourceInfo = content.useSourceInfo,
+                                characters = series.characters.map { it.name },
+                                recommendations =
+                                    series.recommendations.takeIf {
+                                        content.recommendationsPlacement == RecommendationsPlacement.AboutOnly
+                                    }.orEmpty()
+                            )
+                        },
+                    onUseSourceInfoChange = viewModel::onUseSourceInfoChange
+                )
+            }
+        }
         if (content?.sheet == MangaSheet.Categories) {
             MangaCategoriesSheet(
                 categories = content.categories,

@@ -86,6 +86,49 @@ sealed interface MangaState {
         /** AniList's 0–100 average as a 0–10 score with one decimal ("8.8"), `null` when unrated. */
         val scoreLabel: String? get() = series?.score?.let { "${it / 10}.${it % 10}" }
 
+        /**
+         * The hero's single metadata line — "Ongoing · 143 ch. · ★ 8.2" once each platform joins the pieces.
+         * No source (it has its own row in About) and no match line (a setting, in the ⋯ menu).
+         */
+        val heroLine: HeroLine by lazy {
+            HeroLine(
+                status = header.publishStatus.takeIf { it != PublishStatus.UNKNOWN },
+                chapterCount = chapters.size,
+                rating = scoreLabel
+            )
+        }
+
+        /**
+         * Every tag the series has, merged into one list: the header's genres first, then the metadata's
+         * tags by relevance, duplicates dropped regardless of case ("Action" and "action" are one).
+         * Spoiler tags stay, flagged, for the About sheet to blur.
+         */
+        val tags: List<TagItem> by lazy {
+            val seen = mutableSetOf<String>()
+            val genres = header.genres.map { TagItem(it, spoiler = false) }
+            val ranked = series?.tags.orEmpty().sortedByDescending { it.rank }.map { TagItem(it.name, it.spoiler) }
+            (genres + ranked).filter { seen.add(it.name.trim().lowercase()) }
+        }
+
+        /** The page's one chip row: the first few non-spoiler tags and how many more About holds. */
+        val tagRow: TagRow by lazy {
+            val visible = tags.filterNot { it.spoiler }.take(TAG_ROW_SIZE).map { it.name }
+            TagRow(visible = visible, overflow = tags.size - visible.size)
+        }
+
+        /**
+         * Where "You might also like" goes. A series not in the library is still being decided on, so
+         * suggestions sit above its chapters; for a library series the chapters are the job, and the
+         * suggestions move into About.
+         */
+        val recommendationsPlacement: RecommendationsPlacement
+            get() =
+                when {
+                    series?.recommendations.isNullOrEmpty() -> RecommendationsPlacement.None
+                    inLibrary -> RecommendationsPlacement.AboutOnly
+                    else -> RecommendationsPlacement.AboveChapters
+                }
+
         /** The user's "Use source info" switch. */
         val useSourceInfo: Boolean get() = metadata?.link?.useSourceInfo == true
 
@@ -272,7 +315,30 @@ sealed interface MangaState {
 }
 
 /** A modal over the manga page. Screen state like any other, so both platforms show the same one. */
-enum class MangaSheet { Categories, ChapterFilter, ReadingStatus, ReadingMode, ConfirmDeleteDownloads, CoverPicker, MatchSearch }
+enum class MangaSheet { Categories, ChapterFilter, ReadingStatus, ReadingMode, ConfirmDeleteDownloads, CoverPicker, MatchSearch, About }
+
+/** The hero's metadata line in pieces; each platform formats and joins them. Nulls are left out. */
+data class HeroLine(
+    val status: PublishStatus?,
+    val chapterCount: Int,
+    val rating: String?
+)
+
+/** One tag (a genre or a metadata tag). [spoiler] ones are blurred until asked. */
+data class TagItem(
+    val name: String,
+    val spoiler: Boolean
+)
+
+/** The page's chip row: [visible] chips, then a "+[overflow]" chip when more live in About. */
+data class TagRow(
+    val visible: List<String>,
+    val overflow: Int
+)
+
+enum class RecommendationsPlacement { AboveChapters, AboutOnly, None }
+
+private const val TAG_ROW_SIZE = 3
 
 /**
  * Working state of the metadata sheets. [coverOptions] / [matchResults] are `null` while loading.

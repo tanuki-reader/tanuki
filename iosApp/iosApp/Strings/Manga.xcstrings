@@ -1,6 +1,40 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "manga_about_rating": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AniList rating"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nota no AniList"
+          }
+        }
+      }
+    },
+    "manga_about_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sobre"
+          }
+        }
+      }
+    },
     "manga_action_categories": {
       "extractionState": "manual",
       "localizations": {
@@ -120,6 +154,47 @@
                 "stringUnit": {
                   "state": "translated",
                   "value": "%1$lld capítulos"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "manga_chapter_count_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld ch."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld ch."
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld cap."
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld caps."
                 }
               }
             }
@@ -1406,6 +1481,23 @@
         }
       }
     },
+    "manga_read_chapter_short": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Read Ch. %1$@"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ler cap. %1$@"
+          }
+        }
+      }
+    },
     "manga_reading_mode_continuous_vertical": {
       "extractionState": "manual",
       "localizations": {
@@ -1987,6 +2079,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Informações"
+          }
+        }
+      }
+    },
+    "manga_tags_more": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%1$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "+%1$lld"
           }
         }
       }
