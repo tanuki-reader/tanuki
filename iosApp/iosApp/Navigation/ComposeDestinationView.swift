@@ -15,7 +15,8 @@ struct ComposeDestinationView: View {
 
     var body: some View {
         ComposeController(destination: destination, path: $path)
-            .ignoresSafeArea(edges: .top)
+            // Both edges: Compose pads for the bars itself; leaving the bottom to SwiftUI showed an unpainted strip.
+            .ignoresSafeArea(edges: [.top, .bottom])
             .ignoresSafeArea(.keyboard)
             .toolbar(.hidden, for: .navigationBar)
     }

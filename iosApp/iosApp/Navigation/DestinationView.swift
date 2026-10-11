@@ -24,7 +24,8 @@ struct DestinationView: View {
         case let .sourceBrowse(source): SourceHomeScreen(sourceId: source.sourceId, path: $path)
         case let .sourceCatalogGrid(catalog):
             SourceCatalogScreen(sourceId: catalog.sourceId, listing: catalog.listing, query: catalog.query, path: $path)
-        case .downloads, .mangaDetail, .reader: bridge
+        case let .mangaDetail(manga): MangaScreen(mangaId: manga.mangaId, path: $path)
+        case .downloads, .reader: bridge
         }
     }
 

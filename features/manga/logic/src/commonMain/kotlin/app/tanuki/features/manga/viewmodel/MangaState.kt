@@ -5,7 +5,11 @@ import app.tanuki.core.domain.chapter.model.Chapter
 import app.tanuki.core.domain.download.model.ChapterDownload
 import app.tanuki.core.domain.download.model.DownloadState
 import app.tanuki.core.domain.manga.model.Manga
+import app.tanuki.core.domain.manga.model.PublishStatus
+import app.tanuki.core.domain.manga.model.ReadingMode
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.source.model.Source
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /** UI state for the manga detail screen. */
@@ -57,8 +61,54 @@ sealed interface MangaState {
         val source: Source?,
         val selection: ChapterSelection = ChapterSelection.None,
         val downloads: Map<Uuid, ChapterDownload> = emptyMap(),
-        val refresh: Refresh = Refresh.Idle
+        val refresh: Refresh = Refresh.Idle,
+        val sheet: MangaSheet? = null
     ) : MangaState {
+        /** The page's header, in plain values for Swift (the domain's `Text`/`Url` reach it untyped). */
+        val header: MangaHeader by lazy {
+            MangaHeader(
+                title = manga.title.value,
+                author = manga.author?.value,
+                coverUrl = manga.cover.url?.value,
+                coverHeaders = manga.cover.headers,
+                synopsis = manga.description?.value,
+                publishStatus = manga.publishStatus,
+                chapterCount = chapters.size,
+                sourceName = source?.name?.value,
+                sourceLang = source?.lang?.value,
+                readingStatus = manga.readingStatus,
+                readingMode = manga.readingMode,
+                inLibrary = inLibrary,
+                url = manga.url.value
+            )
+        }
+
+        /** [chapters] as list rows, in plain values for Swift. Built once per state. */
+        val rows: List<ChapterRow> by lazy {
+            chapters.map { chapter ->
+                val download = downloads[chapter.id]
+                ChapterRow(
+                    id = chapter.id,
+                    numberLabel = chapter.chapterNumber?.display,
+                    name = chapter.name?.value,
+                    scanlator = chapter.scanlator?.value,
+                    dateUploaded = chapter.dateUpload,
+                    isRead = chapter.progress?.alreadyRead == true,
+                    lastPageRead = chapter.progress?.lastPageRead?.toInt()?.takeIf { it > 0 && chapter.progress?.alreadyRead != true },
+                    download = download?.state,
+                    downloadProgress =
+                        download?.pageCount?.takeIf { it > 0 }?.let { download.downloadedPages.toFloat() / it },
+                    isSelected = chapter.id in selection.ids
+                )
+            }
+        }
+
+        /** The floating Read button: the chapter it resumes, `null` when there is none to read. */
+        val resumeNumberLabel: String? get() = resumeChapter?.chapterNumber?.display
+
+        /** Whether any chapter has been started — "Continue" rather than "Start" copy. */
+        val hasResume: Boolean get() = resumeChapter != null
+
         val inLibrary: Boolean get() = manga.dateAdded != null
 
         /**
@@ -184,5 +234,50 @@ sealed interface MangaState {
     data class MangaCategoryChip(
         val category: Category,
         val isMember: Boolean
-    )
+    ) {
+        /** For Swift, which can't read the domain's `Text`. */
+        val name: String get() = category.name.value
+    }
 }
+
+/** A modal over the manga page. Screen state like any other, so both platforms show the same one. */
+enum class MangaSheet { Categories, ChapterFilter, ReadingStatus, ReadingMode, ConfirmDeleteDownloads }
+
+/**
+ * The manga page's header in plain values. [publishStatus], [readingStatus] and [readingMode] stay enums:
+ * each platform maps them to its own copy.
+ */
+data class MangaHeader(
+    val title: String,
+    val author: String?,
+    val coverUrl: String?,
+    val coverHeaders: Map<String, String>,
+    val synopsis: String?,
+    val publishStatus: PublishStatus,
+    val chapterCount: Int,
+    val sourceName: String?,
+    val sourceLang: String?,
+    val readingStatus: ReadingStatus?,
+    val readingMode: ReadingMode,
+    val inLibrary: Boolean,
+    val url: String
+)
+
+/**
+ * One chapter row. [numberLabel] ("12", "10.5") or [name] make the title; each platform formats
+ * [dateUploaded]. [lastPageRead] is set only for a chapter started but not finished ("Page 12").
+ * [download] is `null` when nothing is on disk or queued; [downloadProgress] is 0–1 while downloading.
+ */
+data class ChapterRow(
+    val id: Uuid,
+    val numberLabel: String?,
+    val name: String?,
+    val scanlator: String?,
+    val dateUploaded: Instant?,
+    val isRead: Boolean,
+    val lastPageRead: Int?,
+    val download: DownloadState?,
+    val downloadProgress: Float?,
+    val isSelected: Boolean
+)
+

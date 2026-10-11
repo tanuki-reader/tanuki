@@ -96,6 +96,7 @@
 
     <!-- Category management (hero chips + edit sheet). -->
     <string name="manga_categories_title">Manage categories</string>
+    <string name="manga_action_categories">Categories</string>
     <string name="manga_categories_empty">Create categories in your library to organize titles.</string>
     <string name="manga_categories_add">Add to category</string>
     <!-- Overflow chip when the manga is in more categories than fit; %1$d is how many more. -->

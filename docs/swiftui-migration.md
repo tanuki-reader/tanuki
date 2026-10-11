@@ -206,14 +206,16 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
 
 ### Manga detail (Phase 5)
 
-- [ ] Bug: synopsis shows HTML entities (`Murim&#039;s`). Decode when mapping source data, not in the UI.
-- [ ] Bug: white strip under bottom content on Compose-rendered iOS screens (also on Source browse);
-      the Compose bridge doesn't extend into the bottom safe area.
-- [ ] One scrolling page instead of Chapters/Info tabs: hero (cover, title, author, status · chapters ·
-      source) → glass secondary actions (Reading status menu, Categories) → synopsis + genre chips →
-      grouped Source / Reading mode rows → chapter list (unread dot, download button).
-- [ ] Primary action: floating `.glassProminent` capsule "Read Ch. N" tinted `accent`; system back button.
-      "Remove from library" moves into the Reading status menu.
+- [x] Bug: synopsis shows HTML entities (`Murim&#039;s`). Decoded host-side in `Mappers.kt`.
+- [x] Bug: white strip under bottom content on Compose-rendered iOS screens; the bridge now ignores both
+      vertical safe areas.
+- [x] One scrolling page (iOS): hero → glass actions (Reading status menu, Categories) → synopsis →
+      Source / Reading mode rows → chapter list. Genre chips wait for Phase 5b (sources don't persist
+      genres; AniList will).
+- [x] Primary action: floating `.glassProminent` "Read Chapter N"; "Remove from library" lives in the
+      Reading status menu.
+- [ ] **Phase 5b — metadata enrichment** (AniList + MangaDex covers): designed in
+      `docs/design-manga-metadata.md`, not built.
 
 ### Activity (Phase 6)
 
@@ -578,4 +580,29 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     `.searchable` made the field collapse and re-show.
   - **Dev note:** `DevSourceInstaller` rewrites bundles asynchronously on launch, so a screen opened in
     the first instant (e.g. a temporary auto-push) can still run the previous bundle.
+- 2026-10-11 — **Phase 5a — Manga detail in SwiftUI done** (pending commit and the hand checks below).
+  - **`:features:manga:logic`** (exported) holds `MangaViewModel`/`MangaState`;
+    `ScreenScope.mangaViewModel(mangaId:)`. `MangaState.Content` adds Swift-facing projections built
+    lazily once per state — `header: MangaHeader` and `rows: List<ChapterRow>` (plain values, download
+    state + progress, started page) — plus `resumeNumberLabel`, and `MangaCategoryChip.name`.
+  - **Sheets are ViewModel state** (`sheet: MangaSheet?`, `onOpenSheet`/`onDismissSheet`): categories,
+    chapter filter, reading status, reading mode, confirm-delete-downloads. Picking a status/mode or
+    deleting all closes it in the ViewModel; Android's four sheets read it too (no visual change).
+  - **HTML entities** decoded once in `core/source/.../abi/Mappers.kt` (`decodeHtmlEntities`, numeric +
+    common named) for title, original title, author and description.
+  - **SwiftUI `Features/Manga/MangaScreen.swift`**: cover-tinted hero, glass Reading-status menu +
+    Categories, clamped synopsis, Source/Reading-mode rows, chapter header with filter/sort, rows with
+    unread dot / date · group (or "Page N") / download control (menu to delete when downloaded,
+    progress ring, retry), long-press selection with a glass action bar and select-all/above/below,
+    floating "Read Chapter N", toolbar download menu + share, pull to refresh, refresh-failed alert.
+  - **Bridge**: `ComposeDestinationView` ignores the bottom safe area too (the white strip).
+  - **Verified:** `HtmlEntitiesTest` 3, `MangaContentProjectionTest` 2 (host + iOS),
+    `:androidApp:assembleDebug`, framework link, Debug xcodebuild; live on the simulator with MangaDex
+    titles (hero, rows with dates and groups, multi-group filter button, Read button).
+  - **Not verified by hand:** each sheet, selection mode, downloads, the reader round trip, Android on a
+    device. No ViewModel test for `MangaViewModel` itself (its use cases are sealed; the projection and
+    the sheet logic are small).
+  - **Metadata (5b):** feasibility confirmed and designed in `docs/design-manga-metadata.md`.
+
+  Next: **Phase 5b — metadata**, or **Phase 6 — Activity**.
 

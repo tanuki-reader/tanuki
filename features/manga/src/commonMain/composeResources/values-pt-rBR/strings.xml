@@ -94,6 +94,7 @@
 
     <!-- Gerenciamento de categorias (chips no destaque + folha de edição). -->
     <string name="manga_categories_title">Gerenciar categorias</string>
+    <string name="manga_action_categories">Categorias</string>
     <string name="manga_categories_empty">Crie categorias na sua biblioteca para organizar títulos.</string>
     <string name="manga_categories_add">Adicionar a categoria</string>
     <!-- Chip de excedente quando o mangá está em mais categorias do que cabem; %1$d é quantas a mais. -->

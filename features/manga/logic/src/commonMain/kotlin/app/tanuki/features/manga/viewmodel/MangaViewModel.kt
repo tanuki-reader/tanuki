@@ -117,6 +117,9 @@ class MangaViewModel(
      */
     private val refresh = MutableStateFlow(MangaState.Refresh.Idle)
 
+    /** The open modal, if any — screen state, so both platforms show the same one. */
+    private val sheet = MutableStateFlow<MangaSheet?>(null)
+
     override val state: Flow<MangaState> =
         combine(
             observeManga(mangaId),
@@ -156,6 +159,8 @@ class MangaViewModel(
             if (state is Content) state.copy(selection = state.selectionOf(selected)) else state
         }.combine(refresh) { state, refreshing ->
             if (state is Content) state.copy(refresh = refreshing) else state
+        }.combine(sheet) { state, sheet ->
+            if (state is Content) state.copy(sheet = sheet) else state
         }
 
     init {
@@ -216,6 +221,16 @@ class MangaViewModel(
      * for the same reason the two are separate coroutines on open: different endpoints, and a slow
      * synopsis must not hold the spinner over an already-updated chapter list.
      */
+    /** Open a modal over the page. */
+    fun onOpenSheet(sheet: MangaSheet) {
+        this.sheet.value = sheet
+    }
+
+    /** The open modal was dismissed. */
+    fun onDismissSheet() {
+        sheet.value = null
+    }
+
     fun onRefresh() {
         if (refresh.value.inProgress) return
         refresh.value = MangaState.Refresh(inProgress = true, failed = false)
@@ -268,6 +283,7 @@ class MangaViewModel(
      * pipeline re-emits with the new [Manga.readingStatus] (and `inLibrary = true` when it was an add).
      */
     fun onSetReadingStatus(status: ReadingStatus) {
+        sheet.value = null
         val content = uiState.value as? Content ?: return
         if (content.manga.readingStatus == status) return
         viewModelScope.launch {
@@ -284,6 +300,7 @@ class MangaViewModel(
      * the reader reads it back when opening a chapter.
      */
     fun onSetReadingMode(mode: ReadingMode) {
+        sheet.value = null
         val content = uiState.value as? Content ?: return
         if (content.manga.readingMode == mode) return
         viewModelScope.launch {
@@ -542,6 +559,7 @@ class MangaViewModel(
      * [DeleteMangaDownloads] is for.
      */
     fun onDeleteAllDownloads() {
+        sheet.value = null
         viewModelScope.launch {
             io { deleteMangaDownloads(mangaId) }
         }

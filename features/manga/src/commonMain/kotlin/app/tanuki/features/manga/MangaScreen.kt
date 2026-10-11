@@ -45,15 +45,16 @@ import app.tanuki.features.manga.composable.components.ReadingModeSheet
 import app.tanuki.features.manga.composable.components.ReadingStatusSheet
 import app.tanuki.features.manga.resources.Res
 import app.tanuki.features.manga.resources.manga_not_found
+import app.tanuki.features.manga.viewmodel.MangaSheet
 import app.tanuki.features.manga.viewmodel.MangaState.ChapterSelection
 import app.tanuki.features.manga.viewmodel.MangaState.Content
 import app.tanuki.features.manga.viewmodel.MangaState.Loading
 import app.tanuki.features.manga.viewmodel.MangaState.NotFound
 import app.tanuki.features.manga.viewmodel.MangaViewModel
 import dev.zacsweers.metrox.viewmodel.assistedMetroViewModel
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.stringResource
-import kotlin.uuid.Uuid
 
 /** How long a failed-refresh banner stays up before it clears itself. */
 private const val RefreshErrorDurationMs = 6_000L
@@ -98,10 +99,6 @@ private fun MangaScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // Hoisted out of PullToRefreshBox so the custom indicator below reads the same drag state the box does.
     val pullState = rememberPullToRefreshState()
-    var showCategoriesSheet by remember { mutableStateOf(false) }
-    var showChapterFilterSheet by remember { mutableStateOf(false) }
-    var showReadingStatusSheet by remember { mutableStateOf(false) }
-    var showReadingModeSheet by remember { mutableStateOf(false) }
     // Reported by MangaContentView as the hero collapses; drives the top bar's solid/title state.
     var heroCollapsed by remember { mutableStateOf(false) }
 
@@ -157,10 +154,10 @@ private fun MangaScreen(
                         MangaContentView(
                             state = current,
                             onToggleSort = viewModel::onToggleChapterSort,
-                            onOpenChapterFilter = { showChapterFilterSheet = true },
-                            onManageCategories = { showCategoriesSheet = true },
-                            onEditReadingStatus = { showReadingStatusSheet = true },
-                            onEditReadingMode = { showReadingModeSheet = true },
+                            onOpenChapterFilter = { viewModel.onOpenSheet(MangaSheet.ChapterFilter) },
+                            onManageCategories = { viewModel.onOpenSheet(MangaSheet.Categories) },
+                            onEditReadingStatus = { viewModel.onOpenSheet(MangaSheet.ReadingStatus) },
+                            onEditReadingMode = { viewModel.onOpenSheet(MangaSheet.ReadingMode) },
                             onChapterClick = { chapter -> viewModel.onChapterClick(chapter.id) },
                             onChapterLongClick = { chapter -> viewModel.onChapterLongClick(chapter.id) },
                             onChapterDownloadClick = { chapter -> viewModel.onChapterDownloadClick(chapter.id) },
@@ -262,40 +259,34 @@ private fun MangaScreen(
             )
         }
 
-        if (showCategoriesSheet && content != null) {
+        if (content?.sheet == MangaSheet.Categories) {
             MangaCategoriesSheet(
                 categories = content.categories,
                 onToggle = viewModel::onToggleCategory,
-                onDismiss = { showCategoriesSheet = false }
+                onDismiss = viewModel::onDismissSheet
             )
         }
-        if (showChapterFilterSheet && content != null) {
+        if (content?.sheet == MangaSheet.ChapterFilter) {
             ChapterFilterSheet(
                 scanlators = content.scanlators,
                 visibleChapterCount = content.chapters.size,
                 onToggle = viewModel::onToggleScanlator,
                 onReset = viewModel::onResetChapterFilter,
-                onDismiss = { showChapterFilterSheet = false }
+                onDismiss = viewModel::onDismissSheet
             )
         }
-        if (showReadingStatusSheet && content != null) {
+        if (content?.sheet == MangaSheet.ReadingStatus) {
             ReadingStatusSheet(
                 current = content.manga.readingStatus,
-                onSelect = { status ->
-                    viewModel.onSetReadingStatus(status)
-                    showReadingStatusSheet = false
-                },
-                onDismiss = { showReadingStatusSheet = false }
+                onSelect = viewModel::onSetReadingStatus,
+                onDismiss = viewModel::onDismissSheet
             )
         }
-        if (showReadingModeSheet && content != null) {
+        if (content?.sheet == MangaSheet.ReadingMode) {
             ReadingModeSheet(
                 current = content.manga.readingMode,
-                onSelect = { mode ->
-                    viewModel.onSetReadingMode(mode)
-                    showReadingModeSheet = false
-                },
-                onDismiss = { showReadingModeSheet = false }
+                onSelect = viewModel::onSetReadingMode,
+                onDismiss = viewModel::onDismissSheet
             )
         }
     }

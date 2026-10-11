@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "manga_action_categories": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Categories"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Categorias"
+          }
+        }
+      }
+    },
     "manga_categories_add": {
       "extractionState": "manual",
       "localizations": {

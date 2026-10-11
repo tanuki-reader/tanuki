@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.features.home.viewmodel.HomeViewModel
 import app.tanuki.features.library.viewmodel.LibraryViewModel
+import app.tanuki.features.manga.viewmodel.MangaViewModel
 import app.tanuki.features.settings.appearance.viewmodel.AppearanceViewModel
 import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
 import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsViewModel
@@ -17,6 +18,7 @@ import app.tanuki.features.source.viewmodel.SourceBrowseViewModel
 import app.tanuki.features.source.viewmodel.SourceHomeViewModel
 import dev.zacsweers.metrox.viewmodel.MetroViewModelFactory
 import kotlin.reflect.KClass
+import kotlin.uuid.Uuid
 
 /**
  * One SwiftUI screen's ViewModel lifetime — the iOS counterpart of a Compose `NavBackStackEntry`'s
@@ -86,4 +88,9 @@ fun ScreenScope.sourceCatalogViewModel(
     assistedViewModel(SourceBrowseViewModel::class) {
         createManuallyAssistedFactory(SourceBrowseViewModel.Factory::class)()
             .create(sourceId, listing?.let(SourceListing::fromWireName), query)
+    }
+
+fun ScreenScope.mangaViewModel(mangaId: Uuid): MangaViewModel =
+    assistedViewModel(MangaViewModel::class) {
+        createManuallyAssistedFactory(MangaViewModel.Factory::class)().create(mangaId)
     }

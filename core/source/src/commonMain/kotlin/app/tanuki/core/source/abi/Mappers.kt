@@ -65,12 +65,13 @@ fun Wire.MangaWire.toDomain(): MangaListing =
     MangaListing(
         sourceMangaKey = key,
         url = url.toUrlOrNull(),
-        title = title,
-        originalTitle = originalTitle,
+        // Sources pass text through from HTML pages and APIs that escape it; decode once, here.
+        title = title.decodeHtmlEntities(),
+        originalTitle = originalTitle?.decodeHtmlEntities(),
         coverUrl = coverUrl.toUrlOrNull(),
         coverHeaders = coverHeaders,
-        author = author,
-        description = description,
+        author = author?.decodeHtmlEntities(),
+        description = description?.decodeHtmlEntities(),
         status = publishStatusOf(status),
         latestChapter = ChapterNumber.orNull(latestChapter),
         latestChapterName = latestChapterName?.takeIf(String::isNotBlank),

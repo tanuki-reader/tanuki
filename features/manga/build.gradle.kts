@@ -42,6 +42,7 @@ kotlin {
             implementation(libs.metrox.android)
         }
         commonMain.dependencies {
+            api(projects.features.manga.logic)
             implementation(projects.core.presentation)
             implementation(projects.core.navigation)
             implementation(projects.core.domain)
