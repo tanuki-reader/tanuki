@@ -5,9 +5,8 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.usecase.ObserveLibraryReadingHistory
-import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.model.SourceMeta
-import app.tanuki.core.domain.source.usecase.GetInstalledSources
+import app.tanuki.core.domain.source.usecase.ObserveVisibleSources
 import app.tanuki.core.domain.update.model.NewChapter
 import app.tanuki.core.domain.update.usecase.ObserveNewChapters
 import app.tanuki.core.navigation.MangaDetail
@@ -53,8 +52,7 @@ import kotlinx.coroutines.flow.combine
 class HomeViewModel(
     observeLibraryReadingHistory: ObserveLibraryReadingHistory,
     observeNewChapters: ObserveNewChapters,
-    getInstalledSources: GetInstalledSources,
-    observeShowSensitiveContent: ObserveShowSensitiveContent,
+    observeVisibleSources: ObserveVisibleSources,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : StateViewModel<HomeState>(dispatcher, logger, Loading) {
@@ -87,10 +85,7 @@ class HomeViewModel(
         combine(
             observeLibraryReadingHistory(CONTINUE_READING_LIMIT),
             observeNewChapters(),
-            // Adult-only sources are left out until the user allows sensitive content (Settings → Sources).
-            combine(getInstalledSources(), observeShowSensitiveContent()) { sources, showSensitive ->
-                if (showSensitive) sources else sources.filterNot { it.nsfw }
-            },
+            observeVisibleSources(),
             expandedLang,
             segment
         ) { history, updates, installed, expanded, segment ->

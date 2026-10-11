@@ -11,14 +11,13 @@ import app.tanuki.core.domain.manga.usecase.CacheSourceManga
 import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.SourceMeta
-import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.domain.source.usecase.ObserveLibraryKeys
+import app.tanuki.core.domain.source.usecase.ObserveVisibleSources
 import app.tanuki.core.domain.source.usecase.SearchSources
 import app.tanuki.core.domain.source.usecase.SourceSearch
 import app.tanuki.core.navigation.MangaDetail
 import app.tanuki.core.navigation.SourceCatalogGrid
 import app.tanuki.core.presentation.StateViewModel
-import app.tanuki.core.presentation.runCatchingCancellable
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Assisted
 import dev.zacsweers.metro.AssistedFactory
@@ -28,10 +27,12 @@ import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactory
 import dev.zacsweers.metrox.viewmodel.ManualViewModelAssistedFactoryKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -50,12 +51,18 @@ import kotlin.uuid.Uuid
  *
  * Results are held here ([runs]), not in the derived pipeline, so going back from a series to this screen
  * shows them again rather than searching anew.
+ *
+ * A submitted search follows the visible sources ([ObserveVisibleSources]) live: a source installed or
+ * allowed by the sensitive toggle afterwards gets its rail and is searched on its own, one hidden or
+ * uninstalled loses its rail, and a source already searched keeps its answer. Flipping the toggle searches
+ * every source again: sources leave adult titles out when the request is made, so every answer fetched
+ * under the old setting is stale.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @AssistedInject
 class GlobalSearchViewModel(
     @Assisted initialQuery: String?,
-    private val getInstalledSources: GetInstalledSources,
+    private val observeVisibleSources: ObserveVisibleSources,
     private val observeShowSensitiveContent: ObserveShowSensitiveContent,
     private val searchSources: SearchSources,
     private val cacheSourceManga: CacheSourceManga,
@@ -64,7 +71,7 @@ class GlobalSearchViewModel(
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : StateViewModel<GlobalSearchState>(dispatcher, logger, GlobalSearchState()) {
-    /** A submitted search: its query and the sources it went to, in source-list order. */
+    /** A submitted search: its query and the sources it shows, in source-list order. */
     private class Search(
         val query: String,
         val sources: List<SourceMeta>
@@ -77,6 +84,9 @@ class GlobalSearchViewModel(
     private val runs = MutableStateFlow<Map<String, SourceSearch>>(emptyMap())
     private var searchJob: Job? = null
 
+    /** Replaced whenever [runs] is reset, so a retry still in flight can tell its answer is stale. */
+    private var batch = Any()
+
     init {
         if (!initialQuery.isNullOrBlank()) onSubmit()
     }
@@ -88,8 +98,7 @@ class GlobalSearchViewModel(
             }
 
     private val libraryKeys: Flow<Map<String, Set<String>>> =
-        searched.flatMapLatest { search ->
-            val ids = search?.sources.orEmpty().map { it.id }
+        searched.map { search -> search?.sources.orEmpty().map { it.id } }.distinctUntilChanged().flatMapLatest { ids ->
             if (ids.isEmpty()) {
                 flowOf(emptyMap())
             } else {
@@ -110,29 +119,42 @@ class GlobalSearchViewModel(
         query.value = text
     }
 
-    /** Searches every installed source for the typed query (blank does nothing). */
+    /** Searches every visible source for the typed query (blank does nothing). */
     fun onSubmit() {
         val text = query.value.trim()
         if (text.isEmpty()) return
         searchJob?.cancel()
-        runs.value = emptyMap()
+        // ponytail: holds the toggle and source-list subscriptions until the next submit; they only emit
+        // on an install or toggle change, so they cost nothing at rest.
         searchJob =
             viewModelScope.launch {
-                val sources = searchableSources()
-                val search = Search(text, sources)
-                searched.value = search
-                searchSources(text, sources.map { it.id }).collect { (id, result) -> runs.update { it + (id to result) } }
+                // A toggle change drops every answer and the searches still running for the old setting.
+                observeShowSensitiveContent().distinctUntilChanged().collectLatest {
+                    batch = Any()
+                    runs.value = emptyMap()
+                    val searchedIds = mutableSetOf<String>()
+                    coroutineScope {
+                        observeVisibleSources().collect { sources ->
+                            searched.value = Search(text, sources)
+                            val fresh = sources.map { it.id }.filterNot { it in searchedIds }
+                            if (fresh.isEmpty()) return@collect
+                            searchedIds += fresh
+                            launch { searchSources(text, fresh).collect { (id, result) -> runs.update { it + (id to result) } } }
+                        }
+                    }
+                }
             }
     }
 
     /** Searches one source again, for the rail that failed. */
     fun onRetry(sourceId: String) {
         val search = searched.value ?: return
+        val retried = batch
         runs.update { it - sourceId }
         viewModelScope.launch {
             searchSources(search.query, listOf(sourceId)).collect { (id, result) ->
-                // A newer search replaced this one while it ran: its rail is gone.
-                if (searched.value === search) runs.update { it + (id to result) }
+                // A newer search or a toggle change replaced this one while it ran: its answer is stale.
+                if (batch === retried) runs.update { it + (id to result) }
             }
         }
     }
@@ -154,13 +176,6 @@ class GlobalSearchViewModel(
     fun onSeeAll(sourceId: String) {
         val search = searched.value ?: return
         navigateTo(SourceCatalogGrid(sourceId, query = search.query))
-    }
-
-    /** Installed sources, minus adult-only ones unless sensitive content is shown (as Home lists them). */
-    private suspend fun searchableSources(): List<SourceMeta> {
-        val sources = runCatchingCancellable { getInstalledSources().first() }.getOrDefault(emptyList())
-        val showSensitive = observeShowSensitiveContent().first()
-        return if (showSensitive) sources else sources.filterNot { it.nsfw }
     }
 
     @AssistedFactory

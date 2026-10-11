@@ -9,6 +9,7 @@ import app.tanuki.core.domain.history.usecase.ObserveLibraryReadingHistory
 import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
+import app.tanuki.core.domain.source.usecase.ObserveVisibleSources
 import app.tanuki.core.domain.update.model.NewChapter
 import app.tanuki.core.domain.update.usecase.ObserveNewChapters
 import app.tanuki.features.home.viewmodel.HomeState.Content
@@ -192,10 +193,13 @@ class HomeViewModelTest {
             HomeViewModel(
                 observeLibraryReadingHistory = FakeObserveLibraryReadingHistory(history),
                 observeNewChapters = FakeObserveNewChapters(updates),
-                getInstalledSources = getInstalledSources,
-                observeShowSensitiveContent = object : ObserveShowSensitiveContent {
-                    override fun invoke(): Flow<Boolean> = showSensitive
-                },
+                observeVisibleSources =
+                    ObserveVisibleSources.Default(
+                        getInstalledSources,
+                        object : ObserveShowSensitiveContent {
+                            override fun invoke(): Flow<Boolean> = showSensitive
+                        }
+                    ),
                 dispatcher = ImmediateDispatchers,
                 logger = SilentLogger
             )

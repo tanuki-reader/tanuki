@@ -17,6 +17,7 @@ import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.domain.source.usecase.ObserveLibraryKeys
+import app.tanuki.core.domain.source.usecase.ObserveVisibleSources
 import app.tanuki.core.domain.source.usecase.SearchSources
 import app.tanuki.core.domain.source.usecase.SourceSearch
 import app.tanuki.core.navigation.MangaDetail
@@ -107,6 +108,62 @@ class GlobalSearchViewModelTest {
     }
 
     @Test
+    fun `flipping the sensitive toggle after a search searches every shown source again`() = runTest {
+        val world = World()
+        val vm = world.viewModel(initialQuery = "piece")
+        val job = collect(vm)
+        advanceUntilIdle()
+
+        world.showSensitive.value = true
+        advanceUntilIdle()
+
+        assertEquals("piece" to listOf("md", "adult", "broken"), world.searches.last())
+        assertEquals(listOf("md", "adult", "broken"), vm.uiState.value.rails.map { it.sourceId })
+        assertEquals(SearchStatus.Loaded, vm.uiState.value.rails[1].status)
+
+        world.showSensitive.value = false
+        advanceUntilIdle()
+
+        assertEquals("piece" to listOf("md", "broken"), world.searches.last())
+        assertEquals(listOf("md", "broken"), vm.uiState.value.rails.map { it.sourceId })
+        assertEquals(3, world.searches.size)
+        job.cancel()
+    }
+
+    @Test
+    fun `a source installed after a search gets its own rail and search`() = runTest {
+        val world = World()
+        val vm = world.viewModel(initialQuery = "piece")
+        val job = collect(vm)
+        advanceUntilIdle()
+
+        world.installed.value += SourceMeta("mf", Text("MangaFire"), Text("en"))
+        advanceUntilIdle()
+
+        assertEquals("piece" to listOf("mf"), world.searches.last())
+        assertEquals(listOf("md", "broken", "mf"), vm.uiState.value.rails.map { it.sourceId })
+        job.cancel()
+    }
+
+    @Test
+    fun `a retry finishing after a new search doesn't land in it`() = runTest {
+        val world = World()
+        val vm = world.viewModel(initialQuery = "piece")
+        val job = collect(vm)
+        advanceUntilIdle()
+
+        world.broken = false
+        vm.onRetry("broken")
+        vm.onQueryChange("solo")
+        vm.onSubmit()
+        advanceUntilIdle()
+
+        val titles = vm.uiState.value.rails.single { it.sourceId == "broken" }.items.map { it.title }
+        assertEquals(listOf("solo", "solo"), titles)
+        job.cancel()
+    }
+
+    @Test
     fun `results survive the screen going away and coming back`() = runTest {
         val world = World()
         val vm = world.viewModel(initialQuery = "piece")
@@ -154,25 +211,32 @@ class GlobalSearchViewModelTest {
         val cached = mutableListOf<Pair<String, String>>()
         val cachedId = Uuid.random()
         var broken = true
+        val installed =
+            MutableStateFlow(
+                listOf(
+                    SourceMeta("md", Text("MangaDex"), Text("en")),
+                    SourceMeta("adult", Text("Adult"), Text("en"), nsfw = true),
+                    SourceMeta("broken", Text("Broken"), Text("pt-BR"))
+                )
+            )
+        val showSensitive = MutableStateFlow(false)
         private val libraryId = Uuid.random()
 
         fun viewModel(initialQuery: String? = null) =
             GlobalSearchViewModel(
                 initialQuery = initialQuery,
-                getInstalledSources =
-                    object : GetInstalledSources {
-                        override fun invoke(): Flow<List<SourceMeta>> =
-                            flowOf(
-                                listOf(
-                                    SourceMeta("md", Text("MangaDex"), Text("en")),
-                                    SourceMeta("adult", Text("Adult"), Text("en"), nsfw = true),
-                                    SourceMeta("broken", Text("Broken"), Text("pt-BR"))
-                                )
-                            )
-                    },
+                observeVisibleSources =
+                    ObserveVisibleSources.Default(
+                        object : GetInstalledSources {
+                            override fun invoke(): Flow<List<SourceMeta>> = installed
+                        },
+                        object : ObserveShowSensitiveContent {
+                            override fun invoke(): Flow<Boolean> = showSensitive
+                        }
+                    ),
                 observeShowSensitiveContent =
                     object : ObserveShowSensitiveContent {
-                        override fun invoke(): Flow<Boolean> = flowOf(false)
+                        override fun invoke(): Flow<Boolean> = showSensitive
                     },
                 searchSources =
                     object : SearchSources {
@@ -188,7 +252,7 @@ class GlobalSearchViewModelTest {
                                             if (id == "broken" && broken) {
                                                 SourceSearch.Failed
                                             } else {
-                                                SourceSearch.Loaded(listOf(MangaListing("$id-a", title = "A"), MangaListing("$id-b", title = "B")))
+                                                SourceSearch.Loaded(listOf(MangaListing("$id-a", title = query), MangaListing("$id-b", title = query)))
                                             }
                                     )
                                 }
