@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.assets.designSystem.component.TanukiTopBar
-import app.tanuki.core.domain.library.model.LibraryFilter
 import app.tanuki.core.navigation.Destination
 import app.tanuki.core.navigation.NavEvent
 import app.tanuki.features.library.composable.EmptyView
@@ -29,9 +28,9 @@ import app.tanuki.features.library.resources.library_filter_empty
 import app.tanuki.features.library.resources.library_search_empty
 import app.tanuki.features.library.resources.library_search_hint
 import app.tanuki.features.library.resources.library_title
-import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
+import app.tanuki.features.library.viewmodel.LibraryEmpty
+import app.tanuki.features.library.viewmodel.LibraryState.Content
 import app.tanuki.features.library.viewmodel.LibraryState.Loading
-import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet
 import app.tanuki.features.library.viewmodel.LibraryViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 import org.jetbrains.compose.resources.pluralStringResource
@@ -74,7 +73,7 @@ private fun LibraryScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var searchActive by rememberSaveable { mutableStateOf(false) }
-    val display = state as? DisplayLibrary
+    val content = state as? Content
 
     Column(
         modifier =
@@ -86,7 +85,7 @@ private fun LibraryScreen(
         TanukiTopBar(
             title = stringResource(Res.string.library_title),
             searchActive = searchActive,
-            searchQuery = display?.searchQuery.orEmpty(),
+            searchQuery = content?.searchQuery.orEmpty(),
             onSearchOpen = { searchActive = true },
             onSearchClose = {
                 searchActive = false
@@ -95,7 +94,7 @@ private fun LibraryScreen(
             onSearchQueryChange = viewModel::onSearchQueryChange,
             searchPlaceholder = stringResource(Res.string.library_search_hint),
             onFilterClick = viewModel::onFilterClick,
-            filterActive = display?.filter?.let { it != LibraryFilter.None } == true
+            filterActive = content?.filterActive == true
         )
 
         when (val state = state) {
@@ -105,54 +104,49 @@ private fun LibraryScreen(
                 }
             }
 
-            is DisplayLibrary if state.items.isEmpty() && state.searchQuery.isBlank() -> {
+            is Content if state.empty == LibraryEmpty.Library -> {
                 EmptyView(Modifier.fillMaxSize())
             }
 
-            is DisplayLibrary -> {
+            is Content -> {
+                // While the sheet is open the grid stays beneath it and re-derives live as its controls
+                // change.
                 LibraryView(
-                    state = state,
+                    items = state.items,
+                    gridSize = state.gridSize,
                     countLabel =
                         pluralStringResource(
                             Res.plurals.library_entry_count,
                             state.items.size,
                             state.items.size
                         ),
-                    emptyMessage = stringResource(Res.string.library_search_empty, state.searchQuery),
+                    emptyMessage =
+                        if (state.empty == LibraryEmpty.Search) {
+                            stringResource(Res.string.library_search_empty, state.searchQuery)
+                        } else {
+                            stringResource(Res.string.library_filter_empty)
+                        },
                     onMangaClick = viewModel::onMangaClick,
                     modifier = Modifier.weight(1f)
                 )
-            }
-
-            is ShowingBottomSheet -> {
-                // The grid stays rendered beneath; the filter & sort sheet floats over it and re-derives
-                // the list live as its controls change (the ViewModel feeds them into GetLibrary).
-                LibraryView(
-                    state = DisplayLibrary(items = state.items, filter = state.filter, sort = state.sort),
-                    countLabel =
-                        pluralStringResource(
-                            Res.plurals.library_entry_count,
-                            state.items.size,
-                            state.items.size
-                        ),
-                    emptyMessage = stringResource(Res.string.library_filter_empty),
-                    onMangaClick = viewModel::onMangaClick,
-                    modifier = Modifier.weight(1f)
-                )
-                LibraryBottomSheet(
-                    filter = state.filter,
-                    sort = state.sort,
-                    categories = state.categories,
-                    itemCount = state.items.size,
-                    onDismiss = viewModel::toLibraryState,
-                    onSortChange = viewModel::onSortChange,
-                    onReadingStatusChange = viewModel::onReadingStatusChange,
-                    onPublicationChange = viewModel::onPublicationCompletedChange,
-                    onDownloadedChange = viewModel::onDownloadedChange,
-                    onCategoryToggle = viewModel::onCategoryToggle,
-                    onCategoryMatchModeChange = viewModel::onCategoryMatchModeChange,
-                    onReset = viewModel::onResetFilters
-                )
+                if (state.sheetOpen) {
+                    LibraryBottomSheet(
+                        filter = state.filter,
+                        sort = state.sort,
+                        categories = state.categories,
+                        itemCount = state.items.size,
+                        tab = state.sheetTab,
+                        onTabChange = viewModel::onSheetTabChange,
+                        onDismiss = viewModel::toLibraryState,
+                        onSortModeClick = viewModel::onSortModeClick,
+                        onReadingStatusChange = viewModel::onReadingStatusChange,
+                        onPublicationChange = viewModel::onPublicationCompletedChange,
+                        onDownloadedChange = viewModel::onDownloadedChange,
+                        onCategoryToggle = viewModel::onCategoryToggle,
+                        onCategoryMatchModeChange = viewModel::onCategoryMatchModeChange,
+                        onReset = viewModel::onResetFilters
+                    )
+                }
             }
         }
     }

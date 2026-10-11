@@ -35,6 +35,7 @@ kotlin {
             export(projects.core.presentation)
             export(projects.features.home.logic)
             export(projects.features.settings.logic)
+            export(projects.features.library.logic)
         }
     }
     
@@ -95,6 +96,7 @@ kotlin {
             api(projects.features.source)
             api(projects.features.settings)
             api(projects.features.settings.logic)
+            api(projects.features.library.logic)
             implementation(projects.assets.designSystem)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.androidx.navigation.compose)

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import app.tanuki.features.home.viewmodel.HomeViewModel
+import app.tanuki.features.library.viewmodel.LibraryViewModel
 import app.tanuki.features.settings.appearance.viewmodel.AppearanceViewModel
 import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
 import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsViewModel
@@ -44,6 +45,8 @@ class ScreenScope internal constructor(
 // `viewModelFactory { addInitializer(kClass) { factory.createManuallyAssistedFactory(F::class)().create(…) } }`.
 
 fun ScreenScope.homeViewModel(): HomeViewModel = viewModel(HomeViewModel::class)
+
+fun ScreenScope.libraryViewModel(): LibraryViewModel = viewModel(LibraryViewModel::class)
 
 fun ScreenScope.settingsViewModel(): SettingsViewModel = viewModel(SettingsViewModel::class)
 

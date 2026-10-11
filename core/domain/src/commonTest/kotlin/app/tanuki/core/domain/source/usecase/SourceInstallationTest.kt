@@ -4,8 +4,10 @@ import app.tanuki.core.domain.common.model.Text
 import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.RecordingLogger
+import app.tanuki.core.domain.library.model.LibraryPreferences
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -20,10 +22,6 @@ import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -31,6 +29,10 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.runTest
 
 private const val MANGADEX = "mangadex"
 private const val COMICK = "comick"
@@ -299,6 +301,24 @@ private class FakeSettingsRepository(
     override suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean) = error("unused")
 
     override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> = error("unused")
+
+
+    override fun observeLibraryPreferences(): Flow<LibraryPreferences> = error("unused")
+
+
+
+    override fun observeLibraryGridSize(): Flow<LibraryGridSize> = error("unused")
+
+
+
+    override suspend fun setLibraryGridSize(size: LibraryGridSize) = error("unused")
+
+
+    override suspend fun updateLibraryPreferences(
+
+        transform: (LibraryPreferences) -> LibraryPreferences
+
+    ) = error("unused")
 
     override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) = error("unused")
 }

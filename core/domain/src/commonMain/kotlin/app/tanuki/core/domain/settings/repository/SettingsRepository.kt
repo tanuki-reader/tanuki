@@ -1,7 +1,9 @@
 package app.tanuki.core.domain.settings.repository
 
+import app.tanuki.core.domain.library.model.LibraryPreferences
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import kotlinx.coroutines.flow.Flow
@@ -192,4 +194,21 @@ interface SettingsRepository {
         sourceId: String,
         removed: Boolean
     )
+
+    /**
+     * The library's remembered filter and sort. Absent or unreadable values read as their defaults, so
+     * a store from an older or newer build degrades to the plain library rather than failing.
+     */
+    fun observeLibraryPreferences(): Flow<LibraryPreferences>
+
+    /**
+     * Rewrites the library's filter and sort through [transform], applied to the stored value in one
+     * atomic edit.
+     */
+    suspend fun updateLibraryPreferences(transform: (LibraryPreferences) -> LibraryPreferences)
+
+    /** How big library covers are drawn; [LibraryGridSize.Medium] when unset. */
+    fun observeLibraryGridSize(): Flow<LibraryGridSize>
+
+    suspend fun setLibraryGridSize(size: LibraryGridSize)
 }

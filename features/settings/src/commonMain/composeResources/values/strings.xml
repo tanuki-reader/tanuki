@@ -31,6 +31,11 @@
     <string name="settings_theme_system">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_library_grid">Library covers</string>
+    <string name="settings_library_grid_small">Small</string>
+    <string name="settings_library_grid_medium">Medium</string>
+    <string name="settings_library_grid_large">Large</string>
+    <string name="settings_library_grid_hint">Smaller covers fit more titles in each row.</string>
 
     <!-- Categories screen -->
     <string name="settings_categories_empty">No categories yet. Create one to organize your library.</string>

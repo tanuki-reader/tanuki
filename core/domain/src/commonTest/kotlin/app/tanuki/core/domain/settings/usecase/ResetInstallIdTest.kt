@@ -2,17 +2,19 @@ package app.tanuki.core.domain.settings.usecase
 
 import app.tanuki.core.domain.common.service.CrashReporter
 import app.tanuki.core.domain.common.service.LogPriority
+import app.tanuki.core.domain.library.model.LibraryPreferences
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.test.runTest
 
 class ResetInstallIdTest {
     @Test
@@ -70,6 +72,24 @@ private class InstallIdSettingsRepository : SettingsRepository {
     override suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean) = error("unused")
 
     override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> = error("unused")
+
+
+    override fun observeLibraryPreferences(): Flow<LibraryPreferences> = error("unused")
+
+
+
+    override fun observeLibraryGridSize(): Flow<LibraryGridSize> = error("unused")
+
+
+
+    override suspend fun setLibraryGridSize(size: LibraryGridSize) = error("unused")
+
+
+    override suspend fun updateLibraryPreferences(
+
+        transform: (LibraryPreferences) -> LibraryPreferences
+
+    ) = error("unused")
 
     override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) = error("unused")
 

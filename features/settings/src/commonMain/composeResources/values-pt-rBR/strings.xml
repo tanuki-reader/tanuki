@@ -31,6 +31,11 @@
     <string name="settings_theme_system">Sistema</string>
     <string name="settings_theme_light">Claro</string>
     <string name="settings_theme_dark">Escuro</string>
+    <string name="settings_library_grid">Capas da biblioteca</string>
+    <string name="settings_library_grid_small">Pequenas</string>
+    <string name="settings_library_grid_medium">Médias</string>
+    <string name="settings_library_grid_large">Grandes</string>
+    <string name="settings_library_grid_hint">Capas menores cabem mais títulos em cada linha.</string>
 
     <!-- Tela de categorias -->
     <string name="settings_categories_empty">Nenhuma categoria ainda. Crie uma para organizar sua biblioteca.</string>

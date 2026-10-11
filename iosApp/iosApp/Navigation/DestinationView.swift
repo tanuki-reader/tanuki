@@ -13,7 +13,8 @@ struct DestinationView: View {
             switch onEnum(of: tab) {
             case .home: HomeScreen(path: $path)
             case .settings: SettingsScreen(path: $path)
-            case .library, .activity: bridge
+            case .library: LibraryScreen(path: $path)
+            case .activity: bridge
             }
         case .settingsAppearance: AppearanceScreen()
         case .settingsPrivacy: PrivacyScreen()

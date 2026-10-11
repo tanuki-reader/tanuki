@@ -15,20 +15,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
-import app.tanuki.core.domain.library.model.LibraryManga
+import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.features.library.viewmodel.LibraryItem
 import kotlin.uuid.Uuid
 
-/** Minimum cover width; the adaptive grid fits as many whole columns as this allows. */
-private val COVER_MIN_WIDTH = 114.dp
+/** Minimum cover width per size; the adaptive grid fits as many whole columns as this allows. */
+private fun LibraryGridSize.minCoverWidth(): Dp =
+    when (this) {
+        LibraryGridSize.Small -> 90.dp
+        LibraryGridSize.Medium -> 114.dp
+        LibraryGridSize.Large -> 150.dp
+    }
 
 @Composable
 internal fun LibraryGrid(
     modifier: Modifier = Modifier,
-    items: List<LibraryManga>,
+    items: List<LibraryItem>,
+    gridSize: LibraryGridSize,
     countLabel: String,
     emptyMessage: String,
     onMangaClick: (Uuid) -> Unit
@@ -48,7 +56,7 @@ internal fun LibraryGrid(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = COVER_MIN_WIDTH),
+                columns = GridCells.Adaptive(minSize = gridSize.minCoverWidth()),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding =
                     PaddingValues(
@@ -68,14 +76,14 @@ internal fun LibraryGrid(
                         modifier = Modifier.fillMaxWidth().padding(bottom = spacing.xs)
                     )
                 }
-                items(items, key = { it.id }) { manga ->
+                items(items, key = { it.mangaId }) { manga ->
                     MangaCoverTile(
-                        seed = manga.id.toString(),
-                        title = manga.title.value,
-                        coverUrl = manga.cover.url?.value,
-                        coverHeaders = manga.cover.headers,
-                        onClick = { onMangaClick(manga.id) },
-                        unread = manga.unreadCount,
+                        seed = manga.mangaId.toString(),
+                        title = manga.title,
+                        coverUrl = manga.coverUrl,
+                        coverHeaders = manga.coverHeaders,
+                        onClick = { onMangaClick(manga.mangaId) },
+                        unread = manga.unreadCount.toUInt(),
                         downloaded = manga.isDownloaded,
                         modifier = Modifier.animateItem()
                     )

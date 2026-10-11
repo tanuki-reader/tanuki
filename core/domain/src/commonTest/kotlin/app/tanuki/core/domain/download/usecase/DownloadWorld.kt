@@ -29,6 +29,7 @@ import app.tanuki.core.domain.download.service.PageFetchException
 import app.tanuki.core.domain.download.service.PageFetcher
 import app.tanuki.core.domain.download.service.StoredChapter
 import app.tanuki.core.domain.library.model.LibraryManga
+import app.tanuki.core.domain.library.model.LibraryPreferences
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
@@ -37,6 +38,7 @@ import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.manga.repository.MangaRepository
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -50,9 +52,12 @@ import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.repository.SourceRepository
 import app.tanuki.core.domain.update.model.LibraryUpdateTarget
+import kotlin.time.Clock
+import kotlin.time.Instant
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,9 +65,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
-import kotlin.time.Clock
-import kotlin.time.Instant
-import kotlin.uuid.Uuid
 
 /**
  * One series' worth of downloadable chapters, wired to in-memory doubles — the fixture both the engine
@@ -637,6 +639,24 @@ internal class FakeSettingsRepository : SettingsRepository {
     }
 
     override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> = deleteAfterReading
+
+
+    override fun observeLibraryPreferences(): Flow<LibraryPreferences> = error("unused")
+
+
+
+    override fun observeLibraryGridSize(): Flow<LibraryGridSize> = error("unused")
+
+
+
+    override suspend fun setLibraryGridSize(size: LibraryGridSize) = error("unused")
+
+
+    override suspend fun updateLibraryPreferences(
+
+        transform: (LibraryPreferences) -> LibraryPreferences
+
+    ) = error("unused")
 
     override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) {
         deleteAfterReading.value = setting

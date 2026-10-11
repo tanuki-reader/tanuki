@@ -5,15 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import app.tanuki.assets.designSystem.TanukiTheme
-import app.tanuki.core.domain.common.model.Text
-import app.tanuki.core.domain.common.service.uuidV7
-import app.tanuki.core.domain.library.model.LibraryManga
-import app.tanuki.core.domain.manga.model.MangaCover
-import app.tanuki.core.domain.manga.model.PublishStatus.PUBLISHING_FINISHED
-import app.tanuki.core.domain.manga.model.ReadingStatus.READING
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.features.library.composable.components.LibraryGrid
-import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
-import kotlin.time.Clock
+import app.tanuki.features.library.viewmodel.LibraryItem
 import kotlin.uuid.Uuid
 
 /**
@@ -29,44 +23,40 @@ import kotlin.uuid.Uuid
 @Composable
 fun LibraryView(
     modifier: Modifier = Modifier,
-    state: DisplayLibrary,
+    items: List<LibraryItem>,
+    gridSize: LibraryGridSize = LibraryGridSize.Medium,
     countLabel: String,
     emptyMessage: String,
     onMangaClick: (Uuid) -> Unit
 ) {
-    val items = state.items
     LibraryGrid(
         modifier = modifier,
         items = items,
+        gridSize = gridSize,
         countLabel = countLabel,
         emptyMessage = emptyMessage,
         onMangaClick = onMangaClick
     )
 }
 
-private fun generateMangaList(seed: Int): List<LibraryManga> =
+private fun generateMangaList(seed: Int): List<LibraryItem> =
     List(seed) { i ->
-        LibraryManga(
-            id = uuidV7(),
-            title = Text("Manga $i"),
-            cover =
-                MangaCover(mangaId = uuidV7(), url = null),
-            unreadCount = (i.toUShort() + 1u).coerceAtMost(10u),
-            isDownloaded = i % 2 == 0,
-            dateAdded = Clock.System.now(),
-            lastRead = null,
-            readingStatus = READING,
-            publishStatus = PUBLISHING_FINISHED
+        LibraryItem(
+            mangaId = Uuid.random(),
+            title = "Manga $i",
+            coverUrl = null,
+            coverHeaders = emptyMap(),
+            unreadCount = (i + 1).coerceAtMost(10),
+            isDownloaded = i % 2 == 0
         )
     }
 
 @Preview(showBackground = true)
 @Composable
 private fun LibraryViewPreview() {
-    val items = generateMangaList(12)
     TanukiTheme {
         LibraryView(
-            state = DisplayLibrary(items = items),
+            items = generateMangaList(12),
             countLabel = "12 titles",
             emptyMessage = "No titles match",
             onMangaClick = {},
@@ -80,11 +70,7 @@ private fun LibraryViewPreview() {
 private fun LibraryViewEmptyResultPreview() {
     TanukiTheme {
         LibraryView(
-            state =
-                DisplayLibrary(
-                    items = emptyList(),
-                    searchQuery = "berserk"
-                ),
+            items = emptyList(),
             countLabel = "0 titles",
             emptyMessage = "No titles match “berserk”",
             onMangaClick = {},

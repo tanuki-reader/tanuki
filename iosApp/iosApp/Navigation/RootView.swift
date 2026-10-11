@@ -28,6 +28,7 @@ struct RootView: View {
                     }
                 }
             }
+            .tabBarMinimizeBehavior(.onScrollDown)
         }
         .preferredColorScheme(colorScheme)
         .task {

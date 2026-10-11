@@ -9,9 +9,17 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.core.MutablePreferences
+import app.tanuki.core.domain.common.model.TriState
 import app.tanuki.core.domain.common.service.DispatcherProvider
+import app.tanuki.core.domain.library.model.CategoryMatchMode
+import app.tanuki.core.domain.library.model.LibraryFilter
+import app.tanuki.core.domain.library.model.LibraryPreferences
+import app.tanuki.core.domain.library.model.LibrarySort
+import app.tanuki.core.domain.manga.model.ReadingStatus
 import app.tanuki.core.domain.settings.model.AutoDownloadMode
 import app.tanuki.core.domain.settings.model.DeleteAfterReading
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
 import app.tanuki.core.domain.settings.model.ThemePreference
 import app.tanuki.core.domain.settings.repository.SettingsRepository
@@ -199,6 +207,23 @@ class SettingsRepositoryImp internal constructor(
         }
     }
 
+    override fun observeLibraryPreferences(): Flow<LibraryPreferences> = preferences.map { it.toLibraryPreferences() }
+
+    override suspend fun updateLibraryPreferences(transform: (LibraryPreferences) -> LibraryPreferences) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences.putLibraryPreferences(transform(preferences.toLibraryPreferences())) }
+        }
+    }
+
+    override fun observeLibraryGridSize(): Flow<LibraryGridSize> =
+        preferences.map { it[LIBRARY_GRID_SIZE_KEY].toEnum<LibraryGridSize>() ?: LibraryGridSize.Medium }
+
+    override suspend fun setLibraryGridSize(size: LibraryGridSize) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[LIBRARY_GRID_SIZE_KEY] = size.name }
+        }
+    }
+
     private companion object {
         val CRASH_REPORTING_KEY = booleanPreferencesKey("crash_reporting_enabled")
         val INSTALL_ID_KEY = stringPreferencesKey("install_id")
@@ -211,6 +236,52 @@ class SettingsRepositoryImp internal constructor(
         val AUTO_DOWNLOAD_CATEGORIES_KEY = stringSetPreferencesKey("auto_download_categories")
         val WIFI_ONLY_KEY = booleanPreferencesKey("download_on_wifi_only")
         val DELETE_AFTER_READING_KEY = stringPreferencesKey("delete_after_reading")
+        val LIBRARY_READING_STATUS_KEY = stringPreferencesKey("library_filter_reading_status")
+        val LIBRARY_PUBLICATION_KEY = stringPreferencesKey("library_filter_publication")
+        val LIBRARY_DOWNLOADED_KEY = stringPreferencesKey("library_filter_downloaded")
+        val LIBRARY_CATEGORIES_KEY = stringSetPreferencesKey("library_filter_categories")
+        val LIBRARY_MATCH_MODE_KEY = stringPreferencesKey("library_filter_match_mode")
+        val LIBRARY_SORT_MODE_KEY = stringPreferencesKey("library_sort_mode")
+        val LIBRARY_SORT_DIRECTION_KEY = stringPreferencesKey("library_sort_direction")
+        val LIBRARY_GRID_SIZE_KEY = stringPreferencesKey("library_grid_size")
+
+        /** Each field by enum name; anything absent or unknown reads as that field's default. */
+        fun Preferences.toLibraryPreferences(): LibraryPreferences {
+            val filter = LibraryFilter.None
+            val sort = LibrarySort.Default
+            return LibraryPreferences(
+                filter =
+                    LibraryFilter(
+                        readingStatus = this[LIBRARY_READING_STATUS_KEY].toEnum<ReadingStatus>(),
+                        publicationCompleted =
+                            this[LIBRARY_PUBLICATION_KEY].toEnum<TriState>() ?: filter.publicationCompleted,
+                        downloaded = this[LIBRARY_DOWNLOADED_KEY].toEnum<TriState>() ?: filter.downloaded,
+                        categoryIds =
+                            this[LIBRARY_CATEGORIES_KEY].orEmpty().mapNotNullTo(mutableSetOf()) { it.toUuidOrNull() },
+                        categoryMatchMode =
+                            this[LIBRARY_MATCH_MODE_KEY].toEnum<CategoryMatchMode>() ?: filter.categoryMatchMode
+                    ),
+                sort =
+                    LibrarySort(
+                        mode = this[LIBRARY_SORT_MODE_KEY].toEnum<LibrarySort.Mode>() ?: sort.mode,
+                        direction = this[LIBRARY_SORT_DIRECTION_KEY].toEnum<LibrarySort.Direction>() ?: sort.direction
+                    )
+            )
+        }
+
+        fun MutablePreferences.putLibraryPreferences(value: LibraryPreferences) {
+            val filter = value.filter
+            val status = filter.readingStatus
+            if (status == null) remove(LIBRARY_READING_STATUS_KEY) else this[LIBRARY_READING_STATUS_KEY] = status.name
+            this[LIBRARY_PUBLICATION_KEY] = filter.publicationCompleted.name
+            this[LIBRARY_DOWNLOADED_KEY] = filter.downloaded.name
+            this[LIBRARY_CATEGORIES_KEY] = filter.categoryIds.mapTo(mutableSetOf()) { it.toString() }
+            this[LIBRARY_MATCH_MODE_KEY] = filter.categoryMatchMode.name
+            this[LIBRARY_SORT_MODE_KEY] = value.sort.mode.name
+            this[LIBRARY_SORT_DIRECTION_KEY] = value.sort.direction.name
+        }
+
+        inline fun <reified E : Enum<E>> String?.toEnum(): E? = enumValues<E>().firstOrNull { it.name == this }
 
         /**
          * Maps a stored name back to an [AutoDownloadMode]. An unknown name — written by a newer build,

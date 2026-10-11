@@ -95,11 +95,11 @@ interface ObserveLibrary {
             filter: LibraryFilter,
             memberships: Map<Uuid, Set<Uuid>>
         ): Boolean {
-            if (filter.categories.isEmpty()) return true
+            if (filter.categoryIds.isEmpty()) return true
             val assigned = memberships[id].orEmpty()
             return when (filter.categoryMatchMode) {
-                Any -> filter.categories.any { it.id in assigned }
-                All -> filter.categories.all { it.id in assigned }
+                Any -> filter.categoryIds.any { it in assigned }
+                All -> filter.categoryIds.all { it in assigned }
             }
         }
 

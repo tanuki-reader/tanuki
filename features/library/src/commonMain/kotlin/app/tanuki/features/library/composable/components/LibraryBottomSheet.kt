@@ -29,10 +29,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,12 +45,10 @@ import app.tanuki.assets.designSystem.component.TanukiButton
 import app.tanuki.assets.designSystem.component.TanukiButtonVariant
 import app.tanuki.assets.designSystem.component.TanukiFilterChip
 import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
-import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.common.model.TriState
 import app.tanuki.core.domain.library.model.CategoryMatchMode
 import app.tanuki.core.domain.library.model.LibraryFilter
 import app.tanuki.core.domain.library.model.LibrarySort
-import app.tanuki.core.domain.library.model.LibrarySort.Direction
 import app.tanuki.core.domain.library.model.LibrarySort.Direction.Ascending
 import app.tanuki.core.domain.library.model.LibrarySort.Mode
 import app.tanuki.core.domain.manga.model.ReadingStatus
@@ -95,13 +90,12 @@ import app.tanuki.features.library.resources.library_status_dropped
 import app.tanuki.features.library.resources.library_status_on_hold
 import app.tanuki.features.library.resources.library_status_planning
 import app.tanuki.features.library.resources.library_status_reading
-import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet.CategoryChip
+import app.tanuki.features.library.viewmodel.CategoryChip
+import app.tanuki.features.library.viewmodel.LibrarySheetTab
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
-
-/** The two panes of the tabbed sort & filter sheet. */
-private enum class SheetTab { Sort, Filter }
+import kotlin.uuid.Uuid
 
 /**
  * Filter & sort sheet shown over the library grid (the `ShowingBottomSheet` library state), in the
@@ -110,17 +104,17 @@ private enum class SheetTab { Sort, Filter }
  * footer closes the sheet. The grid beneath re-derives live as each control changes (the ViewModel feeds
  * the selections into `GetLibrary`); the footer's "Show N" simply dismisses.
  *
- * The composable is stateless — the only local state is the active tab. Selections are driven by
+ * The composable is stateless: the active [tab] lives in the ViewModel too. Selections are driven by
  * [filter]/[sort] and reported through the callbacks, keeping the ViewModel the single source of truth.
  * All labels are resolved here (not in the ViewModel) per the localization boundary in CLAUDE.md.
  *
  * @param filter the active filter, reflected by the status/publication/category controls.
  * @param sort the active ordering, reflected by the sort list.
- * @param categories the library's categories as [CategoryChip]s (each pairing a [Category] with its
- *   selected state), rendered as chips with a per-category count; empty hides the category section.
+ * @param categories the library's categories as [CategoryChip]s (name, title count, selected state), rendered as chips with a per-category count; empty hides the category section.
  * @param itemCount titles currently passing the filter — shown on the footer's "Show N" action.
+ * @param tab the open pane; [onTabChange] switches it.
  * @param onDismiss the sheet was swiped away, its scrim tapped, or "Show N" pressed — close it.
- * @param onSortChange a new [LibrarySort] was chosen (tap a row to select, tap it again to flip).
+ * @param onSortModeClick a sort row was tapped (the ViewModel selects it, or flips it if already selected).
  * @param onReadingStatusChange a reading-status chip was picked (`null` = Any / no status filter).
  * @param onPublicationChange the publication tri-state was changed.
  * @param onDownloadedChange the downloaded tri-state was changed.
@@ -135,18 +129,19 @@ internal fun LibraryBottomSheet(
     sort: LibrarySort,
     categories: List<CategoryChip>,
     itemCount: Int,
+    tab: LibrarySheetTab,
+    onTabChange: (LibrarySheetTab) -> Unit,
     onDismiss: () -> Unit,
-    onSortChange: (LibrarySort) -> Unit,
+    onSortModeClick: (Mode) -> Unit,
     onReadingStatusChange: (ReadingStatus?) -> Unit,
     onPublicationChange: (TriState) -> Unit,
     onDownloadedChange: (TriState) -> Unit,
-    onCategoryToggle: (Category) -> Unit,
+    onCategoryToggle: (Uuid) -> Unit,
     onCategoryMatchModeChange: (CategoryMatchMode) -> Unit,
     onReset: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val spacing = TanukiTheme.spacing
-    var tab by remember { mutableStateOf(SheetTab.Sort) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -167,11 +162,11 @@ internal fun LibraryBottomSheet(
         TanukiSegmentedControl(
             segments =
                 listOf(
-                    Segment(SheetTab.Sort, stringResource(Res.string.library_sheet_tab_sort)),
-                    Segment(SheetTab.Filter, filterTabLabel(filter))
+                    Segment(LibrarySheetTab.Sort, stringResource(Res.string.library_sheet_tab_sort)),
+                    Segment(LibrarySheetTab.Filter, filterTabLabel(filter))
                 ),
             selected = tab,
-            onSelect = { tab = it },
+            onSelect = onTabChange,
             modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.gutter, vertical = spacing.sm)
         )
 
@@ -195,11 +190,11 @@ internal fun LibraryBottomSheet(
                 label = "sheetTab"
             ) { current ->
                 when (current) {
-                    SheetTab.Sort -> {
-                        SortList(sort = sort, onSortChange = onSortChange)
+                    LibrarySheetTab.Sort -> {
+                        SortList(sort = sort, onSortModeClick = onSortModeClick)
                     }
 
-                    SheetTab.Filter -> {
+                    LibrarySheetTab.Filter -> {
                         FilterBlock(
                             filter = filter,
                             categories = categories,
@@ -242,13 +237,13 @@ internal fun LibraryBottomSheet(
 
 /**
  * The sort pane: one tappable row per [Mode]. Tapping a row selects that mode ascending; tapping the
- * already-selected row flips its [Direction]. The active row carries a contextual direction label
+ * already-selected row flips its direction. The active row carries a contextual direction label
  * ("A → Z", "Newest first", …) and an up/down arrow.
  */
 @Composable
 private fun SortList(
     sort: LibrarySort,
-    onSortChange: (LibrarySort) -> Unit
+    onSortModeClick: (Mode) -> Unit
 ) {
     val spacing = TanukiTheme.spacing
     Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {
@@ -256,15 +251,7 @@ private fun SortList(
             SortRow(
                 mode = mode,
                 sort = sort,
-                onClick = {
-                    onSortChange(
-                        if (sort.mode == mode) {
-                            sort.copy(direction = sort.direction.flipped())
-                        } else {
-                            LibrarySort(mode, Ascending)
-                        }
-                    )
-                }
+                onClick = { onSortModeClick(mode) }
             )
         }
         Text(
@@ -335,7 +322,7 @@ private fun FilterBlock(
     onReadingStatusChange: (ReadingStatus?) -> Unit,
     onPublicationChange: (TriState) -> Unit,
     onDownloadedChange: (TriState) -> Unit,
-    onCategoryToggle: (Category) -> Unit,
+    onCategoryToggle: (Uuid) -> Unit,
     onCategoryMatchModeChange: (CategoryMatchMode) -> Unit
 ) {
     val spacing = TanukiTheme.spacing
@@ -409,7 +396,7 @@ private fun FilterBlock(
 
 /**
  * Category multi-select — a Match any / Match all mode toggle with a plain-language reminder, then the
- * category chips. Each chip shows how many library titles are in that category ([Category.associatedMangas]);
+ * category chips. Each chip shows how many library titles are in that category ([CategoryChip.count]);
  * a category with zero titles is dimmed unless it's currently selected.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -417,7 +404,7 @@ private fun FilterBlock(
 private fun CategorySection(
     categories: List<CategoryChip>,
     matchMode: CategoryMatchMode,
-    onToggle: (Category) -> Unit,
+    onToggle: (Uuid) -> Unit,
     onMatchModeChange: (CategoryMatchMode) -> Unit
 ) {
     val spacing = TanukiTheme.spacing
@@ -461,15 +448,12 @@ private fun CategorySection(
         verticalArrangement = Arrangement.spacedBy(spacing.sm)
     ) {
         categories.forEach { chip ->
-            val category = chip.category
-            val selected = chip.isEnabled
-            val count = category.associatedMangas.size
             TanukiFilterChip(
-                text = category.name.value,
-                selected = selected,
-                count = count,
-                dimmed = count == 0 && !selected,
-                onClick = { onToggle(category) }
+                text = chip.name,
+                selected = chip.isEnabled,
+                count = chip.count,
+                dimmed = chip.count == 0 && !chip.isEnabled,
+                onClick = { onToggle(chip.id) }
             )
         }
     }
@@ -496,8 +480,6 @@ private fun filterTabLabel(filter: LibraryFilter): String {
     val base = stringResource(Res.string.library_sheet_tab_filter)
     return if (filter.isActive) "$base •" else base
 }
-
-private fun Direction.flipped(): Direction = if (this == Ascending) Direction.Descending else Ascending
 
 /** The localized row label for a sort mode. */
 private fun Mode.labelResource(): StringResource =

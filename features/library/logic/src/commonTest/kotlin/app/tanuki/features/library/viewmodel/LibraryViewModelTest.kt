@@ -3,6 +3,7 @@ package app.tanuki.features.library.viewmodel
 import app.tanuki.core.domain.category.model.Category
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.common.model.TriState
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.Logger
@@ -13,13 +14,18 @@ import app.tanuki.core.domain.library.usecase.ObserveLibrary
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingStatus
-import app.tanuki.features.library.viewmodel.LibraryState.DisplayLibrary
+import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.domain.settings.usecase.ObserveLibraryGridSize
+import app.tanuki.core.domain.library.model.LibraryPreferences
+import app.tanuki.core.domain.library.usecase.ObserveLibraryPreferences
+import app.tanuki.core.domain.library.usecase.UpdateLibraryPreferences
+import app.tanuki.features.library.viewmodel.LibraryState.Content
 import app.tanuki.features.library.viewmodel.LibraryState.Loading
-import app.tanuki.features.library.viewmodel.LibraryState.ShowingBottomSheet
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -33,6 +39,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -67,8 +74,8 @@ class LibraryViewModelTest {
         val job = collect(viewModel)
 
         val state = viewModel.uiState.value
-        assertTrue(state is DisplayLibrary)
-        assertEquals(listOf("Berserk"), state.items.map { it.title.value })
+        assertTrue(state is Content)
+        assertEquals(listOf("Berserk"), state.items.map { it.title })
         job.cancel()
     }
 
@@ -92,8 +99,8 @@ class LibraryViewModelTest {
         runCurrent()
 
         val state = viewModel.uiState.value
-        assertTrue(state is ShowingBottomSheet)
-        assertEquals(listOf("Shelf"), state.categories.map { it.category.name.value })
+        assertTrue(state is Content && state.sheetOpen)
+        assertEquals(listOf("Shelf"), state.categories.map { it.name })
         job.cancel()
     }
 
@@ -111,7 +118,7 @@ class LibraryViewModelTest {
         runCurrent()
 
         val state = viewModel.uiState.value
-        assertTrue(state is DisplayLibrary)
+        assertTrue(state is Content)
         assertEquals("", state.searchQuery)
         job.cancel()
     }
@@ -127,7 +134,9 @@ class LibraryViewModelTest {
         viewModel.toLibraryState()
         runCurrent()
 
-        assertTrue(viewModel.uiState.value is DisplayLibrary)
+        val state = viewModel.uiState.value
+        assertTrue(state is Content)
+        assertFalse(state.sheetOpen)
         job.cancel()
     }
 
@@ -143,8 +152,8 @@ class LibraryViewModelTest {
         runCurrent()
 
         val state = viewModel.uiState.value
-        assertTrue(state is ShowingBottomSheet)
-        assertEquals(listOf("Reading"), state.categories.map { it.category.name.value })
+        assertTrue(state is Content)
+        assertEquals(listOf("Reading"), state.categories.map { it.name })
         job.cancel()
     }
 
@@ -156,12 +165,110 @@ class LibraryViewModelTest {
         viewModel.onFilterClick()
         runCurrent()
 
-        viewModel.onCategoryToggle(Category(id = SHELF_ID, name = Text("Shelf")))
+        viewModel.onCategoryToggle(SHELF_ID)
         runCurrent()
 
         val state = viewModel.uiState.value
-        assertTrue(state is ShowingBottomSheet)
+        assertTrue(state is Content)
         assertEquals(listOf(true), state.categories.map { it.isEnabled })
+        assertEquals(setOf(SHELF_ID), world.preferences.value.filter.categoryIds)
+        job.cancel()
+    }
+
+    @Test
+    fun `the remembered filter and sort apply when the screen opens`() = runTest {
+        val world = World()
+        val sort = LibrarySort(LibrarySort.Mode.DateAdded, LibrarySort.Direction.Descending)
+        world.preferences.value = LibraryPreferences(LibraryFilter(readingStatus = ReadingStatus.DROPPED), sort)
+        val viewModel = world.viewModel()
+
+        val job = collect(viewModel)
+
+        val state = viewModel.uiState.value
+        assertTrue(state is Content)
+        assertEquals(ReadingStatus.DROPPED, state.filter.readingStatus)
+        assertEquals(sort, state.sort)
+        assertTrue(state.filterActive)
+        job.cancel()
+    }
+
+    @Test
+    fun `a deleted category left in the stored filter is ignored`() = runTest {
+        val world = World()
+        world.preferences.value = LibraryPreferences(LibraryFilter(categoryIds = setOf(Uuid.random())))
+        val viewModel = world.viewModel()
+
+        val job = collect(viewModel)
+
+        val state = viewModel.uiState.value
+        assertTrue(state is Content)
+        assertEquals(emptySet(), state.filter.categoryIds)
+        assertFalse(state.filterActive)
+        job.cancel()
+    }
+
+    @Test
+    fun `the sheet reopens on the tab last used`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = collect(viewModel)
+
+        viewModel.onFilterClick()
+        viewModel.onSheetTabChange(LibrarySheetTab.Filter)
+        viewModel.toLibraryState()
+        viewModel.onFilterClick()
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is Content)
+        assertEquals(LibrarySheetTab.Filter, state.sheetTab)
+        job.cancel()
+    }
+
+    @Test
+    fun `a filter change shows before the store has written it`() = runTest {
+        val world = World()
+        world.storeIsSlow = true
+        val viewModel = world.viewModel()
+        val job = collect(viewModel)
+
+        viewModel.onDownloadedChange(TriState.REQUIRED)
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is Content)
+        assertEquals(TriState.REQUIRED, state.filter.downloaded)
+        job.cancel()
+    }
+
+    @Test
+    fun `a cover size changed in Appearance reaches the grid`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = collect(viewModel)
+
+        world.gridSize.value = LibraryGridSize.Large
+        runCurrent()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is Content)
+        assertEquals(LibraryGridSize.Large, state.gridSize)
+        job.cancel()
+    }
+
+    @Test
+    fun `tapping the current sort flips it and another mode starts ascending`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = collect(viewModel)
+
+        viewModel.onSortModeClick(LibrarySort.Mode.Alphabetical)
+        runCurrent()
+        assertEquals(LibrarySort.Direction.Descending, world.preferences.value.sort.direction)
+
+        viewModel.onSortModeClick(LibrarySort.Mode.LastRead)
+        runCurrent()
+        assertEquals(LibrarySort(LibrarySort.Mode.LastRead, LibrarySort.Direction.Ascending), world.preferences.value.sort)
         job.cancel()
     }
 
@@ -180,11 +287,19 @@ class LibraryViewModelTest {
     private class World {
         val library = MutableStateFlow(listOf(manga("Berserk")))
         val categories = MutableStateFlow(listOf(Category(id = SHELF_ID, name = Text("Shelf"))))
+        val preferences = MutableStateFlow(LibraryPreferences())
+        val gridSize = MutableStateFlow(LibraryGridSize.Medium)
+
+        /** When set, writes never land: what the screen shows can only come from the ViewModel itself. */
+        var storeIsSlow = false
 
         fun viewModel(): LibraryViewModel =
             LibraryViewModel(
                 observeLibrary = FakeObserveLibrary(library),
                 observeCategories = FakeObserveCategories(categories),
+                observeLibraryPreferences = FakeLibraryPreferences(preferences),
+                updateLibraryPreferences = FakeLibraryPreferences(preferences) { storeIsSlow },
+                observeLibraryGridSize = FakeObserveLibraryGridSize(gridSize),
                 dispatcher = ImmediateDispatchers,
                 logger = SilentLogger
             )
@@ -206,6 +321,26 @@ private class FakeObserveCategories(
     private val categories: Flow<List<Category>>
 ) : ObserveCategories {
     override fun invoke(): Flow<List<Category>> = categories
+}
+
+private class FakeObserveLibraryGridSize(
+    private val size: Flow<LibraryGridSize>
+) : ObserveLibraryGridSize {
+    override fun invoke(): Flow<LibraryGridSize> = size
+}
+
+/** The preferences store as one in-memory value, read and written by both use cases. */
+private class FakeLibraryPreferences(
+    private val preferences: MutableStateFlow<LibraryPreferences>,
+    private val slow: () -> Boolean = { false }
+) : ObserveLibraryPreferences,
+    UpdateLibraryPreferences {
+    override fun invoke(): Flow<LibraryPreferences> = preferences
+
+    override suspend fun invoke(transform: (LibraryPreferences) -> LibraryPreferences) {
+        if (slow()) awaitCancellation()
+        preferences.value = transform(preferences.value)
+    }
 }
 
 private object ImmediateDispatchers : DispatcherProvider {

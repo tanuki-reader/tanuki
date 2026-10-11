@@ -164,10 +164,10 @@ iOSApp (SwiftUI @main)
 | **0. Foundation** (blocking) | SKIE + Kotlin 2.4.10 spike (0.5–1) · `AppStartup` out of `App.kt` (0.5) · framework `export` + move `UuidNavType` (0.5–1) · `ScreenScope` + `ScreenModel` + navEvents modifier (1–2) · SwiftUI root with tabs + stacks + `DestinationContent` + Compose bridge (2–3) · `ImageBridge` + `TanukiImage` (2–3) · SwiftUI site-session overlay (2–3) · iOS design tokens: colors, type, base components from the design project (2–3) · strings pipeline (0.5–1) | **11–17** |
 | **1. Home** | split `:features:home:logic` · move the For You/Sources toggle into the VM · SwiftUI `HomeView` (segments, continue-reading carousel, new chapters, language groups) · en/pt-BR strings | **3–5** |
 | 2. Settings (+ appearance, privacy, categories, downloads, sources) | mostly lists and forms | 6–9 |
-| 3. Library | grid + large filter/sort sheet | 5–7 |
-| 4. Source browse | paging grid | 3–4 |
-| 5. Manga detail | hero, chapter list, selection, 4 sheets, download menu | 8–12 |
-| 6. Activity | stats charts (Swift Charts), history with swipe | 5–8 |
+| 3. Library | grid + large filter/sort sheet; category switcher + search (see "UI/UX redesign") | 5–7 |
+| 4. Source browse | paging grid → Source home redesign (rails + "See all" grid; see "UI/UX redesign") | 3–4 (+ shared contract work) |
+| 5. Manga detail | hero, chapter list, selection, 4 sheets, download menu; one-scroll redesign (see "UI/UX redesign") | 8–12 |
+| 6. Activity | stats charts (Swift Charts), history with swipe; merged history rows (see "UI/UX redesign") | 5–8 |
 | 7. Downloads | queue screen | 3–5 |
 | 8. Reader | paged + webtoon, prefetch, decode sizing, scrubber, scroll commands. Some layout logic must move into the VM first | 12–20 |
 | 9. Cleanup | delete the Compose bridge, drop Compose from the iOS framework, update CLAUDE.md | 2–4 |
@@ -175,6 +175,90 @@ iOSApp (SwiftUI @main)
 
 The order after Home is a recommendation: simple to complex, with the Reader last because it's the
 riskiest. Every phase ends with both apps building and the migrated screen at parity.
+
+## UI/UX redesign to fold into the migration (planned 2026-10-11)
+
+Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to the redesign**, not as a
+1:1 port of the Compose screen. Shared (Kotlin) parts land first so Android benefits too.
+
+- **Review doc (Claude Docs):** https://claude.ai/code/artifact/fe96ff11-736e-42d6-86d3-629814780240
+- **Mockups (Design canvas, iOS Day + Android Night):** https://claude.ai/artifact/B2724pSPBJh9VBcJdgPb4r
+  (`Main` = iOS Source home, `MangaDetail`, `History`, `SourceAndroid`, `Library`, `Statistics`). Covers in the mockups are the
+  design system's fallback colours; list contents are placeholders.
+
+### Source browse (Phase 4) → "Source home"
+
+- Large title (source name) + `.searchable` field instead of the magnifier button and the
+  Popular/Latest segmented tabs.
+- Horizontal rails, each with "See all": **Popular**, **Latest updates** (cover + "Ch. 222 · 15 h ago"),
+  plus any extra listing the source declares (e.g. **New series**), then an **All series** grid preview.
+- **"In library"** marker (glyph + words) on covers already in the library.
+- "See all" / search push today's paged grid as its own destination.
+- Shared work, before the SwiftUI screen:
+  - [ ] `SourceListing`: add values (e.g. `TRENDING`, `NEW`) + ABI wire names (`wire.rs`) +
+        `listing_*` strings in en and pt-BR; sources opt in via `SourceMeta.listings`.
+  - [ ] `MangaListing`: optional `latestChapter` and `updatedAt` (needed for the Latest rail labels).
+  - [ ] New `SourceHomeViewModel` (`StateViewModel`): page 1 of each declared listing in parallel, one
+        section state per rail, plus an in-library flag per item. `SourceBrowseViewModel` stays as the
+        "See all"/search grid behind a new `Destination`.
+  - [ ] Android: M3 carousel / `LazyRow` rails over the new state.
+
+### Manga detail (Phase 5)
+
+- [ ] Bug: synopsis shows HTML entities (`Murim&#039;s`). Decode when mapping source data, not in the UI.
+- [ ] Bug: white strip under bottom content on Compose-rendered iOS screens (also on Source browse);
+      the Compose bridge doesn't extend into the bottom safe area.
+- [ ] One scrolling page instead of Chapters/Info tabs: hero (cover, title, author, status · chapters ·
+      source) → glass secondary actions (Reading status menu, Categories) → synopsis + genre chips →
+      grouped Source / Reading mode rows → chapter list (unread dot, download button).
+- [ ] Primary action: floating `.glassProminent` capsule "Read Ch. N" tinted `accent`; system back button.
+      "Remove from library" moves into the Reading status menu.
+
+### Activity (Phase 6)
+
+- [ ] History: merge entries of the same series on the same day into one row
+      ("Eleceed · 4 chapters · Ch. 418–421"), grouped under day headers. Done in the ViewModel.
+- [ ] History/Statistics (and Week/Month/Year) as the system segmented control; no solid-accent selected
+      segment (design system: selection = `accent-tint`, accent only for the one primary action).
+
+### Library (Phase 3)
+
+- [x] ~~Category switcher under the title~~ — dropped (2026-10-11): categories stay in the sort &
+      filter sheet (multi-select + any/all), and the filter/sort are now remembered across launches.
+- [x] `.searchable` instead of the magnifier button; native toolbar buttons;
+      `.tabBarMinimizeBehavior(.onScrollDown)`.
+- [x] Cover size setting (Appearance → Library covers: Small / Medium / Large), both platforms.
+- [ ] Select mode (mockup's "Select" button) + bulk actions — deferred.
+
+### Statistics (Phase 6)
+
+- [ ] Day-streak tile: when the current streak is 0, show the best streak (or hide the tile).
+- [ ] Label every stat tile with its period ("979 · all time" vs "64 · this month"); today the two
+      "Chapters read" tiles look identical.
+- [ ] Reading curve: bars per day instead of a smoothed line (the spline invents in-between values),
+      a few date labels on the x axis, value on tap.
+- [ ] "Most read" rank arrows need words or a number ("↑2 this week"); colour alone carries no meaning.
+
+### Home (done in Phase 1, polish)
+
+- [ ] Sentence case for section headers: "Continue reading", "New chapters".
+- [ ] Continue-reading card: progress bar + "Resume ch. N"; keep it solid (no glass on cards).
+- [ ] Consider moving continue reading to `.tabViewBottomAccessory` so it's reachable from every tab.
+- [ ] Optional "Popular in your sources" rail on For You, reusing the source rail.
+
+### Tab bar (decision needed)
+
+- [ ] Outline SF Symbols at rest, `.fill` only when selected (`TabView` does this if given outline
+      symbols); today every icon looks filled.
+- [ ] Decide the tab set: today Library / Home / Activity / Settings; the design system specifies
+      Library / Updates / History / Browse + `Tab(role: .search)`. A global search tab pairs well with
+      Source home.
+
+### Settings (done in Phase 2, polish)
+
+- [ ] Neutral icon tiles (dark glyph on a neutral tile) instead of accent-orange tiles; accent is for
+      state and the one primary action, not decoration.
+- [ ] Optional: crash reporting as an inline `Toggle` in the index instead of a pushed page.
 
 ## Risks
 
@@ -382,3 +466,44 @@ riskiest. Every phase ends with both apps building and the migrated screen at pa
       a theme switch flipping the app, and Android on a device.
 
   Next: **Phase 3 — Library**.
+- 2026-10-11 — UI/UX review of the iOS screens. Planned redesigns for Source browse (Source home with
+  rails), Manga detail (one scroll) and History (merged rows), plus two bugs (HTML entities in
+  synopsis, white bottom strip on Compose-bridged screens). Recorded in "UI/UX redesign to fold into the
+  migration", with the review doc and mockup links. No code changed. Same day: added Library,
+  Statistics, Home, tab bar and Settings polish items to that section.
+- 2026-10-11 — **Phase 3 — Library done** (pending commit and the hand checks below).
+  - **Domain/data:** `LibraryFilter.categories` → `categoryIds: Set<Uuid>` (`ObserveLibrary` only ever
+    read ids; membership comes live from `observeLibraryCategories()`). New `LibraryPreferences`
+    (filter + sort) persisted in DataStore via `SettingsRepository.observe/updateLibraryPreferences`
+    (atomic transform inside `edit`) and the `ObserveLibraryPreferences`/`UpdateLibraryPreferences`
+    use cases. New `LibraryGridSize` setting (Small/Medium/Large, default Medium) with its own use cases.
+  - **`:features:library:logic`** holds `LibraryViewModel`, exported; `ScreenScope.libraryViewModel()`.
+    State is one `LibraryState.Content` (items as plain `LibraryItem`, `CategoryChip` with name/count,
+    `sheetOpen`, `gridSize`, derived `filterActive` and `empty: LibraryEmpty`). Filter/sort come from the
+    store; ids of deleted categories are dropped before filtering. The sort "tap again to flip" rule
+    moved into `onSortModeClick`.
+  - **Appearance:** `AppearanceViewModel` is now a `StateViewModel<AppearanceState(theme, gridSize)>`;
+    both platforms show a "Library covers" segmented control. Grids map the size to a minimum cover
+    width (90/114/150) and stay adaptive.
+  - **Android:** same layout over the new state; the empty view now distinguishes "filters hide
+    everything" from "library is empty" (matters now that filters persist).
+  - **SwiftUI** (`Features/Library/`): large title, `.searchable`, a toolbar filter button (filled when
+    filters are on), adaptive `LazyVGrid` of `LibraryCoverTile` (title over `coverScrim`, accent unread
+    badge), `ContentUnavailableView` empty states, and `LibrarySheet` (Form: sort rows, status picker,
+    downloaded/publication segmented, categories with checkmarks + any/all; Reset and a
+    `.glassProminent` "Show N titles"). `LibraryItem` clashes with SwiftUI's
+    `DeveloperToolsSupport.LibraryItem` — write `Shared.LibraryItem`.
+  - **Verified:** `:core:data` (`SettingsRepositoryImpLibraryTest` 4) and `:core:domain` on iOS,
+    `:features:library:logic` (11, host + iOS), `:features:settings:logic` host tests,
+    `:androidApp:assembleDebug`, the simulator framework link, a Debug xcodebuild, and the Library tab
+    live on the simulator (empty library: title, search, filter button, empty state).
+  - **Sheet refinement (same day):** the iOS sheet is now a Sort | Filter segmented switch over one
+    pane at a time, on the system Liquid Glass sheet (no painted background, medium/large detents).
+    Reading status and categories are `FilterChip`s in a `FlowLayout` (new in
+    `DesignSystem/Components/`). The open tab is VM state (`LibrarySheetTab`, `onSheetTabChange`),
+    which Android's sheet now reads too.
+  - **Not verified by hand:** the grid with content and each cover size (the simulator library is
+    empty), the sheet's controls, filters surviving a relaunch, tap → Compose manga detail → back, and
+    Android on a device.
+
+  Next: **Phase 4 — Source browse**.
