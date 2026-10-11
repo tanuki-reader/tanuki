@@ -34,7 +34,9 @@ data class SourcesState(
     val failedIds: Set<String> = emptySet(),
     val pendingUsage: SourceDownloadUsage? = null,
     val pendingRemoval: SourceItem? = null,
-    val removalDeletesDownloads: Boolean = false
+    val removalDeletesDownloads: Boolean = false,
+    /** Whether sensitive (adult) content is allowed — the toggle at the top of the screen. */
+    val showSensitive: Boolean = false
 )
 
 /**

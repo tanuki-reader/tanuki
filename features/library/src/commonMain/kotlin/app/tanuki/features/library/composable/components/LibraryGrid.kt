@@ -15,22 +15,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiEmptyState
 import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.presentation.minCoverWidth
 import app.tanuki.features.library.viewmodel.LibraryItem
 import kotlin.uuid.Uuid
 
-/** Minimum cover width per size; the adaptive grid fits as many whole columns as this allows. */
-private fun LibraryGridSize.minCoverWidth(): Dp =
-    when (this) {
-        LibraryGridSize.Small -> 90.dp
-        LibraryGridSize.Medium -> 114.dp
-        LibraryGridSize.Large -> 150.dp
-    }
 
 @Composable
 internal fun LibraryGrid(
@@ -56,7 +49,7 @@ internal fun LibraryGrid(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = gridSize.minCoverWidth()),
+                columns = GridCells.Adaptive(minSize = gridSize.minCoverWidth.dp),
                 modifier = Modifier.fillMaxSize(),
                 contentPadding =
                     PaddingValues(

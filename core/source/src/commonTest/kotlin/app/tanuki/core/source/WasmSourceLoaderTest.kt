@@ -5,6 +5,7 @@ import app.tanuki.core.domain.common.service.ConnectionObserver.ConnectionStatus
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.OfflineException
 import app.tanuki.core.domain.manga.model.PublishStatus
+import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceListing
@@ -16,6 +17,15 @@ import app.tanuki.core.source.abi.Wire
 import app.tanuki.core.source.runtime.SourceHost
 import app.tanuki.core.source.runtime.WasmEngine
 import app.tanuki.core.source.runtime.WasmModule
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -41,15 +51,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
-import kotlin.uuid.Uuid
 
 /**
  * Tests [WasmSourceLoader]'s loader logic — bundle-store enumeration, the ABI call/decode pipeline,
@@ -408,6 +409,19 @@ class WasmSourceLoaderTest {
         }
 
     @Test
+    fun `fetchMangaList tells the source whether sensitive content is allowed`() =
+        runTest {
+            val engine = FakeWasmEngine(catalog = mapOf("mangadex" to emptyList()))
+            val hidden = loader(engine, FakeBundleStore("mangadex"))
+            val allowed = loader(engine, FakeBundleStore("mangadex"), sensitive = ShowSensitive)
+
+            hidden.fetchMangaList("mangadex")
+            allowed.fetchMangaList("mangadex")
+
+            assertEquals(listOf(false, true), engine.requests.map { it.allowSensitive })
+        }
+
+    @Test
     fun `fetchMangaList normalises a blank query to null so a cleared search browses`() =
         runTest {
             val engine = FakeWasmEngine(catalog = mapOf("mangadex" to emptyList()))
@@ -699,8 +713,9 @@ class WasmSourceLoaderTest {
         store: SourceBundleStore,
         repository: SourceRepository = FakeSourceRepository(),
         connection: ConnectionObserver = FakeConnectionObserver(),
-        dispatchers: DispatcherProvider = testDispatchers()
-    ) = WasmSourceLoader(engine, NoOpSourceHost, store, repository, dispatchers, connection)
+        dispatchers: DispatcherProvider = testDispatchers(),
+        sensitive: ObserveShowSensitiveContent = HideSensitive
+    ) = WasmSourceLoader(engine, NoOpSourceHost, store, repository, dispatchers, connection, sensitive)
 
     private fun metaWire(
         id: String,
@@ -922,4 +937,12 @@ private class FakeWasmModule(
     override fun close() {
         closed = true
     }
+}
+/** The default setting: sensitive content hidden. */
+private object HideSensitive : ObserveShowSensitiveContent {
+    override fun invoke(): Flow<Boolean> = flowOf(false)
+}
+
+private object ShowSensitive : ObserveShowSensitiveContent {
+    override fun invoke(): Flow<Boolean> = flowOf(true)
 }

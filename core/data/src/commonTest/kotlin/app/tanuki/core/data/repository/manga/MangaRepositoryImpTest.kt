@@ -288,6 +288,8 @@ private class RecordingMangaDao : MangaDao {
 
     override suspend fun getMangaIdsBySource(sourceId: Uuid): List<Uuid> = error("unused")
 
+    override fun observeLibraryKeys(sourceId: Uuid): Flow<List<String>> = error("unused")
+
     override suspend fun getMangaByIds(mangaIds: Collection<Uuid>): List<MangaWithDetails> = error("unused")
 
     override fun observeMangaByIds(mangaIds: Collection<Uuid>): Flow<List<MangaWithDetails>> = byIds

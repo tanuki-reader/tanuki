@@ -37,6 +37,8 @@ class ManhastroSourceEngineTest {
         assertEquals("pt-BR", meta.lang)
         assertEquals("https://manhastro.net", meta.baseUrl)
         assertTrue(meta.listings.containsAll(listOf("popular", "latest")), "serves popular + latest")
+        // Mixed, not adult-only: adult titles are filtered per entry instead.
+        assertTrue(!meta.nsfw, "manhastro is a mixed catalog")
 
         module.close()
     }
@@ -68,6 +70,16 @@ class ManhastroSourceEngineTest {
         assertEquals("Dez anos atrás, um Portal se abriu.", soloLeveling.description)
         // The listing endpoints carry no `meta`, so there is no second page to offer.
         assertTrue(!page.hasNextPage, "listing endpoints are unpaginated")
+
+        // The adult title (the second fixture entry) only shows when the user allows it.
+        val allowed =
+            SourceCodec.decodeEnvelope<Wire.MangaPageWire>(
+                module.call(
+                    SourceAbi.Exports.MANGA_LIST,
+                    SourceCodec.encode(Wire.MangaListRequest(listing = "popular", page = 1, allowSensitive = true))
+                )
+            )
+        assertEquals(listOf("6881", "9001"), allowed.entries.map { it.key })
 
         module.close()
     }
@@ -190,7 +202,8 @@ private val MANHASTRO_CATALOG =
        "descricao":"Ten years ago, a Gate opened.",
        "descricao_brasil":"Dez anos atrás, um Portal se abriu.",
        "imagem":"capa.manhastro.net/capa-6881.jpg",
-       "status":"on-going"}
+       "status":"on-going"},
+      {"manga_id":9001,"titulo":"Adult Title","adulta":true}
     ]}
     """.trimIndent()
 

@@ -56,6 +56,8 @@
     <!-- Tela de fontes -->
     <string name="settings_sources_empty">Nenhuma fonte ainda. Elas aparecerão aqui quando houver alguma para instalar.</string>
     <string name="settings_sources_installed">Instaladas</string>
+    <string name="settings_show_sensitive">Mostrar conteúdo sensível</string>
+    <string name="settings_show_sensitive_hint">Mostra fontes só com conteúdo adulto e os títulos adultos das outras fontes. Desligado por padrão.</string>
     <string name="settings_sources_available">Disponíveis</string>
     <string name="settings_sources_available_hint">Fontes que você removeu. Instale novamente para voltar a buscar os títulos dela.</string>
     <string name="settings_install">Instalar</string>

@@ -126,7 +126,10 @@ object Wire {
 
     /** Request for [SourceAbi.Exports.SOURCE_HOME]; empty today, an object so it can grow optional fields. */
     @Serializable
-    class SourceHomeRequest
+    data class SourceHomeRequest(
+        /** Same meaning as [MangaListRequest.allowSensitive]. */
+        val allowSensitive: Boolean = false,
+    )
 
     /**
      * Output of the optional [SourceAbi.Exports.SOURCE_HOME]: the first page of several listings in one
@@ -160,6 +163,11 @@ object Wire {
          * combine them, [query] wins.
          */
         val listing: String? = null,
+        /**
+         * Whether the user allows sensitive (adult) content. `false` asks a source with mixed content to
+         * leave it out; an older guest ignores the field.
+         */
+        val allowSensitive: Boolean = false,
     )
 
     /**

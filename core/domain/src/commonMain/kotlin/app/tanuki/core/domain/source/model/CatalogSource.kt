@@ -24,11 +24,14 @@ import app.tanuki.core.domain.common.model.Url
  * @property lang language tag the source serves, or `null` when it isn't known yet.
  * @property iconUrl remote icon URL, or `null` for the lettered fallback avatar.
  * @property installed whether this source's bundle is on disk right now.
+ * @property nsfw whether the source is adult-only. Only known once installed (it comes from the bundle's
+ *   metadata), so an available source reads `false`.
  */
 data class CatalogSource(
     val sourceId: String,
     val name: Text,
     val lang: Text? = null,
     val iconUrl: Url? = null,
-    val installed: Boolean = false
+    val installed: Boolean = false,
+    val nsfw: Boolean = false
 )

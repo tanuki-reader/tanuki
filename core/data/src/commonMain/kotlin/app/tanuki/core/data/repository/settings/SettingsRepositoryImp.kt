@@ -224,6 +224,15 @@ class SettingsRepositoryImp internal constructor(
         }
     }
 
+    // Absent or corrupt reads as `false`: guessing wrong the other way shows adult content unasked.
+    override fun observeShowSensitiveContent(): Flow<Boolean> = preferences.map { it[SHOW_SENSITIVE_KEY] ?: false }
+
+    override suspend fun setShowSensitiveContent(show: Boolean) {
+        withContext(dispatcherProvider.io) {
+            dataStore.edit { preferences -> preferences[SHOW_SENSITIVE_KEY] = show }
+        }
+    }
+
     private companion object {
         val CRASH_REPORTING_KEY = booleanPreferencesKey("crash_reporting_enabled")
         val INSTALL_ID_KEY = stringPreferencesKey("install_id")
@@ -244,6 +253,7 @@ class SettingsRepositoryImp internal constructor(
         val LIBRARY_SORT_MODE_KEY = stringPreferencesKey("library_sort_mode")
         val LIBRARY_SORT_DIRECTION_KEY = stringPreferencesKey("library_sort_direction")
         val LIBRARY_GRID_SIZE_KEY = stringPreferencesKey("library_grid_size")
+        val SHOW_SENSITIVE_KEY = booleanPreferencesKey("show_sensitive_content")
 
         /** Each field by enum name; anything absent or unknown reads as that field's default. */
         fun Preferences.toLibraryPreferences(): LibraryPreferences {

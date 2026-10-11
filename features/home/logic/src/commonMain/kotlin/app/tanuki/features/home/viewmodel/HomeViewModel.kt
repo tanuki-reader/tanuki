@@ -5,6 +5,7 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.usecase.ObserveLibraryReadingHistory
+import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.domain.update.model.NewChapter
@@ -21,10 +22,10 @@ import dev.zacsweers.metro.ContributesIntoMap
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
+import kotlin.math.floor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlin.math.floor
 
 /**
  * Presentation logic for the Home tab. Compose-free (CLAUDE.md → MVVM); Metro-injected into the
@@ -51,6 +52,7 @@ class HomeViewModel(
     observeLibraryReadingHistory: ObserveLibraryReadingHistory,
     observeNewChapters: ObserveNewChapters,
     getInstalledSources: GetInstalledSources,
+    observeShowSensitiveContent: ObserveShowSensitiveContent,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : StateViewModel<HomeState>(dispatcher, logger, Loading) {
@@ -83,7 +85,10 @@ class HomeViewModel(
         combine(
             observeLibraryReadingHistory(CONTINUE_READING_LIMIT),
             observeNewChapters(),
-            getInstalledSources(),
+            // Adult-only sources are left out until the user allows sensitive content (Settings → Sources).
+            combine(getInstalledSources(), observeShowSensitiveContent()) { sources, showSensitive ->
+                if (showSensitive) sources else sources.filterNot { it.nsfw }
+            },
             expandedLang,
             segment
         ) { history, updates, installed, expanded, segment ->

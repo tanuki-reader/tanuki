@@ -64,7 +64,8 @@ sealed interface ObserveSourceCatalog {
                         name = meta.name,
                         lang = meta.lang,
                         iconUrl = meta.iconUrl,
-                        installed = true
+                        installed = true,
+                        nsfw = meta.nsfw
                     )
                 }
             val availableEntries =

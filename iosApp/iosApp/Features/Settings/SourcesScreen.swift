@@ -43,6 +43,16 @@ struct SourcesScreen: View {
             .background(Color.tk.canvas)
         } else {
             List {
+                Section {
+                    Toggle(tr("settings_show_sensitive", table: .settings), isOn: Binding(
+                        get: { state.showSensitive },
+                        set: { model.vm.onShowSensitiveChange(show: $0) }
+                    ))
+                    .tint(Color.tk.accent)
+                    .listRowBackground(Color.tk.surfaceRaised)
+                } footer: {
+                    Text(tr("settings_show_sensitive_hint", table: .settings))
+                }
                 if !state.installed.isEmpty {
                     Section(tr("settings_sources_installed", table: .settings)) {
                         ForEach(state.installed, id: \.sourceId) { source in

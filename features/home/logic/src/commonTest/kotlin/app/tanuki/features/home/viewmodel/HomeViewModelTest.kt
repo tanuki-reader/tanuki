@@ -6,12 +6,18 @@ import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.history.model.HistoryEntry
 import app.tanuki.core.domain.history.usecase.ObserveLibraryReadingHistory
+import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.domain.update.model.NewChapter
 import app.tanuki.core.domain.update.usecase.ObserveNewChapters
 import app.tanuki.features.home.viewmodel.HomeState.Content
 import app.tanuki.features.home.viewmodel.HomeState.Loading
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -22,17 +28,12 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 
 /**
  * Covers the enumeration gate, which is what the `StateViewModel` migration had to preserve: the
@@ -94,6 +95,23 @@ class HomeViewModelTest {
         assertTrue(state is Content)
         assertEquals(listOf("en", "pt-BR"), state.sourceGroups.map { it.lang })
         assertEquals(listOf(2, 1), state.sourceGroups.map { it.sources.size })
+        job.cancel()
+    }
+
+    @Test
+    fun `adult-only sources stay hidden until sensitive content is allowed`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        val job = collect(viewModel)
+        val names = { (viewModel.uiState.value as Content).sourceGroups.flatMap { g -> g.sources.map { it.name } } }
+
+        world.sources.value = listOf(source("mangadex", "en"), source("adult", "en", nsfw = true))
+        runCurrent()
+        assertEquals(listOf("mangadex"), names())
+
+        world.showSensitive.value = true
+        runCurrent()
+        assertEquals(listOf("adult", "mangadex"), names().sorted())
         job.cancel()
     }
 
@@ -166,6 +184,7 @@ class HomeViewModelTest {
         val sources = MutableStateFlow<List<SourceMeta>?>(null)
         val history = MutableStateFlow(emptyList<HistoryEntry>())
         val updates = MutableStateFlow(emptyList<NewChapter>())
+        val showSensitive = MutableStateFlow(false)
 
         val getInstalledSources = FakeGetInstalledSources(sources)
 
@@ -174,6 +193,9 @@ class HomeViewModelTest {
                 observeLibraryReadingHistory = FakeObserveLibraryReadingHistory(history),
                 observeNewChapters = FakeObserveNewChapters(updates),
                 getInstalledSources = getInstalledSources,
+                observeShowSensitiveContent = object : ObserveShowSensitiveContent {
+                    override fun invoke(): Flow<Boolean> = showSensitive
+                },
                 dispatcher = ImmediateDispatchers,
                 logger = SilentLogger
             )
@@ -182,8 +204,9 @@ class HomeViewModelTest {
 
 private fun source(
     id: String,
-    lang: String
-): SourceMeta = SourceMeta(id = id, name = Text(id), lang = Text(lang))
+    lang: String,
+    nsfw: Boolean = false
+): SourceMeta = SourceMeta(id = id, name = Text(id), lang = Text(lang), nsfw = nsfw)
 
 private class FakeObserveLibraryReadingHistory(
     private val history: Flow<List<HistoryEntry>>

@@ -56,6 +56,8 @@
     <!-- Sources screen -->
     <string name="settings_sources_empty">No sources yet. They’ll show up here once there are some to install.</string>
     <string name="settings_sources_installed">Installed</string>
+    <string name="settings_show_sensitive">Show sensitive content</string>
+    <string name="settings_show_sensitive_hint">Shows adult-only sources and the adult titles in other sources. Off by default.</string>
     <string name="settings_sources_available">Available</string>
     <string name="settings_sources_available_hint">Sources you’ve removed. Install one again to start fetching for its titles.</string>
     <string name="settings_install">Install</string>

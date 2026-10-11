@@ -60,7 +60,7 @@ struct LibraryScreen: View {
     private func grid(_ content: LibraryStateContent) -> some View {
         ScrollView {
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: content.gridSize.minCoverWidth), spacing: TK.Space.s2)],
+                columns: [GridItem(.adaptive(minimum: CGFloat(content.gridSize.minCoverWidth)), spacing: TK.Space.s2)],
                 spacing: TK.Space.s2
             ) {
                 ForEach(content.items, id: \.mangaId) { item in
@@ -132,14 +132,3 @@ struct LibraryScreen: View {
     }
 }
 
-extension LibraryGridSize {
-    /// The smallest a cover may get; the grid fits as many columns as this allows. Mirrors Android's
-    /// `LibraryGrid` (90/114/150dp).
-    var minCoverWidth: CGFloat {
-        switch self {
-        case .small: 90
-        case .medium: 114
-        case .large: 150
-        }
-    }
-}

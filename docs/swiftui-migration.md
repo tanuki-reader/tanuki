@@ -546,3 +546,36 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     captions, search submit, tapping into a manga, per-rail retry, and Android on a device.
 
   Next: **Phase 5 — Manga detail**.
+- 2026-10-11 — **Source home follow-ups.**
+  - **Distinct listings.** "All series" (the default catalog) duplicated Popular on MangaFire, MangaDex
+    and Hipercool; it is now A–Z everywhere. Each site's sort options were checked live (MangaFire via a
+    scratch VRF-signing harness, Hipercool via its tRPC sort enum):
+
+    | Source | Popular | Latest | New | All series |
+    |---|---|---|---|---|
+    | MangaDex | `followedCount` | `latestUploadedChapter` | `createdAt` | `title` asc |
+    | MangaFire | `views_30d` | `chapter_updated_at` | `created_at` (new) | `title` asc |
+    | Hipercool | `popular` | `recent` | `newest` (new) | `alphabetical` |
+    | Manhastro | `/rank/diario` | `/lancamentos` | — | `/dados` |
+
+    MangaFire also sends `latestChapter` now (its update time is relative text, and sources have no
+    clock). `SourceBrowseViewModel`'s "no listing = first tab" fallback is gone, and so is Android's tab
+    row: each listing has its own "See all".
+  - **Sensitive-content filter** (Settings → Sources, off by default; `show_sensitive_content` in
+    DataStore):
+    - Source level: `SourceMeta.nsfw` hides adult-only sources (Hipercool) from Home.
+    - Content level: the host sends `allow_sensitive` in `MangaListRequest`/`SourceHomeRequest`
+      (additive). MangaFire adds `content_rating[]=safe,suggestive` (78,335 → 64,825 titles), MangaDex
+      adds the explicit ratings only when allowed (its chapter feed always takes every rating), and
+      Manhastro (now `nsfw: false`, a mixed catalog) drops `adulta` titles.
+    - Settings → Sources follows the switch too (`CatalogSource.nsfw`, from installed metadata).
+      Not-installed sources aren't filtered: their metadata isn't known before install.
+  - **Cover size everywhere:** the source catalog grid follows Appearance → Library covers like the
+    library grid. The size → minimum width mapping lives once in `:core:presentation`
+    (`LibraryGridSize.minCoverWidth`), read by Compose and Swift alike.
+  - **Search-bar glitch:** the catalog and Source home keep one `ScrollView` for every state (spinner
+    and errors inside it), and the catalog's search drawer is pinned. Swapping the scroll view under
+    `.searchable` made the field collapse and re-show.
+  - **Dev note:** `DevSourceInstaller` rewrites bundles asynchronously on launch, so a screen opened in
+    the first instant (e.g. a temporary auto-push) can still run the previous bundle.
+

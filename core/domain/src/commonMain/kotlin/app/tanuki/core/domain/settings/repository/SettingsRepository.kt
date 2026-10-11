@@ -211,4 +211,12 @@ interface SettingsRepository {
     fun observeLibraryGridSize(): Flow<LibraryGridSize>
 
     suspend fun setLibraryGridSize(size: LibraryGridSize)
+
+    /**
+     * Whether the user allows sensitive (adult) content: sources that are adult-only, and adult titles
+     * in mixed sources. Absent or unreadable reads as `false` — the only safe direction.
+     */
+    fun observeShowSensitiveContent(): Flow<Boolean>
+
+    suspend fun setShowSensitiveContent(show: Boolean)
 }

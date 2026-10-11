@@ -8,43 +8,43 @@ struct SourceHomeScreen: View {
     @Binding var path: [Route]
     @State private var model: ScreenModel<SourceHomeViewModel, SourceHomeState>
 
+    private let sourceId: String
+
     init(sourceId: String, path: Binding<[Route]>) {
+        self.sourceId = sourceId
         _path = path
         _model = State(initialValue: ScreenModel({ $0.sourceHomeViewModel(sourceId: sourceId) }, uiState: \.uiState))
     }
 
     var body: some View {
-        content
-            .background(Color.tk.canvas)
-            .navigationBarTitleDisplayMode(.large)
-            .task { await model.observe() }
-            .navEvents(model.vm.navEvents, path: $path)
+        // One ScrollView, title and search field from the first frame: swapping a spinner for the rails
+        // remounted the scroll view under the large title and the search drawer, which made both jump.
+        ScrollView {
+            content
+        }
+        .background(Color.tk.canvas)
+        .navigationTitle(loaded?.title ?? sourceId)
+        .navigationSubtitle(subtitle)
+        .navigationBarTitleDisplayMode(.large)
+        .searchable(text: search, prompt: tr("source_search_hint", loaded?.title ?? sourceId, table: .source))
+        .onSubmit(of: .search) { model.vm.onSearchSubmit() }
+        .task { await model.observe() }
+        .navEvents(model.vm.navEvents, path: $path)
     }
 
     @ViewBuilder
     private var content: some View {
         switch onEnum(of: model.state) {
         case .loading:
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView().frame(maxWidth: .infinity).padding(.top, TK.Space.s16)
         case .error:
             ContentUnavailableView {
                 Label(tr("source_load_error", table: .source), systemImage: "exclamationmark.triangle")
             } actions: {
                 Button(tr("source_retry", table: .source)) { model.vm.onRetry() }
             }
+            .padding(.top, TK.Space.s12)
         case let .content(content):
-            home(content)
-                .navigationTitle(content.title)
-                .navigationSubtitle(
-                    "\(content.lang) · \(tr("source_listing_count", Int(content.listingCount), table: .source))"
-                )
-                .searchable(text: search(content), prompt: tr("source_search_hint", content.title, table: .source))
-                .onSubmit(of: .search) { model.vm.onSearchSubmit() }
-        }
-    }
-
-    private func home(_ content: SourceHomeStateContent) -> some View {
-        ScrollView {
             LazyVStack(alignment: .leading, spacing: TK.Space.s8) {
                 // A loaded rail with nothing in it has nothing to show.
                 ForEach(content.rails.filter { !($0.status == .loaded && $0.items.isEmpty) }, id: \.self) { rail in
@@ -53,6 +53,16 @@ struct SourceHomeScreen: View {
             }
             .padding(.vertical, TK.Space.s4)
         }
+    }
+
+    private var loaded: SourceHomeStateContent? {
+        if case let .content(content) = onEnum(of: model.state) { return content }
+        return nil
+    }
+
+    private var subtitle: String {
+        guard let loaded else { return "" }
+        return "\(loaded.lang) · \(tr("source_listing_count", Int(loaded.listingCount), table: .source))"
     }
 
     // MARK: Rails
@@ -162,7 +172,7 @@ struct SourceHomeScreen: View {
         .buttonStyle(.plain)
     }
 
-    private func search(_ content: SourceHomeStateContent) -> Binding<String> {
-        Binding(get: { content.searchQuery }, set: { model.vm.onSearchQueryChange(query: $0) })
+    private var search: Binding<String> {
+        Binding(get: { loaded?.searchQuery ?? "" }, set: { model.vm.onSearchQueryChange(query: $0) })
     }
 }

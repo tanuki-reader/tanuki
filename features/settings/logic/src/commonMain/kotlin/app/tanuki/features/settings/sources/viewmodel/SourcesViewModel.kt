@@ -7,6 +7,8 @@ import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.model.SourceDownloadUsage
 import app.tanuki.core.domain.download.usecase.DeleteSourceDownloads
 import app.tanuki.core.domain.download.usecase.GetSourceDownloadUsage
+import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
+import app.tanuki.core.domain.settings.usecase.SetShowSensitiveContent
 import app.tanuki.core.domain.source.model.CatalogSource
 import app.tanuki.core.domain.source.usecase.InstallSource
 import app.tanuki.core.domain.source.usecase.ObserveSourceCatalog
@@ -56,6 +58,8 @@ class SourcesViewModel(
     private val uninstallSource: UninstallSource,
     private val getSourceDownloadUsage: GetSourceDownloadUsage,
     private val deleteSourceDownloads: DeleteSourceDownloads,
+    observeShowSensitiveContent: ObserveShowSensitiveContent,
+    private val setShowSensitiveContent: SetShowSensitiveContent,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : StateViewModel<SourcesState>(dispatcher, logger, SourcesState()) {
@@ -65,6 +69,12 @@ class SourcesViewModel(
 
     /** The remove dialog: which source it asks about (`null` = closed), and its downloads checkbox. */
     private val removal = MutableStateFlow(Removal())
+
+    /** The user's latest pick, shown at once while DataStore writes it (no snap-back on the switch). */
+    private val chosenShowSensitive = MutableStateFlow<Boolean?>(null)
+
+    private val showSensitive =
+        combine(observeShowSensitiveContent(), chosenShowSensitive) { stored, chosen -> chosen ?: stored }
 
     private data class Removal(
         val sourceId: String? = null,
@@ -77,9 +87,9 @@ class SourcesViewModel(
             busyIds,
             failedIds,
             pendingUsage,
-            removal
-        ) { catalog, busy, failed, usage, removal ->
-            val (installed, available) = catalog.partition(CatalogSource::installed)
+            combine(removal, showSensitive, ::Pair)
+        ) { catalog, busy, failed, usage, (removal, showSensitive) ->
+            val (installed, available) = catalog.visibleWith(showSensitive).partition(CatalogSource::installed)
             val installedItems = installed.map(CatalogSource::toItem)
             SourcesState(
                 loading = false,
@@ -89,9 +99,16 @@ class SourcesViewModel(
                 failedIds = failed,
                 pendingUsage = usage,
                 pendingRemoval = installedItems.firstOrNull { it.sourceId == removal.sourceId },
-                removalDeletesDownloads = removal.deleteDownloads
+                removalDeletesDownloads = removal.deleteDownloads,
+                showSensitive = showSensitive
             )
         }
+
+    /** Allow or hide sensitive content: adult-only sources, and adult titles inside mixed ones. */
+    fun onShowSensitiveChange(show: Boolean) {
+        chosenShowSensitive.value = show
+        viewModelScope.launch { setShowSensitiveContent(show) }
+    }
 
     /** Install (or re-install) a source. Ignored while that source already has an action in flight. */
     fun onInstall(sourceId: String) = act(sourceId) { installSource(sourceId) }
@@ -179,3 +196,10 @@ private fun CatalogSource.toItem(): SourceItem =
         lang = lang?.value,
         iconUrl = iconUrl?.value
     )
+
+/**
+ * The catalog as the screen shows it: adult-only sources only while sensitive content is allowed, so the
+ * list follows the switch above it the same way Home's does.
+ */
+internal fun List<CatalogSource>.visibleWith(showSensitive: Boolean): List<CatalogSource> =
+    if (showSensitive) this else filterNot(CatalogSource::nsfw)

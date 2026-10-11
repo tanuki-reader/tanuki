@@ -649,6 +649,16 @@ internal class FakeSettingsRepository : SettingsRepository {
 
 
 
+
+    override fun observeShowSensitiveContent(): Flow<Boolean> = error("unused")
+
+
+
+
+    override suspend fun setShowSensitiveContent(show: Boolean) = error("unused")
+
+
+
     override suspend fun setLibraryGridSize(size: LibraryGridSize) = error("unused")
 
 

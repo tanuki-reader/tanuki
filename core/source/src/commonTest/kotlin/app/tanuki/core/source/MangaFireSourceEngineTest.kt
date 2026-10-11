@@ -65,6 +65,28 @@ class MangaFireSourceEngineTest {
         // Cover picks the largest poster variant.
         assertEquals("https://mangafire.to/poster/large.jpg", onePiece.coverUrl)
         assertTrue(page.hasNextPage, "meta.hasNext should drive pagination")
+        assertEquals(1160.0, onePiece.latestChapter)
+
+        module.close()
+    }
+
+    @Test
+    fun `the default catalog is A to Z and hides erotica unless allowed`() {
+        if (MANGAFIRE_WASM.isEmpty()) return
+
+        val host = CannedHost(CANNED_TITLES)
+        val module = provideWasmEngine().instantiate("mangafire", MANGAFIRE_WASM, host)
+
+        module.call(SourceAbi.Exports.MANGA_LIST, SourceCodec.encode(Wire.MangaListRequest(page = 1)))
+        assertTrue(host.lastUrl.contains("order[title]=asc"), "url was ${host.lastUrl}")
+        assertTrue(host.lastUrl.contains("content_rating[]=safe"), "url was ${host.lastUrl}")
+
+        module.call(
+            SourceAbi.Exports.MANGA_LIST,
+            SourceCodec.encode(Wire.MangaListRequest(listing = "new", page = 1, allowSensitive = true))
+        )
+        assertTrue(host.lastUrl.contains("order[created_at]=desc"), "url was ${host.lastUrl}")
+        assertTrue("content_rating" !in host.lastUrl, "url was ${host.lastUrl}")
 
         module.close()
     }
@@ -113,7 +135,7 @@ private class CannedHost(
 private val CANNED_TITLES =
     """
     {"items":[
-      {"hid":"op-hid","slug":"one-piece","title":"One Piece",
+      {"hid":"op-hid","slug":"one-piece","title":"One Piece","latestChapter":1160,
        "poster":{"small":"https://mangafire.to/poster/small.jpg",
                  "medium":"https://mangafire.to/poster/medium.jpg",
                  "large":"https://mangafire.to/poster/large.jpg"}}

@@ -24,11 +24,10 @@ import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
+import app.tanuki.core.domain.settings.model.LibraryGridSize
 import app.tanuki.core.domain.source.model.MangaListing
+import app.tanuki.core.presentation.minCoverWidth
 import app.tanuki.features.source.viewmodel.Append
-
-/** Minimum cover width; the adaptive grid fits as many whole columns as fit, matching the Library. */
-private val COVER_MIN_WIDTH = 114.dp
 
 /**
  * The source's cover grid with infinite scroll. Renders the shared [MangaCoverTile] the Library also
@@ -46,6 +45,7 @@ private val COVER_MIN_WIDTH = 114.dp
 @Composable
 internal fun SourceGrid(
     items: List<MangaListing>,
+    gridSize: LibraryGridSize,
     append: Append,
     appendRetryLabel: String,
     onLoadMore: () -> Unit,
@@ -79,7 +79,7 @@ internal fun SourceGrid(
 
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(minSize = COVER_MIN_WIDTH),
+        columns = GridCells.Adaptive(minSize = gridSize.minCoverWidth.dp),
         modifier = modifier.fillMaxWidth(),
         contentPadding =
             PaddingValues(

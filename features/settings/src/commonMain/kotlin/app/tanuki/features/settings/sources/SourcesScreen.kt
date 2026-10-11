@@ -39,6 +39,8 @@ import app.tanuki.assets.designSystem.component.TanukiIconButton
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import app.tanuki.assets.designSystem.component.TrashIcon
+import app.tanuki.core.domain.download.model.SourceDownloadUsage
+import app.tanuki.features.settings.downloads.asFileSize
 import app.tanuki.features.settings.resources.Res
 import app.tanuki.features.settings.resources.settings_cancel
 import app.tanuki.features.settings.resources.settings_install
@@ -48,6 +50,8 @@ import app.tanuki.features.settings.resources.settings_remove_source_downloads
 import app.tanuki.features.settings.resources.settings_remove_source_downloads_hint
 import app.tanuki.features.settings.resources.settings_remove_source_message
 import app.tanuki.features.settings.resources.settings_remove_source_title
+import app.tanuki.features.settings.resources.settings_show_sensitive
+import app.tanuki.features.settings.resources.settings_show_sensitive_hint
 import app.tanuki.features.settings.resources.settings_source_install_failed
 import app.tanuki.features.settings.resources.settings_source_remove_failed
 import app.tanuki.features.settings.resources.settings_sources
@@ -59,8 +63,6 @@ import app.tanuki.features.settings.sources.viewmodel.SourceItem
 import app.tanuki.features.settings.sources.viewmodel.SourcesState
 import app.tanuki.features.settings.sources.viewmodel.SourcesViewModel
 import dev.zacsweers.metrox.viewmodel.metroViewModel
-import app.tanuki.core.domain.download.model.SourceDownloadUsage
-import app.tanuki.features.settings.downloads.asFileSize
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -90,6 +92,7 @@ fun SourcesRoute(
         onRemovalDismissed = viewModel::onRemovalDismissed,
         onRemovalDeleteDownloadsChange = viewModel::onRemovalDeleteDownloadsChange,
         onRemovalConfirmed = viewModel::onRemovalConfirmed,
+        onShowSensitiveChange = viewModel::onShowSensitiveChange,
         onBack = onBack,
         modifier = modifier
     )
@@ -103,6 +106,7 @@ private fun SourcesScreen(
     onRemovalDismissed: () -> Unit,
     onRemovalDeleteDownloadsChange: (Boolean) -> Unit,
     onRemovalConfirmed: () -> Unit,
+    onShowSensitiveChange: (Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -115,6 +119,13 @@ private fun SourcesScreen(
         TanukiDetailTopBar(
             title = stringResource(Res.string.settings_sources),
             onBack = onBack
+        )
+        TanukiSwitchRow(
+            title = stringResource(Res.string.settings_show_sensitive),
+            subtitle = stringResource(Res.string.settings_show_sensitive_hint),
+            checked = state.showSensitive,
+            onCheckedChange = onShowSensitiveChange,
+            modifier = Modifier.padding(horizontal = TanukiTheme.spacing.gutter)
         )
         when {
             // Held on the spinner until the first emission: a user with sources must never be shown

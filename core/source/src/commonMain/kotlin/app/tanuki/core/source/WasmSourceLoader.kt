@@ -17,6 +17,7 @@ import app.tanuki.core.domain.source.model.Source
 import app.tanuki.core.domain.source.model.SourceHome
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
+import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.source.repository.SourceRepository
 import app.tanuki.core.source.abi.SourceAbi
 import app.tanuki.core.source.abi.SourceAbiException
@@ -33,6 +34,7 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -93,6 +95,7 @@ class WasmSourceLoader(
     private val sourceRepository: SourceRepository,
     private val dispatchers: DispatcherProvider,
     private val connectionObserver: ConnectionObserver,
+    private val observeShowSensitiveContent: ObserveShowSensitiveContent,
 ) : SourceLoader {
 
     private val modulesLock = Mutex()
@@ -169,6 +172,7 @@ class WasmSourceLoader(
                 query = query?.takeIf(String::isNotBlank),
                 page = page,
                 listing = listing?.wireName,
+                allowSensitive = allowSensitive(),
             ),
         )
         SourceCodec.decodeEnvelope<Wire.MangaPageWire>(
@@ -179,7 +183,7 @@ class WasmSourceLoader(
     override suspend fun fetchSourceHome(sourceId: String): SourceHome? =
         withContext(dispatchers.io) {
             requireConnection(sourceId, SourceAbi.Exports.SOURCE_HOME)
-            val request = SourceCodec.encode(Wire.SourceHomeRequest())
+            val request = SourceCodec.encode(Wire.SourceHomeRequest(allowSensitive = allowSensitive()))
             try {
                 SourceCodec.decodeEnvelope<Wire.SourceHomeWire>(
                     callModule(sourceId, SourceAbi.Exports.SOURCE_HOME, request),
@@ -232,6 +236,12 @@ class WasmSourceLoader(
      * link, and it is not this layer's place to decide that a screen the user is looking at isn't worth
      * the bytes.
      */
+    /**
+     * The user's sensitive-content choice, read per call. A host concern rather than a [SourceLoader]
+     * argument: no caller should be able to ask a source for content the user hasn't allowed.
+     */
+    private suspend fun allowSensitive(): Boolean = observeShowSensitiveContent().first()
+
     private fun requireConnection(sourceId: String, export: String) {
         if (!connectionObserver.isOnline) {
             throw OfflineException("Cannot run \"$export\" for source \"$sourceId\" while offline")

@@ -26,6 +26,8 @@ import app.tanuki.core.domain.common.model.Url
  * @property listings which of the contract's [SourceListing]s this source serves, in [SourceListing]'s
  *   own order (not the source's — the vocabulary and its presentation order are the app's). Empty when
  *   the source exposes only its single default catalog.
+ * @property nsfw whether the source is adult-only. A source with *some* adult titles is not `nsfw`; it
+ *   filters those itself when the user hasn't allowed sensitive content.
  */
 data class SourceMeta(
     val id: String,
@@ -33,5 +35,6 @@ data class SourceMeta(
     val lang: Text,
     val version: Int? = null,
     val iconUrl: Url? = null,
-    val listings: List<SourceListing> = emptyList()
+    val listings: List<SourceListing> = emptyList(),
+    val nsfw: Boolean = false
 )

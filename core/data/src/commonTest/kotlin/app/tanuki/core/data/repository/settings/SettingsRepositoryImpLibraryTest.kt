@@ -74,6 +74,15 @@ class SettingsRepositoryImpLibraryTest {
 
         assertEquals(LibraryGridSize.Small, repository.observeLibraryGridSize().first())
     }
+
+    @Test
+    fun `sensitive content is hidden until allowed`() = runTest {
+        assertEquals(false, repository.observeShowSensitiveContent().first())
+
+        repository.setShowSensitiveContent(true)
+
+        assertEquals(true, repository.observeShowSensitiveContent().first())
+    }
 }
 
 private class LibraryDispatchers(

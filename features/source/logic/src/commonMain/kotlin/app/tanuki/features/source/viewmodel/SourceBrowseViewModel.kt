@@ -5,6 +5,8 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.manga.usecase.CacheSourceManga
+import app.tanuki.core.domain.settings.model.LibraryGridSize
+import app.tanuki.core.domain.settings.usecase.ObserveLibraryGridSize
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
@@ -85,6 +87,7 @@ class SourceBrowseViewModel(
     private val getSourceMeta: GetSourceMeta,
     private val browseSource: BrowseSource,
     private val cacheSourceManga: CacheSourceManga,
+    observeLibraryGridSize: ObserveLibraryGridSize,
     dispatcher: DispatcherProvider,
     logger: Logger,
 ) : TanukiViewModel(dispatcher, logger) {
@@ -112,6 +115,9 @@ class SourceBrowseViewModel(
      * The search text, debounced to avoid a flood of first-page reloads. The UI binds to this and
      * calls [onQueryChange] to update it.
      */
+    /** The cover size chosen in Appearance, shared with the library grid. */
+    val gridSize: StateFlow<LibraryGridSize> = observeLibraryGridSize().asState(LibraryGridSize.Medium)
+
     val searchQuery: StateFlow<String>
         field = MutableStateFlow(initialQuery.orEmpty())
 
@@ -127,7 +133,9 @@ class SourceBrowseViewModel(
             SourceChrome(
                 title = source?.name?.value,
                 listings = source?.listings.orEmpty(),
-                selected = picked ?: source?.listings?.firstOrNull()
+                // `null` is the default catalog ("All series"), not "the first listing": every listing has
+                // its own entry from the Source home now.
+                selected = picked
             )
         }.stateIn(viewModelScope, SharingStarted.Eagerly, SourceChrome())
 
@@ -166,17 +174,9 @@ class SourceBrowseViewModel(
                 selectedListing,
                 searchQuery.debounce(SEARCH_DEBOUNCE_MS),
                 retries
-            ) { source, listing, text, _ -> (listing ?: source.listings.firstOrNull()) to text }
+            ) { _, listing, text, _ -> listing to text }
                 .collectLatest { (listing, text) -> loadFirstPage(listing, text) }
         }
-    }
-
-    /** A listing tab was tapped. Switching tabs clears any search so the tab's own catalog shows. */
-    fun onListingSelect(listing: SourceListing) {
-        // Compared against the *effective* tab, so re-tapping the default one (still `null` in
-        // [selectedListing] until now) doesn't trigger a pointless reload of what's already shown.
-        if (chrome.value.selected == listing) return
-        selectedListing.value = listing
     }
 
     /** The search text changed; the debounced pipeline reloads the first page. */

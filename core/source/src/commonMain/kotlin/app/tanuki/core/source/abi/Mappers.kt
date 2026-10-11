@@ -39,6 +39,7 @@ fun Wire.SourceMetaWire.toDomain(): SourceMeta =
         version = version,
         iconUrl = iconUrl.toUrlOrNull(),
         listings = sourceListingsOf(listings),
+        nsfw = nsfw,
     )
 
 /**

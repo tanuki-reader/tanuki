@@ -1195,6 +1195,40 @@
         }
       }
     },
+    "settings_show_sensitive": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show sensitive content"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar conteúdo sensível"
+          }
+        }
+      }
+    },
+    "settings_show_sensitive_hint": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows adult-only sources and the adult titles in other sources. Off by default."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra fontes só com conteúdo adulto e os títulos adultos das outras fontes. Desligado por padrão."
+          }
+        }
+      }
+    },
     "settings_source_count": {
       "extractionState": "manual",
       "localizations": {

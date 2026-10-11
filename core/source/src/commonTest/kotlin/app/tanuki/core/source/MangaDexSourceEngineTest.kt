@@ -84,6 +84,23 @@ class MangaDexSourceEngineTest {
     }
 
     @Test
+    fun `the default catalog is A to Z and explicit ratings need the user's consent`() {
+        if (MANGADEX_WASM.isEmpty()) return
+
+        val host = CapturingHost(CANNED_POPULAR)
+        val module = provideWasmEngine().instantiate("mangadex", MANGADEX_WASM, host)
+
+        module.call(SourceAbi.Exports.MANGA_LIST, SourceCodec.encode(Wire.MangaListRequest(page = 1)))
+        assertTrue(host.lastUrl.contains("order[title]=asc"), "url was ${host.lastUrl}")
+        assertTrue("erotica" !in host.lastUrl, "url was ${host.lastUrl}")
+
+        module.call(SourceAbi.Exports.MANGA_LIST, SourceCodec.encode(Wire.MangaListRequest(page = 1, allowSensitive = true)))
+        assertTrue(host.lastUrl.contains("contentRating[]=erotica"), "url was ${host.lastUrl}")
+
+        module.close()
+    }
+
+    @Test
     fun `latest listing selects the recent-chapter ordering`() {
         if (MANGADEX_WASM.isEmpty()) return
 
