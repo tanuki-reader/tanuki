@@ -14,6 +14,9 @@ struct WebtoonStrip: View {
     let onFocus: (String) -> Void
     let onTap: () -> Void
 
+    /// Width:height reserved for a page before its image arrives (Android's `DEFAULT_PAGE_ASPECT_RATIO`).
+    private static let placeholderRatio: CGFloat = 0.7
+
     @State private var scale: CGFloat = 1
     @State private var pinchStart: CGFloat = 1
     @State private var offsetX: CGFloat = 0
@@ -24,7 +27,7 @@ struct WebtoonStrip: View {
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(items, id: \.key) { item in
-                        ReaderItemView(item: item, ground: ground, fill: false)
+                        ReaderItemView(item: item, ground: ground, fill: false, placeholderHeight: geo.size.width / Self.placeholderRatio)
                             .frame(minHeight: item is ReaderItemPageItem ? 0 : geo.size.height)
                     }
                 }
@@ -115,7 +118,7 @@ struct PagedReader: View {
     private var pages: some View {
         ForEach(items, id: \.key) { item in
             ZoomablePage(zoomed: $zoomed, onTap: onTap) {
-                ReaderItemView(item: item, ground: ground, fill: true)
+                ReaderItemView(item: item, ground: ground, fill: true, placeholderHeight: nil)
             }
             .environment(\.layoutDirection, .leftToRight)
             .containerRelativeFrame([.horizontal, .vertical])
@@ -198,11 +201,15 @@ struct ReaderItemView: View {
     let ground: ReaderBackground
     /// Paged: fit the page to the screen. Strip: full width, natural height.
     let fill: Bool
+    /// Strip only: the height a page holds until its image is in. Without it the slot collapsed to the
+    /// spinner's size, so a whole unloaded chapter fit on one screen and a single swipe ran through
+    /// several chapters.
+    let placeholderHeight: CGFloat?
 
     var body: some View {
         switch onEnum(of: item) {
         case let .pageItem(page):
-            PageImage(page: page, fill: fill, ink: ReaderGround.ink(ground))
+            PageImage(page: page, fill: fill, placeholderHeight: placeholderHeight, ink: ReaderGround.ink(ground))
         case let .transition(transition):
             TransitionSlide(transition: transition, ink: ReaderGround.ink(ground))
         case .end:
@@ -214,6 +221,7 @@ struct ReaderItemView: View {
 private struct PageImage: View {
     let page: ReaderItemPageItem
     let fill: Bool
+    let placeholderHeight: CGFloat?
     let ink: Color
 
     var body: some View {
@@ -224,14 +232,14 @@ private struct PageImage: View {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.largeTitle)
                     .foregroundStyle(ink.opacity(0.6))
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(fill ? nil : 0.7, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil)
+                    .frame(height: placeholderHeight)
             } else {
                 // Before the page's size is known: a placeholder at a typical page's proportions.
                 ProgressView()
                     .tint(ink)
                     .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil)
-                    .aspectRatio(fill ? nil : 0.7, contentMode: .fit)
+                    .frame(height: placeholderHeight)
             }
         }
         .pipeline(.tanukiPages)

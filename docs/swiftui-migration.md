@@ -875,5 +875,15 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Left:** `ComposeBridge`/`ComposeDestinationView` are now unused on iOS; Phase 9 deletes them and
     drops Compose from the iOS framework.
 
-  Next: **Phase 9 — Cleanup**.
+- **2026-10-12 — Phase 8 follow-up: webtoon strip ran through chapters.** One swipe across a chapter
+  boundary ran the strip through 4–5 chapters, forwards and backwards (seen in a screen recording). Cause:
+  the strip's page placeholder used `.aspectRatio(0.7, .fit)` under the scroll view's `nil` height, so it
+  shrank to the spinner's size. An unloaded chapter was then shorter than the screen, its trailing slide
+  came into focus right away, the next chapter loaded, and the same thing happened again. Fix: strip
+  placeholders get an explicit height of `width / 0.7`, the same ratio as Android's
+  `DEFAULT_PAGE_ASPECT_RATIO` (Android was never affected). `ReaderViewModel` now logs each chapter move at
+  debug level ("Reader moved to chapter … via …"). Builds: tests green, Android and iOS build. **Not
+  verified by hand:** the scroll on a device. Left: iOS has no page-ratio memory like Android's
+  `PageAspectRatios` yet.
 
+  Next: **Phase 9 — Cleanup**.

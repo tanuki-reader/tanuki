@@ -58,6 +58,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.getAndUpdate
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -460,7 +461,7 @@ class ReaderViewModel(
         // the reader settles, drops the chapter now two behind (via the eviction pipeline). Only the last
         // of those re-indexes what is on screen, which is why it waits. A move to the chapter already
         // current is a no-op the flow conflates, so an in-chapter page turn costs nothing here.
-        window.update { it.movedTo(item.chapterId) }
+        moveTo(item.chapterId, via = item.key)
         persistDebounced(item.chapterId, item.pageNumber, read = item.pageNumber >= item.pageCount - 1)
     }
 
@@ -488,7 +489,7 @@ class ReaderViewModel(
 
                 else -> toIndex
             }
-        active.siblings.getOrNull(anchor)?.let { anchored -> window.update { it.movedTo(anchored.id) } }
+        active.siblings.getOrNull(anchor)?.let { moveTo(it.id, via = item.key) }
 
         // Load whichever side isn't held yet, so swiping past this slide continues seamlessly.
         val toLoad =
@@ -506,6 +507,16 @@ class ReaderViewModel(
                 persistDebounced(item.from.id, p.lastIndex.coerceAtLeast(0), read = true)
             }
         }
+    }
+
+    /** Moves the window onto [chapterId], logging real moves: several in a row with no swipe between them
+     *  is the signature of a layout reporting focus it shouldn't (e.g. collapsed page placeholders). */
+    private fun moveTo(
+        chapterId: Uuid,
+        via: String
+    ) {
+        val before = window.getAndUpdate { it.movedTo(chapterId) }.currentChapterId
+        if (before != chapterId) logger.debug(tag, "Reader moved to chapter $chapterId via $via")
     }
 
     /** Scrub to page [page] of the current chapter (from the bottom-chrome slider). */
