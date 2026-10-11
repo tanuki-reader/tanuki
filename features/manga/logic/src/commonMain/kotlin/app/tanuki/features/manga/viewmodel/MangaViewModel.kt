@@ -28,7 +28,6 @@ import app.tanuki.core.domain.manga.usecase.SetReadingStatus
 import app.tanuki.core.domain.manga.usecase.SyncSourceMangaDetails
 import app.tanuki.core.domain.metadata.usecase.EditMangaMetadata
 import app.tanuki.core.domain.metadata.usecase.EnrichManga
-import app.tanuki.core.domain.metadata.usecase.MangaMetadata
 import app.tanuki.core.domain.metadata.usecase.ObserveMangaMetadata
 import app.tanuki.core.domain.source.usecase.ObserveSources
 import app.tanuki.core.navigation.Downloads
@@ -55,7 +54,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -174,9 +172,11 @@ class MangaViewModel(
         }.combine(sheet) { state, sheet ->
             if (state is Content) state.copy(sheet = sheet) else state
         }.combine(
-            // Starts empty, so the page never waits on metadata: it shows the source's data at once and
-            // picks the metadata up whenever enrichment (or the cache) provides it.
-            observeMangaMetadata(mangaId).onStart { emit(MangaMetadata(link = null, metadata = null)) }
+            // No `onStart` placeholder: the cache answers in one local read, so a series enriched before
+            // opens with its metadata in the first frame instead of showing the source's and swapping. A
+            // series never enriched still opens at once (no link yet emits empty) and changes when
+            // enrichment lands, which each platform animates.
+            observeMangaMetadata(mangaId)
         ) { state, metadata ->
             if (state is Content) state.copy(metadata = metadata) else state
         }.combine(editor) { state, editor ->

@@ -377,6 +377,10 @@ private class DetailsMangaRepository(
         status: app.tanuki.core.domain.manga.model.ReadingStatus
     ) = error("unused")
 
+    override suspend fun suggestReadingMode(mangaId: Uuid, mode: ReadingMode) = error("unused")
+
+    override suspend fun setCoverOverride(mangaId: Uuid, url: String?) = error("unused")
+
     override suspend fun setReadingMode(
         mangaId: Uuid,
         mode: ReadingMode

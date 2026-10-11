@@ -129,6 +129,8 @@ object Wire {
         val anilistId: Long? = null,
         /** The series' MyAnimeList id, when the source links to it. Same purpose as [anilistId]. */
         val malId: Long? = null,
+        /** The series' MangaDex id, when the source links to it (localized text, volume covers). */
+        val mangadexId: String? = null,
     )
 
     /** Request for [SourceAbi.Exports.SOURCE_HOME]; empty today, an object so it can grow optional fields. */

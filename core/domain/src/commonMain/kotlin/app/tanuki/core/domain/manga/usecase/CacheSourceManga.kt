@@ -113,7 +113,7 @@ interface CacheSourceManga {
             listing: MangaListing
         ) {
             val manga = mangaRepository.observeManga(existingId).first() ?: return
-            if (manga.cover.headers == listing.coverHeaders) return
+            if (manga.cover.sourceHeaders == listing.coverHeaders) return
             mangaRepository.setCoverHeaders(existingId, listing.coverHeaders)
         }
     }

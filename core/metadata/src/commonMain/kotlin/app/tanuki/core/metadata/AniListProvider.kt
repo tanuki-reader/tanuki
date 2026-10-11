@@ -96,7 +96,7 @@ class AniListProvider internal constructor(
             """
             query (${'$'}id: Int, ${'$'}idMal: Int) {
               Media(id: ${'$'}id, idMal: ${'$'}idMal, type: MANGA) {
-                id idMal siteUrl status format
+                id idMal siteUrl status format countryOfOrigin
                 title { english romaji }
                 description(asHtml: false)
                 coverImage { extraLarge large }
@@ -186,6 +186,7 @@ private data class MediaDto(
     val siteUrl: String? = null,
     val status: String? = null,
     val format: String? = null,
+    val countryOfOrigin: String? = null,
     val title: TitleDto = TitleDto(),
     val description: String? = null,
     val coverImage: ImageDto? = null,
@@ -229,7 +230,8 @@ private data class MediaDto(
                     MetadataRecommendation(media.id, media.idMal, media.title.preferred(), media.coverImage?.large, media.siteUrl.orEmpty())
                 },
             siteUrl = siteUrl.orEmpty(),
-            fetchedAt = Clock.System.now()
+            fetchedAt = Clock.System.now(),
+            countryOfOrigin = countryOfOrigin
         )
 }
 

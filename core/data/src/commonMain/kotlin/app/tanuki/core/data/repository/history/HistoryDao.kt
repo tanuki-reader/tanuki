@@ -120,6 +120,8 @@ interface HistoryDao {
                manga.description AS manga_description,
                manga.cover_url AS manga_cover_url,
                manga.cover_headers AS manga_cover_headers,
+               manga.cover_override AS manga_cover_override,
+               manga.reading_mode_origin AS manga_reading_mode_origin,
                manga.source_manga_key AS manga_source_manga_key,
                manga.url AS manga_url,
                manga.reading_mode AS manga_reading_mode,

@@ -7,6 +7,7 @@ import SwiftUI
 struct MangaScreen: View {
     @Binding var path: [Route]
     @State private var model: ScreenModel<MangaViewModel, MangaState>
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let seed: String
 
     init(mangaId: KotlinUuid, path: Binding<[Route]>) {
@@ -57,6 +58,8 @@ struct MangaScreen: View {
                 chapters(content)
             }
             .padding(.bottom, TK.Space.s16)
+            // Enrichment landing changes the title, cover, synopsis and tags: fade into them.
+            .animation(reduceMotion ? TK.Motion.reduced : TK.Motion.enter, value: content.metadata)
         }
         .background(alignment: .top) {
             // A wash of the cover's ground colour behind the hero, fading into the page.
@@ -208,19 +211,24 @@ struct MangaScreen: View {
                     .foregroundStyle(Color.tk.inkMuted)
                     .padding(TK.Space.s5)
             }
+            // Sorting, filtering and newly synced chapters move rows rather than swap the list.
             LazyVStack(spacing: 0) {
                 ForEach(content.rows, id: \.id) { row in
-                    ChapterRowView(
-                        row: row,
-                        selecting: content.selection.isActive,
-                        onTap: { model.vm.onChapterClick(chapterId: row.id) },
-                        onLongPress: { model.vm.onChapterLongClick(chapterId: row.id) },
-                        onDownload: { model.vm.onChapterDownloadClick(chapterId: row.id) },
-                        onDeleteDownload: { model.vm.onDeleteChapterDownload(chapterId: row.id) }
-                    )
-                    Divider().padding(.leading, TK.Space.s5)
+                    VStack(spacing: 0) {
+                        ChapterRowView(
+                            row: row,
+                            selecting: content.selection.isActive,
+                            onTap: { model.vm.onChapterClick(chapterId: row.id) },
+                            onLongPress: { model.vm.onChapterLongClick(chapterId: row.id) },
+                            onDownload: { model.vm.onChapterDownloadClick(chapterId: row.id) },
+                            onDeleteDownload: { model.vm.onDeleteChapterDownload(chapterId: row.id) }
+                        )
+                        Divider().padding(.leading, TK.Space.s5)
+                    }
+                    .transition(.opacity)
                 }
             }
+            .animation(reduceMotion ? TK.Motion.reduced : TK.Motion.enter, value: content.rows.map(\.id))
         }
     }
 

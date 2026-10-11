@@ -72,7 +72,20 @@ data class MangaEntity(
     @ColumnInfo(name = "details_fetched_at") val detailsFetchedAt: Instant? = null,
     @ColumnInfo(name = "next_update_at") val nextUpdateAt: Instant? = null,
     @ColumnInfo(name = "fetch_interval") val fetchInterval: Int? = null,
+    /** The cover shown instead of [coverUrl]: the user's pick or the metadata's (see `ApplyMangaMetadata`). */
+    @ColumnInfo(name = "cover_override") val coverOverride: String? = null,
+    /**
+     * Who set [readingMode]: [READING_MODE_DEFAULT], [READING_MODE_METADATA] or [READING_MODE_USER]. Only
+     * read inside SQL ([MangaDao.suggestReadingMode]), so it doesn't reach the domain; the one whole-row
+     * write ([MangaDao.upsert]) only ever inserts new series, where the default is right.
+     */
+    @ColumnInfo(name = "reading_mode_origin", defaultValue = READING_MODE_DEFAULT)
+    val readingModeOrigin: String = READING_MODE_DEFAULT,
 )
+
+const val READING_MODE_DEFAULT = "Default"
+const val READING_MODE_METADATA = "Metadata"
+const val READING_MODE_USER = "User"
 
 /**
  * A [MangaEntity] plus the columns the read queries derive via LEFT JOINs / subqueries: `last_read`
@@ -112,6 +125,7 @@ data class LibraryMangaRow(
     val title: String,
     @ColumnInfo(name = "cover_url") val coverUrl: String?,
     @ColumnInfo(name = "cover_headers") val coverHeaders: String?,
+    @ColumnInfo(name = "cover_override") val coverOverride: String? = null,
     @ColumnInfo(name = "publish_status") val publishStatus: PublishStatus,
     @ColumnInfo(name = "last_read") val lastRead: Instant?,
     @ColumnInfo(name = "date_added") val dateAdded: Instant,
@@ -124,12 +138,7 @@ fun LibraryMangaRow.toDomain(): LibraryManga =
     LibraryManga(
         id = id,
         title = Text(title),
-        cover =
-            MangaCover(
-                mangaId = id,
-                url = coverUrl?.let(::Url),
-                headers = decodeHeaders(coverHeaders),
-            ),
+        cover = mangaCover(id, coverUrl, coverHeaders, coverOverride),
         unreadCount = unreadCount.toUInt(),
         isDownloaded = downloadedCount > 0,
         dateAdded = dateAdded,
@@ -165,12 +174,7 @@ fun MangaEntity.toDomain(
         title = Text(title),
         author = author?.let(::Text),
         description = description?.let(::Text),
-        cover =
-            MangaCover(
-                mangaId = id,
-                url = coverUrl?.let(::Url),
-                headers = decodeHeaders(coverHeaders),
-            ),
+        cover = mangaCover(id, coverUrl, coverHeaders, coverOverride),
         sourceMangaKey = sourceMangaKey.toTextOrNull(),
         url = Url(url),
         // Both are derived by the read queries rather than stored on the row: they are counts over
@@ -198,8 +202,9 @@ fun Manga.toEntity(): MangaEntity =
         title = title.value,
         author = author?.value,
         description = description?.value,
-        coverUrl = cover.url?.value,
-        coverHeaders = encodeHeaders(cover.headers),
+        coverUrl = cover.sourceUrl?.value,
+        coverHeaders = encodeHeaders(cover.sourceHeaders),
+        coverOverride = cover.url?.value?.takeIf { cover.url != cover.sourceUrl },
         sourceMangaKey = sourceMangaKey?.value,
         url = url.value,
         readingMode = readingMode,
@@ -267,3 +272,18 @@ fun Manga.toLibraryEntry(): LibraryEntryEntity? =
             readingStatus = readingStatus ?: ReadingStatus.PLANNING_TO_READ,
         )
     }
+
+/** An overriding cover is a plain image URL: the source's headers belong to the source's CDN, not to it. */
+private fun mangaCover(
+    mangaId: Uuid,
+    coverUrl: String?,
+    coverHeaders: String?,
+    coverOverride: String?,
+): MangaCover {
+    val source = coverUrl?.let(::Url)
+    return if (coverOverride == null) {
+        MangaCover(mangaId, source, decodeHeaders(coverHeaders))
+    } else {
+        MangaCover(mangaId, Url(coverOverride), emptyMap(), sourceUrl = source, sourceHeaders = decodeHeaders(coverHeaders))
+    }
+}

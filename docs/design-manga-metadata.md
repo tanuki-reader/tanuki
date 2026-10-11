@@ -1,7 +1,8 @@
 # Manga metadata enrichment (Phase 5b) — design
 
-> Status: **built** (2026-10-11, Phase 5b) — see the progress log in `swiftui-migration.md` for what shipped
-> and what was deferred (cover in library/history lists, Android rails, global search). Designed 2026-10-11. Phase 5a shipped the SwiftUI manga page with room for this.
+> Status: **built** (2026-10-11, Phase 5b; follow-ups the same day: list covers, reading mode from
+> metadata, per-language rows) — see the progress log in `swiftui-migration.md`. Still deferred: Android
+> rails, global search. Designed 2026-10-11. Phase 5a shipped the SwiftUI manga page with room for this.
 > Decisions taken with the owner: AniList as the primary provider (no API key), MangaDex volume covers
 > for the cover picker, MyAnimeList id kept for linking; enriched metadata takes over by default with a
 > per-series "Use source info" switch.
@@ -44,7 +45,7 @@ source (WASM)  ──manga_details──▶ MangaListing { …, anilistId?, malI
   `SeriesMetadata`, `TrackerLink`, use cases `EnrichManga`, `ObserveMangaMetadata`, `LinkManga`,
   `UnlinkManga`, `SetCoverChoice`. Runtime-agnostic, like `SourceLoader`.
 - **`:core:metadata`** (new module): `AniListProvider` (GraphQL over the app's Ktor client — *not* the
-  Cloudflare/source client; AniList is a plain API), `MangaDexCoverProvider`, a token-bucket rate limiter
+  Cloudflare/source client; AniList is a plain API), `MangaDexProvider`, a token-bucket rate limiter
   (AniList 90/min, MangaDex 5/s), DTO → domain mappers. One Metro binding swaps providers.
 - **ABI (additive)**: `Manga` gains optional `anilist_id: Option<i64>`, `mal_id: Option<i64>`. MangaDex
   fills them from `links.al`/`links.mal`, MangaFire from `anilistId`/`malId`. No version bump.
@@ -59,6 +60,17 @@ source (WASM)  ──manga_details──▶ MangaListing { …, anilistId?, malI
   whole, never queried by column.
 - TTL: 7 days for metadata, refreshed lazily when the detail page opens (same pattern as the details
   sync's staleness gate); covers list fetched on demand when the picker opens.
+
+### Since the follow-ups
+
+- `series_metadata` is keyed **`(anilist_id, lang)`**; the link records the source's language. English rows
+  carry AniList's title/synopsis; other languages take MangaDex's text in that language (via the series'
+  MangaDex id, which sources may now report as `mangadex_id`) or none, so the source's shows. Score,
+  tags, characters, reviews and recommendations are the same in every row.
+- Lists read **`manga.cover_override`** (user's pick › metadata cover when preferred › none), not a
+  `resolved_cover_url` on the link as first planned below.
+- Reading mode: suggested from `countryOfOrigin` + the "Long Strip" tag, applied unless
+  `manga.reading_mode_origin = 'User'`.
 
 ### Precedence (one rule, in the ViewModel's projection)
 

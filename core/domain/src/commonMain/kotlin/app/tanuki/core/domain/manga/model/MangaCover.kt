@@ -21,9 +21,18 @@ import kotlin.uuid.Uuid
  *   the source's image CDN checks the `Referer` and would otherwise 403. They travel with the cover
  *   rather than being looked up per screen, because a cover is rendered from the database in half a
  *   dozen places (library grid, home rows, history) with no source in scope to ask.
+ * @property sourceUrl the source's own cover. Differs from [url] when the user picked a cover or the
+ *   series' metadata supplies one (see `ApplyMangaMetadata`); every screen shows [url], and only the
+ *   source syncs read [sourceUrl] / [sourceHeaders].
+ * @property sourceHeaders the headers [sourceUrl] needs; [headers] is empty for an overriding cover.
  */
 data class MangaCover(
     val mangaId: Uuid,
     val url: Url?,
-    val headers: Map<String, String> = emptyMap()
-)
+    val headers: Map<String, String> = emptyMap(),
+    val sourceUrl: Url? = url,
+    val sourceHeaders: Map<String, String> = headers
+) {
+    /** The source's own cover, whatever is shown instead. */
+    val ofSource: MangaCover get() = MangaCover(mangaId, sourceUrl, sourceHeaders)
+}

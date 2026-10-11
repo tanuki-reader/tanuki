@@ -37,10 +37,11 @@ class MetadataRepositoryImp(
 
     override suspend fun deleteLink(mangaId: Uuid) = dao.deleteLink(mangaId)
 
-    override fun observeMetadata(anilistId: Long): Flow<SeriesMetadata?> =
-        dao.observeMetadata(anilistId).distinctUntilChanged().map { it?.toDomain() }
+    override fun observeMetadata(anilistId: Long, lang: String): Flow<SeriesMetadata?> =
+        dao.observeMetadata(anilistId, lang).distinctUntilChanged().map { it?.toDomain() }
 
-    override suspend fun getMetadata(anilistId: Long): SeriesMetadata? = dao.getMetadata(anilistId)?.toDomain()
+    override suspend fun getMetadata(anilistId: Long, lang: String): SeriesMetadata? =
+        dao.getMetadata(anilistId, lang)?.toDomain()
 
     override suspend fun upsertMetadata(metadata: SeriesMetadata) = dao.upsertMetadata(metadata.toEntity())
 }
@@ -55,11 +56,12 @@ private fun TrackerLinkEntity.toDomain() =
         mangaDexId = mangaDexId,
         matchedBy = MatchedBy.entries.firstOrNull { it.name == matchedBy } ?: MatchedBy.Source,
         useSourceInfo = useSourceInfo,
-        coverChoice = coverChoice
+        coverChoice = coverChoice,
+        lang = lang
     )
 
 private fun TrackerLink.toEntity() =
-    TrackerLinkEntity(mangaId, anilistId, malId, mangaDexId, matchedBy.name, useSourceInfo, coverChoice)
+    TrackerLinkEntity(mangaId, anilistId, malId, mangaDexId, matchedBy.name, useSourceInfo, coverChoice, lang)
 
 /**
  * The cached payload's shape. Its own type, not the domain one, so the stored JSON is a contract this
@@ -68,7 +70,7 @@ private fun TrackerLink.toEntity() =
 @Serializable
 private data class MetadataPayload(
     val malId: Long? = null,
-    val title: String,
+    val title: String? = null,
     val synopsis: String? = null,
     val coverUrl: String? = null,
     val bannerUrl: String? = null,
@@ -81,7 +83,8 @@ private data class MetadataPayload(
     val characters: List<Character> = emptyList(),
     val reviews: List<Review> = emptyList(),
     val recommendations: List<Recommendation> = emptyList(),
-    val siteUrl: String = ""
+    val siteUrl: String = "",
+    val countryOfOrigin: String? = null
 ) {
     @Serializable
     data class Tag(val name: String, val rank: Int, val spoiler: Boolean)
@@ -122,13 +125,16 @@ private fun SeriesMetadataEntity.toDomain(): SeriesMetadata? {
         recommendations =
             payload.recommendations.map { MetadataRecommendation(it.anilistId, it.malId, it.title, it.coverUrl, it.siteUrl) },
         siteUrl = payload.siteUrl,
-        fetchedAt = Instant.fromEpochMilliseconds(fetchedAt)
+        fetchedAt = Instant.fromEpochMilliseconds(fetchedAt),
+        lang = lang,
+        countryOfOrigin = payload.countryOfOrigin
     )
 }
 
 private fun SeriesMetadata.toEntity() =
     SeriesMetadataEntity(
         anilistId = anilistId,
+        lang = lang,
         payload =
             json.encodeToString(
                 MetadataPayload(
@@ -149,7 +155,8 @@ private fun SeriesMetadata.toEntity() =
                         recommendations.map {
                             MetadataPayload.Recommendation(it.anilistId, it.malId, it.title, it.coverUrl, it.siteUrl)
                         },
-                    siteUrl = siteUrl
+                    siteUrl = siteUrl,
+                    countryOfOrigin = countryOfOrigin
                 )
             ),
         fetchedAt = fetchedAt.toEpochMilliseconds()

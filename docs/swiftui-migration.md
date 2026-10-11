@@ -616,7 +616,7 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
     `mangadex_id`) and `series_metadata` (one per **series**, keyed by AniList id, JSON payload,
     `fetched_at`). Two copies of One Piece from two sources = two links → one metadata row.
   - **`:core:metadata`** (new): `AniListProvider` (one GraphQL query: media + characters + reviews +
-    recommendations + tags; search), `MangaDexCoverProvider` (volume covers), own Ktor client per
+    recommendations + tags; search), `MangaDexProvider` (volume covers), own Ktor client per
     platform, a spacing rate limiter. Exposed to the app graphs via `api` in `:shared`.
   - **`EnrichManga`** (background, never throws): link from the source's ids **once per series**
     (recorded even when the source has none), then fetch only when the cache is older than **7 days**.
@@ -664,3 +664,29 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Not verified by hand:** Android on a device (layout compiles; the collapsing hero over a single
     list is unchanged code), the About sheet's lower sections on a series with many characters.
 
+- 2026-10-11 — **Metadata follow-ups** (owner's rule: what the user sets wins everywhere).
+  - **List covers:** `manga.cover_override` (Room v15, `Migration14To15`) holds the user's pick, else the
+    metadata cover when preferred, else null (the source's `cover_url`). `MangaCover.url` carries it, so
+    library, history, home and updates show it with no UI change; `sourceUrl`/`sourceHeaders` keep the
+    source's cover for the source syncs, which can no longer undo a pick. `ApplyMangaMetadata` writes it
+    after every enrichment and every metadata edit.
+  - **Reading mode from metadata:** `suggestedReadingMode` — "Long Strip" tag or KR/CN/TW → Webtoon,
+    JP → right to left. `manga.reading_mode_origin` (`Default|Metadata|User`); picking a mode marks it
+    `User` and `MangaDao.suggestReadingMode` never touches those rows. AniList query adds
+    `countryOfOrigin`.
+  - **Per language:** `series_metadata` keyed `(anilist_id, lang)`, `manga_tracker_link.lang` = the
+    source's language. Outside English, title/synopsis come from MangaDex's text in that language
+    (`MangaDexProvider`, renamed from `MangaDexCoverProvider`, also `LocalizedTextProvider`), else null →
+    the source's own. ABI: optional `mangadex_id`; MangaFire (v6) fills it from `links.md`.
+  - **Smoother page:** the metadata flow no longer starts from an empty placeholder, so a cached series
+    opens with its metadata in the first frame; a first enrichment fades in (iOS `.animation` on the
+    metadata, Android `Crossfade` on hero/synopsis + `animateItem`). iOS chapter rows animate on
+    sort/filter/new chapters (Reduce Motion: short crossfade).
+  - **Verified:** domain `ApplyMangaMetadataTest` 5 + `EnrichMangaTest` 8 (per-language rows, MangaDex
+    text or none, cover/mode reach the row, user mode kept), `CoverOverrideMappingTest` 2, MangaFire
+    engine test for the ids; v15 migration SQL matches `15.json`; `:androidApp:assembleDebug`, Debug
+    xcodebuild. Live (temporary startup hook, removed): MangaFire pt-BR One Piece and Blue Lock got
+    MangaDex's Portuguese synopsis; a manhwa MangaDex has no pt-BR text for kept MangaFire's (English).
+  - **Known gaps:** MangaFire's own synopsis is English, so a pt-BR series MangaDex hasn't translated
+    still reads in English. Links made before v15 from MangaFire have no MangaDex id (re-link to fill).
+    Not verified by hand: list covers and the fade on a device/Android.

@@ -11,6 +11,7 @@ import kotlin.uuid.Uuid
  * @property useSourceInfo the user's per-series switch: show the source's title, cover and synopsis
  *   instead of the metadata's.
  * @property coverChoice the cover the user picked, overriding both the source's and the metadata's.
+ * @property lang the source's language (lowercase BCP-47): which [SeriesMetadata] row this series reads.
  */
 data class TrackerLink(
     val mangaId: Uuid,
@@ -19,7 +20,8 @@ data class TrackerLink(
     val mangaDexId: String?,
     val matchedBy: MatchedBy,
     val useSourceInfo: Boolean = false,
-    val coverChoice: String? = null
+    val coverChoice: String? = null,
+    val lang: String = DEFAULT_METADATA_LANG
 )
 
 enum class MatchedBy {

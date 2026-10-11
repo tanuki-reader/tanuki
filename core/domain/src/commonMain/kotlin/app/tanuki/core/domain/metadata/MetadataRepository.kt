@@ -5,7 +5,7 @@ import app.tanuki.core.domain.metadata.model.TrackerLink
 import kotlinx.coroutines.flow.Flow
 import kotlin.uuid.Uuid
 
-/** The stored [TrackerLink]s and the metadata cache, keyed by AniList id. */
+/** The stored [TrackerLink]s and the metadata cache, keyed by AniList id and language. */
 interface MetadataRepository {
     fun observeLink(mangaId: Uuid): Flow<TrackerLink?>
 
@@ -15,9 +15,15 @@ interface MetadataRepository {
 
     suspend fun deleteLink(mangaId: Uuid)
 
-    fun observeMetadata(anilistId: Long): Flow<SeriesMetadata?>
+    fun observeMetadata(
+        anilistId: Long,
+        lang: String
+    ): Flow<SeriesMetadata?>
 
-    suspend fun getMetadata(anilistId: Long): SeriesMetadata?
+    suspend fun getMetadata(
+        anilistId: Long,
+        lang: String
+    ): SeriesMetadata?
 
     suspend fun upsertMetadata(metadata: SeriesMetadata)
 }

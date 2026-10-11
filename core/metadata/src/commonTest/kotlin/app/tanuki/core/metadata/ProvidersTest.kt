@@ -55,7 +55,7 @@ class ProvidersTest {
     fun `MangaDex volume covers become cover options`() = runTest {
         val client = HttpClient(MockEngine { respond(COVERS, HttpStatusCode.OK, json) })
 
-        val covers = MangaDexCoverProvider(client).volumeCovers("op-id")
+        val covers = MangaDexProvider(client).volumeCovers("op-id")
 
         assertEquals(
             listOf("https://uploads.mangadex.org/covers/op-id/a.jpg.512.jpg", "https://uploads.mangadex.org/covers/op-id/b.png.512.jpg"),

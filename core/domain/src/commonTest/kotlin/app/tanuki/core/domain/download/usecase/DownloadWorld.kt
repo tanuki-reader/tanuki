@@ -984,10 +984,29 @@ internal class FakeMangaRepository(
         status: ReadingStatus,
     ) = error("unused")
 
+    /** Series whose reading mode the user chose — the `reading_mode_origin = 'User'` rows. */
+    private val userModes = mutableSetOf<Uuid>()
+
+    override suspend fun suggestReadingMode(mangaId: Uuid, mode: ReadingMode) {
+        if (mangaId !in userModes) update(mangaId) { it.copy(readingMode = mode) }
+    }
+
+    override suspend fun setCoverOverride(mangaId: Uuid, url: String?) =
+        update(mangaId) { manga ->
+            val source = manga.cover.ofSource
+            manga.copy(cover = url?.let { MangaCover(mangaId, Url(it), sourceUrl = source.url, sourceHeaders = source.headers) } ?: source)
+        }
+
     override suspend fun setReadingMode(
         mangaId: Uuid,
         mode: ReadingMode,
-    ) = error("unused")
+    ) {
+        userModes += mangaId
+        update(mangaId) { it.copy(readingMode = mode) }
+    }
+
+    private fun update(mangaId: Uuid, change: (Manga) -> Manga) =
+        held.update { all -> all.map { if (it.id == mangaId) change(it) else it } }
 
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
 
@@ -1001,13 +1020,15 @@ internal class FakeMangaRepository(
 
 /** The one installed source every chapter resolves through. */
 internal class FakeSourceRepository(
-    private val source: Source,
+    vararg sources: Source,
 ) : SourceRepository {
-    override fun observeSources(): Flow<List<Source>> = flowOf(listOf(source))
+    private val sources = sources.toList()
 
-    override suspend fun getSource(id: Uuid): Source? = source.takeIf { it.id == id }
+    override fun observeSources(): Flow<List<Source>> = flowOf(sources)
 
-    override suspend fun getSourceByNativeId(sourceId: String): Source? = source.takeIf { it.sourceId == sourceId }
+    override suspend fun getSource(id: Uuid): Source? = sources.firstOrNull { it.id == id }
+
+    override suspend fun getSourceByNativeId(sourceId: String): Source? = sources.firstOrNull { it.sourceId == sourceId }
 
     override suspend fun addSource(source: Source) = error("unused")
 

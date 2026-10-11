@@ -10,6 +10,8 @@ import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.MangaCover
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingMode
+import app.tanuki.core.domain.metadata.LocalizedText
+import app.tanuki.core.domain.metadata.LocalizedTextProvider
 import app.tanuki.core.domain.metadata.MetadataProvider
 import app.tanuki.core.domain.metadata.MetadataRepository
 import app.tanuki.core.domain.metadata.model.MetadataSearchResult
@@ -24,6 +26,7 @@ import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -33,11 +36,13 @@ import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
 
 /**
- * Enrichment is a cache, keyed by series: one fetch serves every library copy of a series, and opening a
- * page again inside the freshness window costs no network at all.
+ * Enrichment is a cache, keyed by series and language: one fetch serves every library copy of a series in
+ * one language, and opening a page again inside the freshness window costs no network at all. What it
+ * learns lands on the `manga` row (cover, reading mode) unless the user chose otherwise.
  */
 class EnrichMangaTest {
     private val source = Source(Uuid.random(), "mangadex", Text("en"), Text("MangaDex"), Url("https://mangadex.org"))
+    private val ptSource = Source(Uuid.random(), "mangafire-pt-br", Text("pt-BR"), Text("MangaFire"), Url("https://mangafire.to"))
 
     @Test
     fun `the first open links from the source ids and fetches once`() = runTest {
@@ -49,7 +54,7 @@ class EnrichMangaTest {
         assertEquals(30013L, world.repository.links.value[manga.id]?.anilistId)
         assertEquals(1, world.provider.calls)
         assertEquals(1, world.loader.detailCalls)
-        assertEquals(setOf(30013L), world.repository.metadata.value.keys)
+        assertEquals(setOf(30013L to "en"), world.repository.metadata.value.keys)
     }
 
     @Test
@@ -81,12 +86,66 @@ class EnrichMangaTest {
     }
 
     @Test
+    fun `each language gets its own row - with MangaDex text in it or none`() = runTest {
+        val world = World()
+        val english = world.manga("op")
+        val portuguese = world.manga("op-pt", ptSource)
+
+        world.enrich(english.id)
+        world.enrich(portuguese.id)
+
+        assertEquals(setOf(30013L to "en", 30013L to "pt-br"), world.repository.metadata.value.keys)
+        assertEquals(2, world.provider.calls)
+        val pt = world.repository.metadata.value.getValue(30013L to "pt-br")
+        assertEquals("Uma Peça" to "Sinopse", pt.title to pt.synopsis)
+        assertEquals("md-op" to "pt-br", world.localized.asked.single())
+        // Neutral data is the same in both.
+        assertEquals(world.repository.metadata.value.getValue(30013L to "en").score, pt.score)
+
+        // No Portuguese text on MangaDex: the source's own shows.
+        world.localized.text = null
+        val other = world.manga("other-pt", ptSource)
+        world.repository.metadata.value = emptyMap()
+        world.enrich(other.id)
+        val bare = world.repository.metadata.value.getValue(30013L to "pt-br")
+        assertEquals(null to null, bare.title to bare.synopsis)
+    }
+
+    @Test
+    fun `the metadata's cover and reading mode reach the manga row`() = runTest {
+        val world = World()
+        world.provider.cover = "https://anilist.co/op.jpg"
+        world.provider.country = "KR"
+        val manga = world.manga("op")
+
+        world.enrich(manga.id)
+
+        val stored = world.stored(manga.id)
+        assertEquals("https://anilist.co/op.jpg", stored.cover.url?.value)
+        assertEquals("https://mangadex.org/op.jpg", stored.cover.sourceUrl?.value)
+        assertEquals(ReadingMode.WEBTOON, stored.readingMode)
+    }
+
+    @Test
+    fun `a reading mode the user chose is never replaced`() = runTest {
+        val world = World()
+        world.provider.country = "JP"
+        val manga = world.manga("op")
+        world.mangaRepository.setReadingMode(manga.id, ReadingMode.VERTICAL)
+
+        world.enrich(manga.id, force = true)
+
+        assertEquals(ReadingMode.VERTICAL, world.stored(manga.id).readingMode)
+    }
+
+    @Test
     fun `stale metadata is fetched again`() = runTest {
         val world = World()
         val manga = world.manga("op")
         world.enrich(manga.id)
-        val cached = world.repository.metadata.value.getValue(30013L)
-        world.repository.metadata.value = mapOf(30013L to cached.copy(fetchedAt = Clock.System.now() - 8.days))
+        val key = 30013L to "en"
+        val cached = world.repository.metadata.value.getValue(key)
+        world.repository.metadata.value = mapOf(key to cached.copy(fetchedAt = Clock.System.now() - 8.days))
 
         world.enrich(manga.id)
 
@@ -108,46 +167,57 @@ class EnrichMangaTest {
         val repository = MemoryMetadataRepository()
         val provider = CountingProvider()
         val loader = DetailsLoader()
-        private val mangas = mutableListOf<Manga>()
+        val localized = RecordingLocalizedText()
+        private var held: FakeMangaRepository? = null
+        val mangaRepository: FakeMangaRepository get() = checkNotNull(held)
 
-        fun manga(key: String): Manga {
+        fun manga(
+            key: String,
+            from: Source = source
+        ): Manga {
             val id = Uuid.random()
             val manga =
                 Manga(
                     id = id,
-                    source = source.id,
+                    source = from.id,
                     title = Text("One Piece"),
                     author = null,
                     description = null,
-                    cover = MangaCover(id, null),
+                    cover = MangaCover(id, Url("https://mangadex.org/op.jpg")),
                     sourceMangaKey = Text(key),
                     url = Url("https://mangadex.org/title/$key"),
                     dateAdded = null,
-                    readingMode = ReadingMode.RIGHT_TO_LEFT,
+                    readingMode = ReadingMode.LEFT_TO_RIGHT,
                     publishStatus = PublishStatus.ONGOING,
                     readingStatus = null
                 )
-            mangas += manga
+            held?.add(manga) ?: run { held = FakeMangaRepository(manga) }
             return manga
         }
 
-        suspend fun enrich(mangaId: Uuid) {
-            val manga = mangas.single { it.id == mangaId }
+        suspend fun stored(mangaId: Uuid): Manga = checkNotNull(mangaRepository.observeManga(mangaId).first())
+
+        suspend fun enrich(
+            mangaId: Uuid,
+            force: Boolean = false
+        ) {
             EnrichManga.Default(
-                mangaRepository = FakeMangaRepository(manga),
-                sourceRepository = FakeSourceRepository(source),
+                mangaRepository = mangaRepository,
+                sourceRepository = FakeSourceRepository(source, ptSource),
                 sourceLoader = loader,
                 metadataRepository = repository,
                 provider = provider,
+                localizedText = localized,
+                applyMangaMetadata = ApplyMangaMetadata.Default(mangaRepository, repository),
                 logger = SilentLogger
-            )(mangaId)
+            )(mangaId, force)
         }
     }
 }
 
 internal class MemoryMetadataRepository : MetadataRepository {
     val links = MutableStateFlow<Map<Uuid, TrackerLink>>(emptyMap())
-    val metadata = MutableStateFlow<Map<Long, SeriesMetadata>>(emptyMap())
+    val metadata = MutableStateFlow<Map<Pair<Long, String>, SeriesMetadata>>(emptyMap())
 
     override fun observeLink(mangaId: Uuid): Flow<TrackerLink?> = links.map { it[mangaId] }
 
@@ -161,27 +231,30 @@ internal class MemoryMetadataRepository : MetadataRepository {
         links.value -= mangaId
     }
 
-    override fun observeMetadata(anilistId: Long): Flow<SeriesMetadata?> = metadata.map { it[anilistId] }
+    override fun observeMetadata(anilistId: Long, lang: String): Flow<SeriesMetadata?> =
+        metadata.map { it[anilistId to lang] }
 
-    override suspend fun getMetadata(anilistId: Long): SeriesMetadata? = metadata.value[anilistId]
+    override suspend fun getMetadata(anilistId: Long, lang: String): SeriesMetadata? = metadata.value[anilistId to lang]
 
     override suspend fun upsertMetadata(metadata: SeriesMetadata) {
-        this.metadata.value += (metadata.anilistId to metadata)
+        this.metadata.value += ((metadata.anilistId to metadata.lang) to metadata)
     }
 }
 
-private class CountingProvider : MetadataProvider {
+internal class CountingProvider : MetadataProvider {
     var calls = 0
     var failing = false
+    var cover: String? = null
+    var country: String? = null
 
     override suspend fun byAniListId(id: Long): SeriesMetadata? {
         calls++
         if (failing) error("AniList is down")
         return SeriesMetadata(
-            anilistId = id, malId = 13, title = "One Piece", synopsis = null, coverUrl = null, bannerUrl = null,
+            anilistId = id, malId = 13, title = "One Piece", synopsis = null, coverUrl = cover, bannerUrl = null,
             score = 88, popularity = 1, genres = listOf("Action"), tags = emptyList(), status = PublishStatus.ONGOING,
             year = 1997, characters = emptyList(), reviews = emptyList(), recommendations = emptyList(),
-            siteUrl = "https://anilist.co/manga/$id", fetchedAt = Clock.System.now()
+            siteUrl = "https://anilist.co/manga/$id", fetchedAt = Clock.System.now(), countryOfOrigin = country
         )
     }
 
@@ -190,13 +263,23 @@ private class CountingProvider : MetadataProvider {
     override suspend fun search(title: String): List<MetadataSearchResult> = emptyList()
 }
 
+private class RecordingLocalizedText : LocalizedTextProvider {
+    var text: LocalizedText? = LocalizedText("Uma Peça", "Sinopse")
+    val asked = mutableListOf<Pair<String, String>>()
+
+    override suspend fun localized(mangaDexId: String, lang: String): LocalizedText? {
+        asked += mangaDexId to lang
+        return text
+    }
+}
+
 /** Every series' details name the same AniList/MAL ids — the source-published identity. */
 private class DetailsLoader : SourceLoader {
     var detailCalls = 0
 
     override suspend fun fetchMangaDetails(sourceId: String, mangaKey: String): MangaListing {
         detailCalls++
-        return MangaListing(mangaKey, title = "One Piece", anilistId = 30013, malId = 13)
+        return MangaListing(mangaKey, title = "One Piece", anilistId = 30013, malId = 13, mangaDexId = "md-op")
     }
 
     override suspend fun loadSource(id: String): Source = error("unused")

@@ -1,6 +1,7 @@
 package app.tanuki.features.manga.composable
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -170,9 +171,11 @@ fun MangaContentView(
                     }
                 }
         ) {
+            // Enrichment landing swaps the title and cover; fade it rather than jump.
+            Crossfade(targetState = state.header, label = "header") { header ->
             MangaHero(
                 manga = state.manga,
-                header = state.header,
+                header = header,
                 heroLine = state.heroLine,
                 categoryNames = state.categories.filter { it.isMember }.map { it.category.name.value },
                 onManageCategories = onManageCategories,
@@ -185,6 +188,7 @@ fun MangaContentView(
                         alpha = (fraction / 0.4f).coerceIn(0f, 1f)
                     }
             )
+            }
         }
 
         // One list: synopsis, one tag row, suggestions (only for a series not yet in the library — the
@@ -195,14 +199,16 @@ fun MangaContentView(
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
             item(key = "synopsis") {
-                SynopsisPreview(text = state.header.synopsis, onMore = onOpenAbout)
+                Crossfade(targetState = state.header.synopsis, label = "synopsis") { synopsis ->
+                    SynopsisPreview(text = synopsis, onMore = onOpenAbout)
+                }
             }
             if (state.tagRow.visible.isNotEmpty()) {
-                item(key = "tags") { TagRowPreview(row = state.tagRow, onClick = onOpenAbout) }
+                item(key = "tags") { Box(Modifier.animateItem()) { TagRowPreview(row = state.tagRow, onClick = onOpenAbout) } }
             }
             if (state.recommendationsPlacement == RecommendationsPlacement.AboveChapters) {
                 state.series?.recommendations?.let { recommendations ->
-                    item(key = "recommendations") { RecommendationsRow(recommendations) }
+                    item(key = "recommendations") { Box(Modifier.animateItem()) { RecommendationsRow(recommendations) } }
                 }
             }
             chapterList(

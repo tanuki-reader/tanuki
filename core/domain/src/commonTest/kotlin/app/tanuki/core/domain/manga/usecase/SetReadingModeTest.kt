@@ -41,6 +41,10 @@ class SetReadingModeTest {
 private class RecordingMangaRepository : MangaRepository {
     var readingModeWrite: Pair<Uuid, ReadingMode>? = null
 
+    override suspend fun suggestReadingMode(mangaId: Uuid, mode: ReadingMode) = error("unused")
+
+    override suspend fun setCoverOverride(mangaId: Uuid, url: String?) = error("unused")
+
     override suspend fun setReadingMode(mangaId: Uuid, mode: ReadingMode) {
         readingModeWrite = mangaId to mode
     }

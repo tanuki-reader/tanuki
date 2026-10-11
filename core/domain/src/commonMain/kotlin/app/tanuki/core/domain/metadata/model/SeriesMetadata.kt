@@ -5,16 +5,21 @@ import kotlin.time.Instant
 
 /**
  * What a metadata provider (AniList) knows about a series, independent of any source. Cached by
- * [anilistId], so every library entry of the same series — whichever source it came from — shares one.
+ * [anilistId] and [lang], so every library entry of the same series in one language — whichever source it
+ * came from — shares one.
  *
  * @property score average score, 0–100; `null` when the provider has too few ratings.
  * @property popularity how many users track the series on the provider.
  * @property fetchedAt when this was fetched, for the cache's freshness window.
+ * @property lang the language [title] and [synopsis] are in (lowercase BCP-47). Both are `null` when the
+ *   series has no text in that language, and the source's own shows instead. Everything else is the same
+ *   in every language.
+ * @property countryOfOrigin ISO 3166-1 alpha-2 (`JP`, `KR`, `CN`, `TW`), when known.
  */
 data class SeriesMetadata(
     val anilistId: Long,
     val malId: Long?,
-    val title: String,
+    val title: String?,
     val synopsis: String?,
     val coverUrl: String?,
     val bannerUrl: String?,
@@ -28,8 +33,13 @@ data class SeriesMetadata(
     val reviews: List<MetadataReview>,
     val recommendations: List<MetadataRecommendation>,
     val siteUrl: String,
-    val fetchedAt: Instant
+    val fetchedAt: Instant,
+    val lang: String = DEFAULT_METADATA_LANG,
+    val countryOfOrigin: String? = null
 )
+
+/** The language providers write in (AniList is English). */
+const val DEFAULT_METADATA_LANG = "en"
 
 /** A descriptive tag. [rank] is the provider's relevance, 0–100; [spoiler] tags are hidden until asked. */
 data class MetadataTag(

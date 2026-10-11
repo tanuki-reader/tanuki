@@ -96,11 +96,15 @@ sealed interface SyncSourceMangaDetails {
                 // stored when the source returns none — the same blank-field rule as the fields above,
                 // and the one that stops a detail endpoint that omits them from blanking a cover whose
                 // CDN checks the `Referer`.
+                // Against the source's own cover: one the user picked (or the metadata's) is not the
+                // source's to replace.
                 cover =
-                    if (details.coverUrl != null && details.coverUrl != manga.cover.url) {
-                        manga.cover.copy(url = details.coverUrl, headers = details.coverHeaders)
-                    } else {
-                        manga.cover.copy(headers = details.coverHeaders.ifEmpty { manga.cover.headers })
+                    manga.cover.ofSource.let { cover ->
+                        if (details.coverUrl != null && details.coverUrl != cover.url) {
+                            cover.copy(url = details.coverUrl, headers = details.coverHeaders)
+                        } else {
+                            cover.copy(headers = details.coverHeaders.ifEmpty { cover.headers })
+                        }
                     }
             )
 

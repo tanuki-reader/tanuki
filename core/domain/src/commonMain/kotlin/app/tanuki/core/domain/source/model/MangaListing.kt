@@ -38,6 +38,7 @@ import kotlin.time.Instant
  * @property genres Genre/tag names as the source shows them; empty when none.
  * @property anilistId The series' AniList id, when the source links to it (metadata matching).
  * @property malId The series' MyAnimeList id, when the source links to it.
+ * @property mangaDexId The series' MangaDex id, when the source links to it (localized text, volume covers).
  */
 data class MangaListing(
     val sourceMangaKey: String,
@@ -55,4 +56,5 @@ data class MangaListing(
     val genres: List<String> = emptyList(),
     val anilistId: Long? = null,
     val malId: Long? = null,
+    val mangaDexId: String? = null,
 )

@@ -48,7 +48,7 @@ import app.tanuki.core.data.repository.update.ChapterUpdateEntity
         TrackerLinkEntity::class,
         SeriesMetadataEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = true
 )
 @TypeConverters(Converters::class)

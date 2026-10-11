@@ -148,6 +148,12 @@ class MangaRepositoryImp(
     override suspend fun setReadingMode(mangaId: Uuid, mode: ReadingMode) =
         mangaDao.updateReadingMode(mangaId, mode)
 
+    override suspend fun suggestReadingMode(mangaId: Uuid, mode: ReadingMode) =
+        mangaDao.suggestReadingMode(mangaId, mode)
+
+    override suspend fun setCoverOverride(mangaId: Uuid, url: String?) =
+        mangaDao.updateCoverOverride(mangaId, url)
+
     override suspend fun deleteManga(mangaId: Uuid) = mangaDao.deleteById(mangaId)
 
     override suspend fun addToLibrary(mangaId: Uuid) =

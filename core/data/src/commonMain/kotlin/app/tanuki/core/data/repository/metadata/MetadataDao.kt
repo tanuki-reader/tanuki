@@ -20,11 +20,11 @@ interface MetadataDao {
     @Query("DELETE FROM manga_tracker_link WHERE manga_id = :mangaId")
     suspend fun deleteLink(mangaId: Uuid)
 
-    @Query("SELECT * FROM series_metadata WHERE anilist_id = :anilistId")
-    fun observeMetadata(anilistId: Long): Flow<SeriesMetadataEntity?>
+    @Query("SELECT * FROM series_metadata WHERE anilist_id = :anilistId AND lang = :lang")
+    fun observeMetadata(anilistId: Long, lang: String): Flow<SeriesMetadataEntity?>
 
-    @Query("SELECT * FROM series_metadata WHERE anilist_id = :anilistId")
-    suspend fun getMetadata(anilistId: Long): SeriesMetadataEntity?
+    @Query("SELECT * FROM series_metadata WHERE anilist_id = :anilistId AND lang = :lang")
+    suspend fun getMetadata(anilistId: Long, lang: String): SeriesMetadataEntity?
 
     @Upsert
     suspend fun upsertMetadata(metadata: SeriesMetadataEntity)

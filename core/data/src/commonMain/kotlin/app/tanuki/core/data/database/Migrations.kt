@@ -26,6 +26,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration11To12,
         Migration12To13,
         Migration13To14,
+        Migration14To15,
     )
 
 /**
@@ -370,3 +371,26 @@ internal object Migration13To14 : Migration(13, 14) {
     }
 }
 
+
+/**
+ * Metadata reaches the lists and goes per language:
+ * - `manga.cover_override` — the cover every screen shows instead of the source's (the user's pick, else
+ *   the metadata's), and `manga.reading_mode_origin` — who set the reading mode, so metadata never
+ *   overrides the user's choice. Existing modes count as `Default`: before this, nothing marked a choice.
+ * - `manga_tracker_link.lang` — the source's language, which picks the metadata row; enrichment corrects
+ *   it on the next open.
+ * - `series_metadata` keyed by `(anilist_id, lang)`. Recreated rather than rebuilt: it is only a cache,
+ *   refilled the next time a series is opened.
+ */
+internal object Migration14To15 : Migration(14, 15) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL("ALTER TABLE manga ADD COLUMN cover_override TEXT")
+        connection.execSQL("ALTER TABLE manga ADD COLUMN reading_mode_origin TEXT NOT NULL DEFAULT 'Default'")
+        connection.execSQL("ALTER TABLE manga_tracker_link ADD COLUMN lang TEXT NOT NULL DEFAULT 'en'")
+        connection.execSQL("DROP TABLE series_metadata")
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `series_metadata` (`anilist_id` INTEGER NOT NULL, `lang` TEXT NOT NULL, " +
+                "`payload` TEXT NOT NULL, `fetched_at` INTEGER NOT NULL, PRIMARY KEY(`anilist_id`, `lang`))",
+        )
+    }
+}

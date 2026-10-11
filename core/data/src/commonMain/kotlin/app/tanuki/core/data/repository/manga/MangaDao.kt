@@ -173,6 +173,7 @@ interface MangaDao {
                manga.title AS title,
                manga.cover_url AS cover_url,
                manga.cover_headers AS cover_headers,
+               manga.cover_override AS cover_override,
                manga.publish_status AS publish_status,
                (SELECT MAX(read_at) FROM history WHERE history.manga_id = manga.id) AS last_read,
                library.date_added AS date_added,
@@ -285,10 +286,34 @@ interface MangaDao {
      * [updateFilteredScanlators], a whole-row upsert from a stale detail-sync snapshot would otherwise
      * undo the user's choice.
      */
-    @Query("UPDATE manga SET reading_mode = :mode WHERE id = :mangaId")
+    @Query("UPDATE manga SET reading_mode = :mode, reading_mode_origin = '$READING_MODE_USER' WHERE id = :mangaId")
     suspend fun updateReadingMode(
         mangaId: Uuid,
         mode: ReadingMode,
+    )
+
+    /**
+     * The metadata's reading mode, unless the user chose one ([updateReadingMode]). A no-op when nothing
+     * changes, so the series' observers don't re-emit on every enrichment.
+     */
+    @Query(
+        """
+        UPDATE manga SET reading_mode = :mode, reading_mode_origin = '$READING_MODE_METADATA'
+        WHERE id = :mangaId
+          AND reading_mode_origin != '$READING_MODE_USER'
+          AND (reading_mode != :mode OR reading_mode_origin != '$READING_MODE_METADATA')
+        """,
+    )
+    suspend fun suggestReadingMode(
+        mangaId: Uuid,
+        mode: ReadingMode,
+    )
+
+    /** See `MangaEntity.coverOverride`. A no-op when unchanged, like [suggestReadingMode]. */
+    @Query("UPDATE manga SET cover_override = :url WHERE id = :mangaId AND cover_override IS NOT :url")
+    suspend fun updateCoverOverride(
+        mangaId: Uuid,
+        url: String?,
     )
 
     /**

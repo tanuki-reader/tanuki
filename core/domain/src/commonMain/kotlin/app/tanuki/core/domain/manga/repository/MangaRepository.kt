@@ -229,12 +229,32 @@ interface MangaRepository {
      * Unlike [setReadingStatus] this is a source-owned column that exists whether or not the manga is in
      * the library, so it never adds a membership.
      *
+     * The user's choice: from then on [suggestReadingMode] leaves the series alone.
+     *
      * @param mangaId Local id of the manga.
      * @param mode The reading mode to record.
      */
     suspend fun setReadingMode(
         mangaId: Uuid,
         mode: ReadingMode
+    )
+
+    /**
+     * Sets the reading mode the series' metadata suggests, unless the user already chose one with
+     * [setReadingMode].
+     */
+    suspend fun suggestReadingMode(
+        mangaId: Uuid,
+        mode: ReadingMode
+    )
+
+    /**
+     * Sets the cover every screen shows instead of the source's (`null` = the source's). Kept apart from
+     * the source's cover so a details sync never undoes it.
+     */
+    suspend fun setCoverOverride(
+        mangaId: Uuid,
+        url: String?
     )
 
     /**

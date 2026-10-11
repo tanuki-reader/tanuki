@@ -92,6 +92,25 @@ class MangaFireSourceEngineTest {
     }
 
     @Test
+    fun `manga_details carries the series' AniList - MyAnimeList and MangaDex ids`() {
+        if (MANGAFIRE_WASM.isEmpty()) return
+
+        val host = CannedHost(CANNED_DETAILS)
+        val module = provideWasmEngine().instantiate("mangafire", MANGAFIRE_WASM, host)
+
+        val request = SourceCodec.encode(Wire.MangaDetailsRequest(mangaKey = "op-hid"))
+        val manga = SourceCodec.decodeEnvelope<Wire.MangaWire>(module.call(SourceAbi.Exports.MANGA_DETAILS, request))
+
+        assertTrue(host.lastUrl.contains("/api/titles/op-hid"), "url was ${host.lastUrl}")
+        // The API sends the ids as strings; MangaDex's comes out of its `links.md` URL.
+        assertEquals(30013L, manga.anilistId)
+        assertEquals(13L, manga.malId)
+        assertEquals("a1c7c817-4e59-43b7-9365-09675a149a6f", manga.mangadexId)
+
+        module.close()
+    }
+
+    @Test
     fun `chapter_pages returns image urls carrying the referer header`() {
         if (MANGAFIRE_WASM.isEmpty()) return
 
@@ -148,3 +167,11 @@ private val CANNED_EMPTY = """{"items":[],"meta":{"lastPage":1,"hasNext":false}}
 /** A two-page chapter (`/api/chapters/{id}` is wrapped in `data`). */
 private val CANNED_PAGES =
     """{"data":{"pages":[{"url":"https://cdn.mangafire.to/1.jpg"},{"url":"https://cdn.mangafire.to/2.jpg"}]}}"""
+
+/** A details reply, trimmed to the fields the source reads. */
+private val CANNED_DETAILS =
+    """
+    {"data":{"hid":"op-hid","slug":"one-piece","title":"One Piece","anilistId":"30013","malId":"13",
+     "links":{"mal":"https://myanimelist.net/manga/13/","al":"https://anilist.co/manga/30013/",
+              "md":"https://mangadex.org/title/a1c7c817-4e59-43b7-9365-09675a149a6f/"}}}
+    """.trimIndent()

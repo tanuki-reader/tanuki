@@ -5,6 +5,7 @@ import app.tanuki.core.domain.metadata.MetadataProvider
 import app.tanuki.core.domain.metadata.MetadataRepository
 import app.tanuki.core.domain.metadata.model.CoverOption
 import app.tanuki.core.domain.metadata.model.CoverOrigin
+import app.tanuki.core.domain.metadata.model.DEFAULT_METADATA_LANG
 import app.tanuki.core.domain.metadata.model.MatchedBy
 import app.tanuki.core.domain.metadata.model.MetadataSearchResult
 import app.tanuki.core.domain.metadata.model.TrackerLink
@@ -56,7 +57,8 @@ interface EditMangaMetadata {
     class Default(
         private val metadataRepository: MetadataRepository,
         private val provider: MetadataProvider,
-        private val coverProvider: CoverProvider
+        private val coverProvider: CoverProvider,
+        private val applyMangaMetadata: ApplyMangaMetadata
     ) : EditMangaMetadata {
         override suspend fun search(title: String): List<MetadataSearchResult> =
             title.trim().takeIf { it.isNotEmpty() }?.let { provider.search(it) }.orEmpty()
@@ -74,9 +76,11 @@ interface EditMangaMetadata {
                     mangaDexId = current?.mangaDexId,
                     matchedBy = MatchedBy.User,
                     useSourceInfo = false,
-                    coverChoice = null
+                    coverChoice = null,
+                    lang = current?.lang ?: DEFAULT_METADATA_LANG
                 )
             )
+            applyMangaMetadata(mangaId)
         }
 
         override suspend fun unlink(mangaId: Uuid) {
@@ -84,6 +88,7 @@ interface EditMangaMetadata {
             // Kept as a link with no ids rather than deleted, so enrichment doesn't re-link it from the
             // source on the next open.
             metadataRepository.upsertLink(current.copy(anilistId = null, malId = null, matchedBy = MatchedBy.User, coverChoice = null))
+            applyMangaMetadata(mangaId)
         }
 
         override suspend fun setUseSourceInfo(
@@ -92,6 +97,7 @@ interface EditMangaMetadata {
         ) {
             val current = metadataRepository.getLink(mangaId) ?: return
             metadataRepository.upsertLink(current.copy(useSourceInfo = useSourceInfo))
+            applyMangaMetadata(mangaId)
         }
 
         override suspend fun setCoverChoice(
@@ -100,6 +106,7 @@ interface EditMangaMetadata {
         ) {
             val current = metadataRepository.getLink(mangaId) ?: return
             metadataRepository.upsertLink(current.copy(coverChoice = url))
+            applyMangaMetadata(mangaId)
         }
 
         override suspend fun coverOptions(
@@ -107,7 +114,7 @@ interface EditMangaMetadata {
             sourceCover: String?
         ): List<CoverOption> {
             val link = metadataRepository.getLink(mangaId)
-            val fromMetadata = link?.anilistId?.let { metadataRepository.getMetadata(it) }?.coverUrl
+            val fromMetadata = link?.anilistId?.let { metadataRepository.getMetadata(it, link.lang) }?.coverUrl
             val volumes = link?.mangaDexId?.let { runCatching { coverProvider.volumeCovers(it) }.getOrNull() }.orEmpty()
             return buildList {
                 fromMetadata?.let { add(CoverOption(it, CoverOrigin.AniList, null)) }

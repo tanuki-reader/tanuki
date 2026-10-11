@@ -79,6 +79,7 @@ fun Wire.MangaWire.toDomain(): MangaListing =
         genres = genres.map(String::trim).filter(String::isNotEmpty).distinct(),
         anilistId = anilistId?.takeIf { it > 0 },
         malId = malId?.takeIf { it > 0 },
+        mangaDexId = mangadexId?.trim()?.takeIf(String::isNotEmpty),
     )
 
 /**

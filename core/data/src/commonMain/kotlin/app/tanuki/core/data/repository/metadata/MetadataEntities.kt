@@ -27,15 +27,17 @@ data class TrackerLinkEntity(
     @ColumnInfo(name = "matched_by") val matchedBy: String,
     @ColumnInfo(name = "use_source_info") val useSourceInfo: Boolean,
     @ColumnInfo(name = "cover_choice") val coverChoice: String?,
+    @ColumnInfo(name = "lang", defaultValue = "en") val lang: String,
 )
 
 /**
- * The metadata cache, keyed by AniList id so every library entry of a series shares one row. The payload
- * is JSON: it is presentation data read whole, never queried by column.
+ * The metadata cache, keyed by AniList id and language so every library entry of a series in one language
+ * shares one row. The payload is JSON: it is presentation data read whole, never queried by column.
  */
-@Entity(tableName = "series_metadata")
+@Entity(tableName = "series_metadata", primaryKeys = ["anilist_id", "lang"])
 data class SeriesMetadataEntity(
-    @PrimaryKey @ColumnInfo(name = "anilist_id") val anilistId: Long,
+    @ColumnInfo(name = "anilist_id") val anilistId: Long,
+    @ColumnInfo(name = "lang") val lang: String,
     @ColumnInfo(name = "payload") val payload: String,
     @ColumnInfo(name = "fetched_at") val fetchedAt: Long,
 )

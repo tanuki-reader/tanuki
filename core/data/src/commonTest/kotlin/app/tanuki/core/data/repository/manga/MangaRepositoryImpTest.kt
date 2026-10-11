@@ -362,6 +362,10 @@ private class RecordingMangaDao : MangaDao {
         mode: ReadingMode
     ) = error("unused")
 
+    override suspend fun suggestReadingMode(mangaId: Uuid, mode: ReadingMode) = error("unused")
+
+    override suspend fun updateCoverOverride(mangaId: Uuid, url: String?) = error("unused")
+
     override suspend fun updateReadingStatus(
         mangaId: Uuid,
         status: ReadingStatus

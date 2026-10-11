@@ -19,6 +19,21 @@ interface MetadataProvider {
     suspend fun search(title: String): List<MetadataSearchResult>
 }
 
+/** A series' title and synopsis in one language. Either is `null` when that language has none. */
+data class LocalizedText(
+    val title: String?,
+    val synopsis: String?
+)
+
+/** Title and synopsis in languages other than the [MetadataProvider]'s (MangaDex today). */
+interface LocalizedTextProvider {
+    /** [lang] is lowercase BCP-47 (`pt-br`). `null` when the series has nothing in it. */
+    suspend fun localized(
+        mangaDexId: String,
+        lang: String
+    ): LocalizedText?
+}
+
 /** Extra covers for a series, beyond the source's and the metadata's one. */
 interface CoverProvider {
     /** One per volume, in volume order. Empty when the series has none. */

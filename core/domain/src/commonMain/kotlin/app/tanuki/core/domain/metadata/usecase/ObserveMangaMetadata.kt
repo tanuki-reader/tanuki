@@ -35,7 +35,7 @@ interface ObserveMangaMetadata {
                 if (anilistId == null) {
                     flowOf(MangaMetadata(link, null))
                 } else {
-                    metadataRepository.observeMetadata(anilistId).map { MangaMetadata(link, it) }
+                    metadataRepository.observeMetadata(anilistId, link.lang).map { MangaMetadata(link, it) }
                 }
             }
     }

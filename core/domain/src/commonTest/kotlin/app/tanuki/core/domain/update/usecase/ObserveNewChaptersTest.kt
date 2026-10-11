@@ -256,6 +256,10 @@ private class LiveMangaRepository(manga: Manga) : MangaRepository {
     override suspend fun deleteManga(mangaId: Uuid) = error("unused")
     override suspend fun setFilteredScanlators(mangaId: Uuid, scanlators: Set<String>) = error("unused")
     override suspend fun setReadingStatus(mangaId: Uuid, status: ReadingStatus) = error("unused")
+    override suspend fun suggestReadingMode(mangaId: Uuid, mode: ReadingMode) = error("unused")
+
+    override suspend fun setCoverOverride(mangaId: Uuid, url: String?) = error("unused")
+
     override suspend fun setReadingMode(mangaId: Uuid, mode: ReadingMode) = error("unused")
     override suspend fun addToLibrary(mangaId: Uuid) = error("unused")
     override suspend fun removeFromLibrary(mangaId: Uuid) = error("unused")
