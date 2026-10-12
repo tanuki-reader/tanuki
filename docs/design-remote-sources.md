@@ -1,6 +1,6 @@
 # Design — Remote source distribution
 
-Status: **Phases 0–4 done** (2026-10-12). Open: auto-update, key rotation (§6).
+Status: **Phases 0–4 done** (2026-10-12). Open: auto-update, key rotation (§6). What was built: [`remote-sources.md`](remote-sources.md).
 Replaces the "sources ship inside the app" arrangement with user-added, signed, static source repos hosted on GitHub. Decisions are also logged in `decisions.md`
 (2026-09-27).
 
