@@ -16,8 +16,11 @@ Status: **Phase 1 done** (2026-10-12); Phase 2 (the app installs from a repo) is
   bundle (exports, `abi_version`, `source_meta.id`/`version`), refuses changed bytes under a published
   version, and writes and signs the index; `publish.yml` pushes it to the `repo` branch. Deviations from
   the original design are marked in §3: no hosted icons (`iconUrl` from `source_meta`), `hello` and
-  `manhastro` not published, toolchain pinned and lockfiles committed (byte-reproducible builds, which
-  the version gate depends on), and a submodule instead of the SDK release tarball.
+  `manhastro` not published, toolchain pinned, lockfiles committed and embedded source paths remapped, so CI
+  rebuilds of a commit are byte-identical (the version gate depends on it; checked by re-running CI). A
+  macOS build still differs from CI's Linux build by a few hundred bytes of codegen, so only CI's hashes
+  are authoritative. Submodule instead of the SDK release tarball. Live at
+  `https://tanuki-reader.github.io/tanuki-sources/` (mangadex 10, mangafire 7, hipercool 4).
 
 ---
 
