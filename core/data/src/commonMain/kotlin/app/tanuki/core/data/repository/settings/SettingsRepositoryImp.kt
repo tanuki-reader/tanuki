@@ -192,22 +192,6 @@ class SettingsRepositoryImp internal constructor(
         }
     }
 
-    override suspend fun getRemovedSourceIds(): Set<String> = preferences.first()[REMOVED_SOURCES_KEY].orEmpty()
-
-    override suspend fun setSourceRemoved(
-        sourceId: String,
-        removed: Boolean
-    ) {
-        withContext(dispatcherProvider.io) {
-            dataStore.edit { preferences ->
-                val current = preferences[REMOVED_SOURCES_KEY].orEmpty()
-                // Rebuilt rather than mutated: DataStore hands back the stored set, and editing it in
-                // place would mutate the very value the next read is served from.
-                preferences[REMOVED_SOURCES_KEY] = if (removed) current + sourceId else current - sourceId
-            }
-        }
-    }
-
     override fun observeLibraryPreferences(): Flow<LibraryPreferences> = preferences.map { it.toLibraryPreferences() }
 
     override suspend fun updateLibraryPreferences(transform: (LibraryPreferences) -> LibraryPreferences) {
@@ -249,7 +233,6 @@ class SettingsRepositoryImp internal constructor(
         val THEME_KEY = stringPreferencesKey("theme_preference")
         val UPDATE_INTERVAL_KEY = stringPreferencesKey("library_update_interval")
         val LAST_UPDATE_KEY = longPreferencesKey("last_library_update")
-        val REMOVED_SOURCES_KEY = stringSetPreferencesKey("removed_source_ids")
         val DOWNLOADS_PAUSED_KEY = booleanPreferencesKey("downloads_paused")
         val AUTO_DOWNLOAD_MODE_KEY = stringPreferencesKey("auto_download_mode")
         val AUTO_DOWNLOAD_CATEGORIES_KEY = stringSetPreferencesKey("auto_download_categories")

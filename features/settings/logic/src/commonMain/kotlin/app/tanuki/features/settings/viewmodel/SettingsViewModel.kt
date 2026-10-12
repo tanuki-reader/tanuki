@@ -1,11 +1,14 @@
 package app.tanuki.features.settings.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import app.tanuki.core.domain.category.usecase.ObserveCategories
 import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.usecase.ObserveDownloadQueueCount
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
+import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
+import app.tanuki.core.domain.settings.usecase.SetShowSensitiveContent
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.source.usecase.GetInstalledSources
 import app.tanuki.core.navigation.SettingsAppearance
@@ -21,8 +24,10 @@ import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.binding
 import dev.zacsweers.metrox.viewmodel.ViewModelKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 
 /**
  * Presentation logic for the Settings **index** screen (the tab root). Compose-free (per CLAUDE.md →
@@ -42,25 +47,37 @@ class SettingsViewModel(
     observeCategories: ObserveCategories,
     getInstalledSources: GetInstalledSources,
     observeDownloadQueueCount: ObserveDownloadQueueCount,
+    observeShowSensitiveContent: ObserveShowSensitiveContent,
+    private val setShowSensitiveContent: SetShowSensitiveContent,
     dispatcher: DispatcherProvider,
     logger: Logger
 ) : StateViewModel<SettingsState>(dispatcher, logger, SettingsState()) {
+    /** The user's latest pick, shown at once while DataStore writes it (no snap-back on the switch). */
+    private val chosenShowSensitive = MutableStateFlow<Boolean?>(null)
+
     override val state: Flow<SettingsState> =
         combine(
-            observeThemePreference(),
-            observeCategories(),
+            combine(observeThemePreference(), observeCategories(), ::Pair),
             getInstalledSources(),
             observeCrashReportingEnabled(),
-            observeDownloadQueueCount()
-        ) { theme, categories, sources, crashReporting, queued ->
+            observeDownloadQueueCount(),
+            combine(observeShowSensitiveContent(), chosenShowSensitive) { stored, chosen -> chosen ?: stored }
+        ) { (theme, categories), sources, crashReporting, queued, showSensitive ->
             SettingsState(
                 theme = theme,
                 categoryCount = categories.size,
                 sourceCount = sources.size,
                 crashReportingEnabled = crashReporting,
-                downloadQueueCount = queued
+                downloadQueueCount = queued,
+                showSensitive = showSensitive
             )
         }
+
+    /** Allow or hide adult content: adult-only sources, and adult titles inside mixed ones. */
+    fun onShowSensitiveChange(show: Boolean) {
+        chosenShowSensitive.value = show
+        viewModelScope.launch { setShowSensitiveContent(show) }
+    }
 
     /** A row was tapped: open its sub-screen, pushed onto the Settings tab's stack. */
     fun onEntryClick(entry: SettingsEntry) {

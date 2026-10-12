@@ -32,6 +32,10 @@ git-URL change for consumers).
 version, and a contract change lands as a sources commit plus a pointer bump. Icons aren't hosted; the
 index carries `source_meta`'s `iconUrl`.
 
+**Phase 2 (2026-10-12):** the app bundles no sources; the bundled path (`DevSourceInstaller`, the cargo
+tasks in `:shared`, `removed_source_ids`) went with Phase 2 rather than waiting for Phase 4. Repos live
+on the Sources screen as the design system's `SourcesScreen` shows it, not on a screen of their own.
+
 ---
 
 ## 2026-09-09 — History is pruned by age, but a series' last read is never deleted

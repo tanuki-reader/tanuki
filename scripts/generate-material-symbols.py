@@ -19,6 +19,7 @@ from pathlib import Path
 
 # (Kotlin name, Material Symbols name, also emit the FILL 1 variant as `<Name>Filled`)
 SYMBOLS = [
+    ("Add", "add", False),
     ("ArrowBack", "arrow_back", False),
     ("ArrowDownward", "arrow_downward", False),
     ("ArrowUpward", "arrow_upward", False),
@@ -52,6 +53,7 @@ SYMBOLS = [
     ("SkipPrevious", "skip_previous", False),
     ("Tune", "tune", False),
     ("VerifiedUser", "verified_user", False),
+    ("Warning", "warning", False),
     ("Wifi", "wifi", False),
 ]
 

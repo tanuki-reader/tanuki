@@ -1,28 +1,28 @@
 package app.tanuki.core.domain.source.usecase
 
 import app.tanuki.core.domain.common.model.Text
+import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.source.SourceCatalog
 import app.tanuki.core.domain.source.model.CatalogSource
-import app.tanuki.core.domain.source.model.Source
+import app.tanuki.core.domain.source.model.RemoteSource
+import app.tanuki.core.domain.source.model.SourceCompatibility
 import app.tanuki.core.domain.source.model.SourceMeta
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 
 /**
- * Use case: observe every source the user can manage — those installed, plus those the [SourceCatalog]
- * could install — as one list of [CatalogSource]s, re-emitting whenever the installed set moves.
+ * Use case: observe every source the user can manage — those installed, plus those the added repos
+ * offer — as one list of [CatalogSource]s, re-emitting whenever either side moves.
  *
- * This is what the source-management screen renders. It exists because neither existing source stream
- * can answer the question on its own: [GetInstalledSources] reads each bundle's own metadata, so it
- * cannot describe a source whose bundle is gone, and [ObserveSources] only knows sources that have
- * actually been loaded at least once. Joining them gives an uninstalled source a real name and icon —
- * the snapshot taken when it *was* installed — instead of a bare slug.
+ * This is what the source-management screen renders. An installed source is described by its bundle's
+ * metadata, an installable one by its repo's verified index; a source that is both shows once, as
+ * installed, with the repo that offers it.
  *
  * Entries are sorted by display name so the list is stable across emissions; splitting them by
  * [CatalogSource.installed] is the caller's business, since that is a presentation choice.
@@ -34,28 +34,31 @@ sealed interface ObserveSourceCatalog {
     @ContributesBinding(AppScope::class)
     class Default(
         private val getInstalledSources: GetInstalledSources,
-        private val observeSources: ObserveSources,
         private val catalog: SourceCatalog,
         private val logger: Logger
     ) : ObserveSourceCatalog {
         override fun invoke(): Flow<List<CatalogSource>> =
-            combine(getInstalledSources(), observeSources(), ::Pair)
-                .map { (installed, known) -> merge(installed, known) }
+            combine(getInstalledSources(), available(), ::merge)
 
-        private suspend fun merge(
+        // A failing catalog degrades to "nothing to install": the installed half of the screen is still
+        // correct and still uninstallable.
+        private fun available(): Flow<List<RemoteSource>> =
+            catalog.observeAvailable().catch { error ->
+                logger.warn(TAG, "Could not read the source catalog", error)
+                emit(emptyList())
+            }
+
+        private fun merge(
             installed: List<SourceMeta>,
-            known: List<Source>
+            available: List<RemoteSource>
         ): List<CatalogSource> {
-            // Re-read per emission rather than once: the catalog is the app's bundled list today, but a
-            // remote repo will change under the screen, and a list that only grows at startup would go
-            // stale exactly when it matters. A failing catalog degrades to "nothing to install" — the
-            // installed half of the screen is still correct and still uninstallable.
-            val available =
-                runCatching { catalog.availableIds() }
-                    .onFailure { error -> logger.warn(TAG, "Could not read the source catalog", error) }
-                    .getOrDefault(emptyList())
+            // Two repos may offer the same id; prefer one this app can run.
+            val offered =
+                available
+                    .sortedBy { it.compatibility != SourceCompatibility.Compatible }
+                    .distinctBy(RemoteSource::id)
+                    .associateBy(RemoteSource::id)
             val installedIds = installed.mapTo(mutableSetOf(), SourceMeta::id)
-            val knownBySourceId = known.associateBy(Source::sourceId)
 
             val installedEntries =
                 installed.map { meta ->
@@ -65,24 +68,28 @@ sealed interface ObserveSourceCatalog {
                         lang = meta.lang,
                         iconUrl = meta.iconUrl,
                         installed = true,
-                        nsfw = meta.nsfw
+                        nsfw = meta.nsfw,
+                        version = meta.version,
+                        repoName = offered[meta.id]?.repoName
                     )
                 }
             val availableEntries =
-                (available - installedIds).map { sourceId ->
-                    // The persisted row is the only description left once a bundle is gone. A source
-                    // that has never been loaded on this device has none, and falls back to its id.
-                    val persisted = knownBySourceId[sourceId]
+                (offered - installedIds).values.map { remote ->
                     CatalogSource(
-                        sourceId = sourceId,
-                        name = persisted?.name ?: Text(sourceId),
-                        lang = persisted?.lang,
-                        iconUrl = persisted?.iconUrl,
-                        installed = false
+                        sourceId = remote.id,
+                        name = Text(remote.name),
+                        lang = Text(remote.lang),
+                        iconUrl = remote.iconUrl?.let(::Url),
+                        installed = false,
+                        nsfw = remote.nsfw,
+                        version = remote.version,
+                        repoName = remote.repoName,
+                        compatibility = remote.compatibility
                     )
                 }
 
-            return (installedEntries + availableEntries).sortedBy { it.name.value.lowercase() }
+            // By name, then language, so a source's language variants sit together.
+            return (installedEntries + availableEntries).sortedWith(compareBy({ it.name.value.lowercase() }, { it.lang?.value }))
         }
 
         private companion object {

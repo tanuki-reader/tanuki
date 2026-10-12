@@ -703,12 +703,6 @@ internal class FakeSettingsRepository : SettingsRepository {
 
     override suspend fun setLastLibraryUpdate(at: Instant) = unused()
 
-    override suspend fun getRemovedSourceIds(): Set<String> = unused()
-
-    override suspend fun setSourceRemoved(
-        sourceId: String,
-        removed: Boolean,
-    ) = unused()
 
     private fun unused(): Nothing = error("FakeSettingsRepository only implements the download pause")
 }

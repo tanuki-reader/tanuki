@@ -23,6 +23,16 @@ struct SettingsScreen: View {
             Section(tr("settings_section_library", table: .settings)) {
                 row("folder", "settings_categories",
                     tr("settings_category_count", Int(state.categoryCount), table: .settings), .categories)
+                // Above Sources, as the design system places it: it filters the source lists as well as the
+                // adult titles inside mixed sources.
+                Toggle(isOn: Binding(get: { state.showSensitive }, set: { model.vm.onShowSensitiveChange(show: $0) })) {
+                    VStack(alignment: .leading, spacing: TK.Space.s0_5) {
+                        Text(tr("settings_show_sensitive", table: .settings)).tkStyle(.body).foregroundStyle(Color.tk.ink)
+                        Text(tr("settings_show_sensitive_hint", table: .settings)).tkStyle(.caption).foregroundStyle(Color.tk.inkFaint)
+                    }
+                }
+                .tint(Color.tk.accent)
+                .listRowBackground(Color.tk.surfaceRaised)
                 row("puzzlepiece.extension", "settings_sources",
                     tr("settings_source_count", Int(state.sourceCount), table: .settings), .sources)
                 row(

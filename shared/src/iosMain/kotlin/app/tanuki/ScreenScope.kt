@@ -17,6 +17,7 @@ import app.tanuki.features.settings.appearance.viewmodel.AppearanceViewModel
 import app.tanuki.features.settings.categories.viewmodel.CategoriesViewModel
 import app.tanuki.features.settings.downloads.viewmodel.DownloadSettingsViewModel
 import app.tanuki.features.settings.privacy.viewmodel.PrivacyViewModel
+import app.tanuki.features.settings.sources.viewmodel.SourceReposViewModel
 import app.tanuki.features.settings.sources.viewmodel.SourcesViewModel
 import app.tanuki.features.settings.viewmodel.SettingsViewModel
 import app.tanuki.features.source.viewmodel.SourceBrowseViewModel
@@ -86,6 +87,8 @@ fun ScreenScope.downloadsViewModel(): DownloadsViewModel = viewModel(DownloadsVi
 fun ScreenScope.bookmarksViewModel(): BookmarksViewModel = viewModel(BookmarksViewModel::class)
 
 fun ScreenScope.sourcesViewModel(): SourcesViewModel = viewModel(SourcesViewModel::class)
+
+fun ScreenScope.sourceReposViewModel(): SourceReposViewModel = viewModel(SourceReposViewModel::class)
 
 /** The browser-session layer's, which the root holds for the life of the UI. */
 fun ScreenScope.siteSessionViewModel(): SiteSessionViewModel = viewModel(SiteSessionViewModel::class)

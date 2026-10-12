@@ -3,6 +3,7 @@ package app.tanuki.assets.designSystem.component
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -14,7 +15,8 @@ import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /**
- * The design system's empty-state block: a faint illustrative glyph stacked over an [message] caption,
+ * The design system's `EmptyState`: a faint glyph, an optional [title] (what is missing), the [message]
+ * (how to fill it) and an optional single [action] (a filled [TanukiButton]),
  * centered as a column. Used when a screen has nothing to show — an empty library, a search that matches
  * nothing, no downloads — so the surface reads as intentional rather than blank.
  *
@@ -26,6 +28,8 @@ import app.tanuki.assets.designSystem.TanukiTheme
 fun TanukiEmptyState(
     message: String,
     modifier: Modifier = Modifier,
+    title: String? = null,
+    action: (@Composable () -> Unit)? = null,
     icon: @Composable (tint: Color) -> Unit = { tint -> EmptyLibraryIcon(tint = tint) }
 ) {
     Column(
@@ -34,12 +38,21 @@ fun TanukiEmptyState(
         verticalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.md)
     ) {
         icon(TanukiTheme.colors.textFaint)
+        if (title != null) {
+            Text(
+                text = title,
+                style = TanukiTheme.typography.titleL,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center
+            )
+        }
         Text(
             text = message,
             style = TanukiTheme.typography.body,
             color = TanukiTheme.colors.textFaint,
             textAlign = TextAlign.Center
         )
+        action?.invoke()
     }
 }
 

@@ -172,31 +172,6 @@ interface SettingsRepository {
     suspend fun setDeleteAfterReading(setting: DeleteAfterReading)
 
     /**
-     * Source-native ids the user has explicitly uninstalled.
-     *
-     * A record of *intent*, not of state — what is actually installed is the bundle store's business.
-     * It exists because the app seeds its bundled sources on launch, and without it every uninstall
-     * would be silently undone the next time the app started. Anything installed again drops out of
-     * this set.
-     *
-     * A one-shot read, not a [Flow]: its only reader is that launch-time seeding, which asks once
-     * per run. Nothing renders it.
-     */
-    suspend fun getRemovedSourceIds(): Set<String>
-
-    /**
-     * Records whether the user has uninstalled [sourceId], adding it to (or clearing it from)
-     * [getRemovedSourceIds].
-     *
-     * @param sourceId The source-native id.
-     * @param removed `true` on uninstall, `false` when it is installed again.
-     */
-    suspend fun setSourceRemoved(
-        sourceId: String,
-        removed: Boolean
-    )
-
-    /**
      * The library's remembered filter and sort. Absent or unreadable values read as their defaults, so
      * a store from an older or newer build degrades to the plain library rather than failing.
      */

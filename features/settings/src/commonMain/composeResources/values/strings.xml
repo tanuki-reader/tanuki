@@ -54,12 +54,12 @@
     <string name="settings_delete">Delete</string>
 
     <!-- Sources screen -->
-    <string name="settings_sources_empty">No sources yet. They’ll show up here once there are some to install.</string>
+    <string name="settings_sources_empty">Your repos don’t offer any sources yet.</string>
     <string name="settings_sources_installed">Installed</string>
-    <string name="settings_show_sensitive">Show sensitive content</string>
+    <string name="settings_show_sensitive">Show adult content</string>
     <string name="settings_show_sensitive_hint">Shows adult-only sources and the adult titles in other sources. Off by default.</string>
     <string name="settings_sources_available">Available</string>
-    <string name="settings_sources_available_hint">Sources you’ve removed. Install one again to start fetching for its titles.</string>
+    <string name="settings_sources_available_hint">Offered by your repos. Installing one downloads it and checks it against the repo’s signature.</string>
     <string name="settings_install">Install</string>
     <string name="settings_remove">Remove</string>
     <string name="settings_remove_source_action">Remove %1$s</string>
@@ -134,4 +134,49 @@
     <string name="settings_kilobytes">%1$s KB</string>
     <string name="settings_megabytes">%1$s MB</string>
     <string name="settings_gigabytes">%1$s GB</string>
+    <!-- Source repos (design system: SourcesScreen, AddSourceRepo, SourceRow) -->
+    <string name="settings_ok">OK</string>
+    <string name="settings_source_repos">Repos</string>
+    <string name="settings_sources_empty_title">No sources yet</string>
+    <string name="settings_sources_no_repos">Sources come from repos you add. Paste the address of a repo you trust to see what it offers.</string>
+    <string name="settings_source_repo_add">Add repo</string>
+    <string name="settings_languages_all">All</string>
+    <string name="settings_source_details_installed">%1$s · v%2$d</string>
+    <string name="settings_source_details_available">%1$s · v%2$d · %3$s</string>
+    <string name="settings_source_adult">18+</string>
+    <string name="settings_source_needs_update">Needs a newer Tanuki</string>
+    <string name="settings_source_outdated">Outdated</string>
+    <string name="settings_source_downloading">Downloading</string>
+    <string name="settings_source_downloading_percent">Downloading · %1$d%%</string>
+    <string name="settings_source_verifying">Verifying</string>
+    <string name="settings_source_retry">Retry</string>
+    <string name="settings_source_failed_offline">Couldn’t install — no connection</string>
+    <string name="settings_source_failed_unreachable">Couldn’t install — the repo didn’t respond</string>
+    <string name="settings_source_failed_mismatch">Couldn’t verify — the file didn’t match the repo</string>
+    <string name="settings_source_repo_url_label">Repo address</string>
+    <string name="settings_source_repo_url_placeholder">https://example.github.io/sources</string>
+    <string name="settings_source_repo_continue">Continue</string>
+    <string name="settings_source_repo_confirm_title">Add %1$s?</string>
+    <plurals name="settings_source_repo_summary">
+        <item quantity="one">%1$d source · %2$s</item>
+        <item quantity="other">%1$d sources · %2$s</item>
+    </plurals>
+    <string name="settings_source_repo_signed">Signed · ed25519 key fingerprint</string>
+    <string name="settings_source_repo_trust">Only add repos you trust. Their sources fetch pages for you. Tanuki checks every download against this key, and won’t accept the repo if the key changes.</string>
+    <string name="settings_source_repo_remove_title">Remove %1$s?</string>
+    <string name="settings_source_repo_remove_message">Its sources stay installed, but they won’t be offered from it anymore.</string>
+    <string name="settings_source_repo_remove_action">Remove %1$s</string>
+    <string name="settings_source_repo_key_changed">This repo’s signing key changed. Remove and re-add it only if you trust the new key.</string>
+    <string name="settings_source_repo_tampered">This repo’s index didn’t match its signature, so its sources weren’t updated.</string>
+    <string name="settings_source_repo_error_title">Couldn’t add the repo</string>
+    <string name="settings_source_repo_refresh_error_title">Couldn’t refresh your repos</string>
+    <string name="settings_source_repo_error_invalid_url">Enter an https:// address.</string>
+    <string name="settings_source_repo_error_unreachable">Couldn’t find a repo at that address. Check it and try again.</string>
+    <string name="settings_source_repo_error_unsigned">This repo isn’t signed, so its sources can’t be verified.</string>
+    <string name="settings_source_repo_error_bad_signature">The signature didn’t verify. The repo may have been tampered with.</string>
+    <string name="settings_source_repo_error_key_changed">The repo’s signing key changed.</string>
+    <string name="settings_source_repo_error_mismatch">A file didn’t match the repo.</string>
+    <string name="settings_source_repo_error_unsupported">This repo needs a newer Tanuki.</string>
+    <string name="settings_source_repo_error_offline">No connection. Check it and try again.</string>
+    <string name="settings_source_repo_error_already_added">That repo is already added.</string>
 </resources>

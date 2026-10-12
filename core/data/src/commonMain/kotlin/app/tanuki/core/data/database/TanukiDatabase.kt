@@ -25,6 +25,8 @@ import app.tanuki.core.data.repository.metadata.SeriesMetadataEntity
 import app.tanuki.core.data.repository.metadata.TrackerLinkEntity
 import app.tanuki.core.data.repository.source.SourceDao
 import app.tanuki.core.data.repository.source.SourceEntity
+import app.tanuki.core.data.repository.sourcerepo.SourceRepoDao
+import app.tanuki.core.data.repository.sourcerepo.SourceRepoEntity
 import app.tanuki.core.data.repository.update.ChapterUpdateDao
 import app.tanuki.core.data.repository.update.ChapterUpdateEntity
 
@@ -49,9 +51,10 @@ import app.tanuki.core.data.repository.update.ChapterUpdateEntity
         MangaCategoryEntity::class,
         TrackerLinkEntity::class,
         SeriesMetadataEntity::class,
-        PageBookmarkEntity::class
+        PageBookmarkEntity::class,
+        SourceRepoEntity::class
     ],
-    version = 16,
+    version = 17,
     exportSchema = true
 )
 @TypeConverters(Converters::class)
@@ -74,6 +77,8 @@ abstract class TanukiDatabase : RoomDatabase() {
     abstract fun metadataDao(): MetadataDao
 
     abstract fun pageBookmarkDao(): PageBookmarkDao
+
+    abstract fun sourceRepoDao(): SourceRepoDao
 }
 
 /**

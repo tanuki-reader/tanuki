@@ -781,12 +781,6 @@ private class FakeSettingsRepository(
 
     override suspend fun resetInstallId(): String = error("unused")
 
-    override suspend fun getRemovedSourceIds(): Set<String> = error("unused")
-
-    override suspend fun setSourceRemoved(
-        sourceId: String,
-        removed: Boolean
-    ) = error("unused")
 
     override fun observeDownloadsPaused(): Flow<Boolean> = error("unused")
 
