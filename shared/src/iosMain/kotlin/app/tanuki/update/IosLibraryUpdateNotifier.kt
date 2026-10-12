@@ -5,17 +5,12 @@ import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.update.model.MangaUpdateSummary
 import app.tanuki.core.domain.update.service.LibraryUpdateNotifier
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.notification_updates_chapters
-import app.tanuki.shared.resources.notification_updates_line
-import app.tanuki.shared.resources.notification_updates_title
+import app.tanuki.platform.localizedString
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.jetbrains.compose.resources.getPluralString
-import org.jetbrains.compose.resources.getString
 import platform.UserNotifications.UNAuthorizationOptionAlert
 import platform.UserNotifications.UNAuthorizationOptionBadge
 import platform.UserNotifications.UNAuthorizationOptionSound
@@ -30,9 +25,8 @@ import kotlin.coroutines.resume
 /**
  * iOS [LibraryUpdateNotifier], posting one local notification through [UNUserNotificationCenter].
  *
- * Copy is resolved with Compose Resources' **non-composable** `getString`/`getPluralString`, which
- * follow the system locale — the right source for something read on the lock screen, outside any
- * composition.
+ * Copy comes from the app's string table ([localizedString]), which follows the system locale — the
+ * right source for something read on the lock screen, with no screen up.
  *
  * Authorization is checked, never requested. iOS shows its permission prompt once, ever, and showing
  * it from a background refresh — with no app on screen to explain why — spends that one chance badly.
@@ -76,25 +70,24 @@ class IosLibraryUpdateNotifier(
     }
 
     /** One series speaks for itself; several are counted. */
-    private suspend fun List<MangaUpdateSummary>.title(): String =
-        singleOrNull()?.title ?: getPluralString(Res.plurals.notification_updates_title, size, size)
+    private fun List<MangaUpdateSummary>.title(): String =
+        singleOrNull()?.title ?: localizedString("notification_updates_title", size)
 
     /**
      * iOS has no inbox style — a notification body is one text run — so several series become a joined
      * list. It stays readable because the body expands over multiple lines when the user pulls the
      * notification down.
      */
-    private suspend fun List<MangaUpdateSummary>.body(): String {
+    private fun List<MangaUpdateSummary>.body(): String {
         val single = singleOrNull()
         if (single != null) return single.chapterCountText()
-        // Resolved with `map` (inline, so suspend calls are allowed) before joining — `joinToString`
-        // takes a non-inline transform and cannot call a suspend function.
-        val lines = map { getString(Res.string.notification_updates_line, it.title, it.chapterCountText()) }
-        return lines.joinToString(SUMMARY_SEPARATOR)
+        return joinToString(SUMMARY_SEPARATOR) {
+            localizedString("notification_updates_line", it.title, it.chapterCountText())
+        }
     }
 
-    private suspend fun MangaUpdateSummary.chapterCountText(): String =
-        getPluralString(Res.plurals.notification_updates_chapters, newChapterCount, newChapterCount)
+    private fun MangaUpdateSummary.chapterCountText(): String =
+        localizedString("notification_updates_chapters", newChapterCount)
 
     /**
      * Bridges `getNotificationSettings`' completion handler to a suspend call.

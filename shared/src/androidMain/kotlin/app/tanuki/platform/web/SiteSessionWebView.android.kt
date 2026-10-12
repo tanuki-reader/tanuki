@@ -21,9 +21,37 @@ import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
+/**
+ * A real, **laid-out and painting** browser engine — Android `WebView`, iOS `WKWebView` — loading [url].
+ *
+ * The painting is the point, and it is not the same thing as being *seen*. Cloudflare's managed challenge
+ * renders a Turnstile widget and will not clear unless that widget actually paints; the offscreen
+ * zero-size engines the old Cloudflare solvers used never did, so the challenge's JS ran and then stalled
+ * (see [app.tanuki.core.source.net.cloudflare.InteractiveCloudflareSolver]). Being *occluded* by something
+ * drawn over or in front of it is different in kind: that happens in the platform compositor, and the page
+ * cannot observe it. `SiteSessionHost` leans on exactly that to solve challenges silently — so callers may
+ * hide this view, but must never shrink it, detach it, or fade it out.
+ *
+ * Reports the browser's cookie state to [onSnapshot] on a short poll rather than exposing the engine, so
+ * the *decision* about when a session is finished stays in common code and no platform type escapes here.
+ * Expect it to be called repeatedly with the same value; callers should treat it as a snapshot, not an event.
+ *
+ * @param url the page to load.
+ * @param clearCookie a cookie to **delete for this host before loading**, or `null` for none. Passing the
+ *   cookie the session is waiting for is what forces a genuine re-solve: platform cookie stores are shared
+ *   and persistent, so a `cf_clearance` is usually already there, and Cloudflare will happily accept its own
+ *   stale cookie in the browser and issue no new one — leaving the session waiting forever for a change that
+ *   never comes. Mihon's interceptor does the same thing (`cookieManager.remove(url, COOKIE_NAMES, 0)`)
+ *   before it opens its WebView, for the same reason.
+ * @param interactive whether the engine may receive touches. `false` while a challenge is being solved out
+ *   of sight: the view is full-size and painting but sits *under* the app's own UI, and a tap that reached
+ *   it would land on a browser the user cannot see. It does not affect solving — a challenge that needs a
+ *   tap is revealed first, and revealing turns this back on.
+ * @param onSnapshot receives the browser's current cookies and its real `navigator.userAgent`.
+ */
 @SuppressLint("SetJavaScriptEnabled") // A Cloudflare challenge *is* JavaScript; without it there is nothing to solve.
 @Composable
-actual fun SiteSessionWebView(
+fun SiteSessionWebView(
     url: String,
     clearCookie: String?,
     interactive: Boolean,

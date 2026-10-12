@@ -35,11 +35,8 @@ import app.tanuki.features.source.SourceRoute
 /**
  * The Compose screen for [destination]: the one place a [Destination] is mapped to its `*Route`.
  *
- * Two hosts render it. On Android it's [TanukiNavHost], which owns the back stack and the transitions.
- * On iOS, during the SwiftUI migration, it's a per-destination bridge controller inside a SwiftUI
- * `NavigationStack` (`ComposeBridge.kt`), for every destination that hasn't got a SwiftUI screen yet.
- * Either way, the host performs [onNavigate] (push a leaf) and [onBack] (pop), so a screen never knows
- * which host it's in.
+ * [TanukiNavHost] renders it, owning the back stack and the transitions, and performs [onNavigate] (push
+ * a leaf) and [onBack] (pop).
  *
  * Exhaustive by construction (`when` over a sealed type), so a new [Destination] fails to compile here
  * until it has a screen.

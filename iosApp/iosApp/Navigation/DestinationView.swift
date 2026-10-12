@@ -1,8 +1,8 @@
 import Shared
 import SwiftUI
 
-/// The screen for a destination: the SwiftUI screen where one exists, otherwise the Compose `*Route` on
-/// the bridge. Add a case here as each feature migrates; when every case is native, the bridge goes.
+/// The screen for a destination. `onEnum(of:)` is exhaustive, so a new `Destination` doesn't build until
+/// iOS renders it.
 struct DestinationView: View {
     let destination: any Destination
     @Binding var path: [Route]
@@ -31,9 +31,5 @@ struct DestinationView: View {
         case .bookmarks: BookmarksScreen(path: $path)
         case let .reader(reader): ReaderScreen(mangaId: reader.mangaId, chapterId: reader.chapterId, page: reader.page, path: $path)
         }
-    }
-
-    private var bridge: some View {
-        ComposeDestinationView(destination: destination, path: $path)
     }
 }

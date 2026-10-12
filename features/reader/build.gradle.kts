@@ -9,10 +9,10 @@ plugins {
 }
 
 kotlin {
-    iosArm64()
-    iosSimulatorArm64()
-
     androidLibrary {
+        // Android is this module's only target (iOS draws SwiftUI), so its commonTest runs on the host.
+        withHostTest {}
+
         namespace = "app.tanuki.features.reader"
         compileSdk =
             libs.versions.android.compileSdk

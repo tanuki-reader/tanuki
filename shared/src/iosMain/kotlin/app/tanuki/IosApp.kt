@@ -20,8 +20,5 @@ internal val appGraph: IosAppGraph by lazy {
  */
 fun startApp() = appGraph.appStartup.start()
 
-/**
- * The user's theme choice, for the SwiftUI root's `.preferredColorScheme`. The Compose screens hosted
- * inside follow it through the trait SwiftUI sets, as `isSystemInDarkTheme()` reads it.
- */
+/** The user's theme choice, for the SwiftUI root's `.preferredColorScheme`. */
 fun observeThemePreference(): Flow<ThemePreference> = appGraph.observeThemePreference()

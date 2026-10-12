@@ -5,22 +5,20 @@ import SwiftUI
 /// `Route`s (CLAUDE.md → "Navigation: shared contract, native rendering").
 ///
 /// Tab selection and paths are UI chrome, with no logic, so they live here. What gets pushed comes from
-/// the screens' ViewModels (`navEvents`) or from Compose screens' `onNavigate` while they're still on the
-/// bridge.
+/// the screens' ViewModels (`navEvents`).
 ///
 /// The browser-session layer is always mounted, *behind* the tabs: a Cloudflare challenge solves there
-/// out of sight, and the layer comes to the front only if it needs the user (see `SiteSessionHost`).
+/// out of sight, and the layer comes to the front only if it needs the user (see `SiteSessionLayer`).
 struct RootView: View {
     @State private var tab: TabKey = .home
     @State private var paths: [TabKey: [Route]] = [:]
-    @State private var sessionRevealed = false
+    @State private var sessionOnTop = false
     @State private var colorScheme: ColorScheme?
 
     var body: some View {
         ZStack {
-            SiteSessionLayer(revealed: $sessionRevealed)
-                .ignoresSafeArea()
-                .zIndex(sessionRevealed ? 1 : -1)
+            SiteSessionLayer(onTop: $sessionOnTop)
+                .zIndex(sessionOnTop ? 1 : -1)
             TabView(selection: $tab) {
                 ForEach(TabKey.allCases.filter { $0 != .search }, id: \.self) { key in
                     Tab(key.title, systemImage: key.systemImage, value: key) {
@@ -36,6 +34,8 @@ struct RootView: View {
             .tabBarMinimizeBehavior(.onScrollDown)
         }
         .preferredColorScheme(colorScheme)
+        // Starts WebKit a little after launch, so the first challenge doesn't pay for it mid-scroll.
+        .task { try? await SiteSessionBrowserKt.warmUpWebEngine() }
         .task {
             for await preference in IosAppKt.observeThemePreference() {
                 colorScheme = switch preference {

@@ -1,10 +1,10 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
 import java.io.File
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
-    alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.metro)
     alias(libs.plugins.sentryKmp)
@@ -63,11 +63,39 @@ kotlin {
     }
     
     sourceSets {
+        // The Compose app shell (App, NavHost, the session layer) and the Compose feature screens are
+        // Android-only: iOS draws SwiftUI, and only Compose-free modules reach its framework.
         androidMain.dependencies {
+            // Exposed as `api` so the Metro `@ContributesBinding` hints from these modules reach the
+            // `AndroidAppGraph` compilation in `:androidApp` (which only depends on `:shared`).
+            api(projects.features.library)
+            api(projects.features.manga)
+            api(projects.features.reader)
+            api(projects.features.activity)
+            api(projects.features.downloads)
+            api(projects.features.bookmarks)
+            api(projects.features.home)
+            api(projects.features.source)
+            api(projects.features.settings)
+            api(projects.features.search)
+            implementation(projects.assets.designSystem)
+            implementation(libs.compose.runtime)
+            implementation(libs.compose.foundation)
+            implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
             implementation(libs.compose.uiToolingPreview)
+            implementation(libs.androidx.navigation.compose)
+            // Multiplatform predictive-back handling, so the site-session layer (a modal over the
+            // NavHost) can take the back gesture instead of letting it drive the screen underneath.
+            // Compose's own `ui-backhandler` is deprecated in favour of this.
+            implementation(libs.androidx.navigationevent.compose)
+            implementation(libs.androidx.lifecycle.viewmodelCompose)
+            implementation(libs.androidx.lifecycle.runtimeCompose)
+            implementation(libs.metrox.viewmodel.compose)
             implementation(libs.metrox.android)
-            // Ktor engine backing Coil's image fetches on Android (see setSingletonImageLoaderFactory
-            // in App.kt).
+            // Coil's Compose integration (AsyncImage and the singleton loader factory, set in App.kt).
+            implementation(libs.coil.compose)
+            // Ktor engine backing Coil's image fetches on Android.
             implementation(libs.ktor.client.okhttp)
             // WorkManager backs the Android LibraryUpdateScheduler. `api` because :androidApp has to
             // see WorkerFactory/Configuration to hand TanukiWorkerFactory to WorkManager at startup.
@@ -80,10 +108,10 @@ kotlin {
         commonMain.dependencies {
             api(projects.core.navigation)
             api(projects.core.presentation)
-            // Coil 3 image loading — the singleton loader is configured in App.kt; features render
-            // covers with AsyncImage against it.
-            implementation(libs.coil.compose)
+            // Coil 3 without Compose: the loaders (newTanukiImageLoader) Compose renders with on Android
+            // and ImageBridge fetches through on iOS.
             implementation(libs.coil.network.ktor3)
+            implementation(libs.coil.singleton)
             // Explicit dep for the okio Path the disk cache directory is expressed as (newTanukiImageLoader).
             implementation(libs.okio)
             // Exposed as `api` so the Metro `@ContributesBinding` hints from these modules reach the
@@ -94,45 +122,22 @@ kotlin {
             api(projects.core.domain)
             api(projects.core.source)
             api(projects.core.metadata)
-            api(projects.features.library)
-            api(projects.features.manga)
-            api(projects.features.reader)
             api(projects.features.reader.logic)
-            api(projects.features.activity)
             api(projects.features.activity.logic)
-            api(projects.features.downloads)
             api(projects.features.downloads.logic)
-            api(projects.features.bookmarks)
             api(projects.features.bookmarks.logic)
-            api(projects.features.home)
             api(projects.features.home.logic)
-            api(projects.features.source)
-            api(projects.features.settings)
             api(projects.features.settings.logic)
             api(projects.features.library.logic)
             api(projects.features.manga.logic)
             api(projects.features.source.logic)
-            api(projects.features.search)
             api(projects.features.search.logic)
-            implementation(projects.assets.designSystem)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.androidx.navigation.compose)
-            implementation(libs.compose.runtime)
-            implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
-            implementation(libs.compose.ui)
-            // Multiplatform predictive-back handling, so the site-session layer (a modal over the
-            // NavHost) can take the back gesture instead of letting it drive the screen underneath.
-            // Compose's own `ui-backhandler` is deprecated in favour of this.
-            implementation(libs.androidx.navigationevent.compose)
-            implementation(libs.compose.components.resources)
-            implementation(libs.compose.uiToolingPreview)
-            implementation(libs.androidx.lifecycle.viewmodelCompose)
-            implementation(libs.androidx.lifecycle.runtimeCompose)
-            implementation(libs.metrox.viewmodel.compose)
+            implementation(libs.metrox.viewmodel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
         iosTest.dependencies {
             // ImageBridgeTest drives Coil's fetch and disk cache against a fake network.
@@ -142,13 +147,13 @@ kotlin {
     }
 }
 
-compose.resources {
-    // Deterministic package for the generated `Res` (bottom-bar tab labels), mirroring the feature modules.
-    packageOfResClass = "app.tanuki.shared.resources"
-}
-
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
+}
+
+// Composables live in androidMain only; iOS compilations have no Compose runtime for the plugin to target.
+composeCompiler {
+    targetKotlinPlatforms.set(setOf(KotlinPlatformType.androidJvm))
 }
 
 // --- Sentry DSN ---------------------------------------------------------------------------------
@@ -242,14 +247,14 @@ if (sentryDsn.get().isBlank()) {
 }
 
 // --- iOS string catalogs ------------------------------------------------------------------------
-// The SwiftUI app reads the same copy as Compose: scripts/generate-ios-strings.py turns every module's
-// composeResources strings.xml into an .xcstrings table under iosApp/iosApp/Strings (checked in), and
+// The SwiftUI app reads the same copy as Android: scripts/generate-ios-strings.py turns every module's
+// strings.xml (the features' composeResources, :shared's Android res) into an .xcstrings table under iosApp/iosApp/Strings (checked in), and
 // fails if a language lacks a key. Hooked to the Xcode build's framework step, so iOS builds can't run
 // on stale strings. Skipped where there is no python3 (Android-only machines never run this task).
 val generateIosStrings =
     tasks.register<Exec>("generateIosStrings") {
         group = "tanuki"
-        description = "Generates iosApp's .xcstrings catalogs from the modules' Compose strings.xml."
+        description = "Generates iosApp's .xcstrings catalogs from the modules' strings.xml."
 
         // Locals only, as with the cargo tasks below, so the configuration cache never captures the script.
         val python = File("/usr/bin/python3")
@@ -262,7 +267,7 @@ val generateIosStrings =
         inputs.file(root.file("scripts/generate-ios-strings.py"))
         inputs.files(
             root.asFileTree.matching {
-                include("shared/src/commonMain/composeResources/values*/strings.xml")
+                include("shared/src/androidMain/res/values*/strings.xml")
                 include("features/*/src/commonMain/composeResources/values*/strings.xml")
             }
         )
@@ -272,7 +277,7 @@ val generateIosStrings =
 tasks.matching { it.name == "embedAndSignAppleFrameworkForXcode" }.configureEach { dependsOn(generateIosStrings) }
 
 // --- Dev source bundles -------------------------------------------------------------------------
-// Builds the first-party `.wasm` sources and drops them into composeResources so DevSourceInstaller
+// Builds the first-party `.wasm` sources and drops them into Android's Java resources so DevSourceInstaller
 // can copy them into the SourceBundleStore on launch. Temporary: replaced by the remote source repo
 // + installer once that exists.
 //
@@ -313,7 +318,7 @@ val nativeSourcesDir = rootProject.layout.projectDirectory.dir("native/sources")
 // a dependency"). Separate target dirs decouple them for the price of a second ~1s compile.
 val cargoTargetDir = layout.buildDirectory.dir("wasmSources")
 val sourceApiSrc = rootProject.layout.projectDirectory.dir("native/source-api/src")
-val bundledSourcesDir = layout.projectDirectory.dir("src/commonMain/composeResources/files/sources")
+val bundledSourcesDir = layout.projectDirectory.dir("src/androidMain/resources/sources")
 
 // One cargo build per BUNDLE, not per crate: two language bundles of one crate differ only by feature,
 // and cargo would otherwise overwrite the same artifact each time. Each gets its own --target-dir, so
@@ -358,11 +363,11 @@ if (!File(System.getProperty("user.home"), ".cargo/bin/cargo").exists()) {
     )
 }
 
-// Copies each freshly built .wasm into composeResources under its source id. Depending on the Exec
+// Copies each freshly built .wasm into the resources dir under its source id. Depending on the Exec
 // tasks' outputs makes the ordering explicit, so no CC or implicit-dependency warning.
 val buildDevSources = tasks.register<Copy>("buildDevSources") {
     group = "tanuki"
-    description = "Compiles native/sources/* to .wasm and copies them into composeResources."
+    description = "Compiles native/sources/* to .wasm and copies them into the bundled sources dir."
 
     val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
     onlyIf { cargo.exists() }
@@ -375,9 +380,25 @@ val buildDevSources = tasks.register<Copy>("buildDevSources") {
     into(bundledSourcesDir)
 }
 
-// Every Compose resource task consumes the composeResources dir buildDevSources writes into, so each
-// must run after it. Matched broadly on "Resource" because the plugin registers several per source
-// set and platform (copyNonXmlValueResources…, generateResourceAccessors…, prepareComposeResources…)
-// and the exact set varies by Compose version. buildDevSources itself doesn't match, so no cycle.
-tasks.matching { it.name.contains("Resource") && it.name != "buildDevSources" }
+// The Android Java-resource tasks (processAndroidMainJavaRes, mergeAndroidMainJavaResource) package the
+// dir buildDevSources writes into, so each must run after it.
+tasks.matching { it.name.contains("JavaRes") }
     .configureEach { dependsOn(buildDevSources) }
+// iOS has no Java resources, so the same bundles go into the app bundle's `sources/` folder, where
+// DevSourceInstaller's iOS `readBundledSource` reads them. Runs inside the Xcode build (the framework step
+// below), whose environment names the app bundle; skipped anywhere else.
+val syncDevSourcesForXcode = tasks.register<Copy>("syncDevSourcesForXcode") {
+    group = "tanuki"
+    description = "Copies the bundled .wasm sources into the iOS app bundle being built by Xcode."
+
+    // Locals only, so the configuration cache captures Strings rather than the script.
+    val buildDir = System.getenv("TARGET_BUILD_DIR")
+    val resourcesPath = System.getenv("UNLOCALIZED_RESOURCES_FOLDER_PATH")
+    onlyIf { buildDir != null && resourcesPath != null }
+
+    dependsOn(buildDevSources)
+    from(bundledSourcesDir) { include("*.wasm") }
+    into(if (buildDir != null && resourcesPath != null) "$buildDir/$resourcesPath/sources" else layout.buildDirectory.dir("xcodeSources"))
+}
+
+tasks.matching { it.name == "embedAndSignAppleFrameworkForXcode" }.configureEach { dependsOn(syncDevSourcesForXcode) }

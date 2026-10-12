@@ -5,15 +5,12 @@ import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.download.model.DownloadProgress
 import app.tanuki.core.domain.download.service.DownloadNotifier
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.notification_downloads_done
-import app.tanuki.shared.resources.notification_downloads_failed
+import app.tanuki.platform.localizedString
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.suspendCancellableCoroutine
-import org.jetbrains.compose.resources.getPluralString
 import platform.UserNotifications.UNAuthorizationStatusAuthorized
 import platform.UserNotifications.UNAuthorizationStatusProvisional
 import platform.UserNotifications.UNMutableNotificationContent
@@ -36,7 +33,7 @@ import kotlin.coroutines.resume
  * notification's banner while the app is foregrounded by default, so the same call is quiet when they
  * are already looking.
  *
- * Copy is resolved with Compose Resources' non-composable `getPluralString`, and authorization is
+ * Copy comes from [localizedString], and authorization is
  * checked but never requested — both for the reasons `IosLibraryUpdateNotifier` documents.
  */
 @Inject
@@ -60,9 +57,9 @@ class IosDownloadNotifier(
 
         val title =
             if (failed > 0) {
-                getPluralString(Res.plurals.notification_downloads_failed, failed, failed)
+                localizedString("notification_downloads_failed", failed)
             } else {
-                getPluralString(Res.plurals.notification_downloads_done, downloaded, downloaded)
+                localizedString("notification_downloads_done", downloaded)
             }
         val content =
             UNMutableNotificationContent().apply {

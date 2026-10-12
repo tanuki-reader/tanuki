@@ -5,7 +5,6 @@ import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.usecase.RunDownloadQueue
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
-import app.tanuki.core.source.net.session.SiteSessionCoordinator
 import app.tanuki.dev.LibrarySeeder
 import dev.zacsweers.metrox.viewmodel.ViewModelGraph
 import io.ktor.client.HttpClient
@@ -16,7 +15,7 @@ import kotlinx.coroutines.CoroutineScope
  *
  * Concrete graphs (`AndroidAppGraph`, `IosAppGraph`) implement this and are
  * created via `createGraphFactory<…>()`. Extending [ViewModelGraph] wires up the
- * metrox multibindings that back `metroViewModel()` in Compose.
+ * metrox multibindings that back `metroViewModel()` in Compose and `ScreenScope` on iOS.
  */
 interface AppGraph : ViewModelGraph {
     /** Application-lifetime coroutine scope. */
@@ -37,16 +36,9 @@ interface AppGraph : ViewModelGraph {
     val sourceHttpClient: HttpClient
 
     /**
-     * The bridge network code uses to ask the user for a browser session — a Cloudflare challenge to tap
-     * through, later a source login. Exposed on the graph because its UI host lives at the app root,
-     * above every screen's ViewModel: any request from anywhere can raise one.
-     */
-    val siteSessionCoordinator: SiteSessionCoordinator
-
-    /**
-     * The user's theme choice, observed at the UI root ([App]) to pick the light/dark scheme. Exposed on
-     * the graph (rather than resolved via a ViewModel) because it drives the theme wrapping the whole
-     * navigation graph, above any single screen's ViewModel.
+     * The user's theme choice, observed at the UI root (Android's `App`, iOS's `RootView`) to pick the
+     * light/dark scheme. Exposed on the graph (rather than resolved via a ViewModel) because it drives the
+     * theme wrapping the whole navigation graph, above any single screen's ViewModel.
      */
     val observeThemePreference: ObserveThemePreference
 

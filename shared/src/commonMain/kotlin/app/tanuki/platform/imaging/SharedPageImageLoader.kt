@@ -10,9 +10,8 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 private val pageImageLoader = AtomicReference<ImageLoader?>(null)
 
 /**
- * The reader's page loader, one per process: the Compose host and the SwiftUI reader (`ImageBridge`)
- * both read pages through it, so there is only ever one `DiskCache` over `page_cache` — two over one
- * directory would corrupt each other.
+ * The reader's page loader, one per process (Android's `App`, iOS's `ImageBridge`), so there is only
+ * ever one `DiskCache` over `page_cache` — two over one directory would corrupt each other.
  *
  * Atomic because Swift asks for it from whatever thread its task runs on. Two first callers racing may
  * each build one; only the first is kept, and the loser is dropped before it has opened its cache (Coil

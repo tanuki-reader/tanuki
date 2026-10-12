@@ -7,8 +7,8 @@ import Shared
 ///
 /// That's the only way a cover from a protected host loads. The Ktor client carries the solved
 /// `cf_clearance` and the app's one User-Agent, and its interceptor starts the Cloudflare solve. A
-/// `URLSession` fetch would just get a 403. Coil also owns the disk cache (`cover_cache`, shared with
-/// the Compose screens), so Nuke keeps only its memory cache. See `ImagePipeline.tanuki`.
+/// `URLSession` fetch would just get a 403. Coil also owns the disk cache (`cover_cache`), so Nuke keeps
+/// only its memory cache. See `ImagePipeline.tanuki`.
 ///
 /// The request's headers (a source's Referer, say) travel with the URL. Cancelling the load cancels the
 /// Swift task, and SKIE carries that into the Kotlin coroutine.

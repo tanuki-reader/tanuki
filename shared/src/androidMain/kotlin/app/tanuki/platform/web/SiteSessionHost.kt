@@ -19,7 +19,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -59,18 +59,8 @@ import app.tanuki.core.source.net.session.SiteSessionResult
 import app.tanuki.core.source.net.session.isSatisfiedBy
 import app.tanuki.core.source.net.session.silentBudget
 import app.tanuki.platform.rememberReducedMotion
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.site_session_cancel
-import app.tanuki.shared.resources.site_session_challenge_message
-import app.tanuki.shared.resources.site_session_challenge_title
-import app.tanuki.shared.resources.site_session_close
-import app.tanuki.shared.resources.site_session_connecting
-import app.tanuki.shared.resources.site_session_done
-import app.tanuki.shared.resources.site_session_login_message
-import app.tanuki.shared.resources.site_session_login_title
-import kotlinx.coroutines.delay
-import org.jetbrains.compose.resources.stringResource
-import kotlin.time.TimeSource
+import app.tanuki.shared.R
+import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /** Height of the layer's own bar, matching the design system's app-bar height. */
 private val SessionBarHeight = 56.dp
@@ -93,27 +83,22 @@ private val ReasonBadgeSize = 32.dp
 private const val SLIDE_FRACTION = 24
 
 /**
- * Renders whatever browser session [coordinator] is asking for, as a full-screen layer at the app root.
+ * Renders whatever browser session [SiteSessionViewModel] is showing, as a full-screen layer at the app root.
  *
  * Hosted at the app root rather than being a navigation destination, because the caller is a Ktor plugin
  * suspended mid-request with no relationship to the back stack — it can be a browse fetch, a cover load,
  * or a page prefetch three screens deep. A route would need every one of those to know how to navigate and
  * how to get back; a layer driven by the coordinator's state needs none of that.
  *
- * While mounted it registers with the coordinator, which is how network code tells "the user declined"
- * apart from "no UI existed to ask" — a background library update must fail fast rather than park on a
- * screen nobody is looking at.
+ * While mounted it attaches the ViewModel to the coordinator, which is how network code tells "the user
+ * declined" apart from "no UI existed to ask" — a background library update must fail fast rather than park
+ * on a screen nobody is looking at.
  *
  * ### Silent first
  *
- * A Cloudflare challenge is **not** shown straight away. The layer is composed the moment the session
- * arrives — full-size, laid out, and painting, which is all the engine needs to work through a challenge —
- * but it is z-ordered *underneath* the app, so the user goes on reading while it solves. Most challenges
- * are non-interactive and clear in a few seconds; those now happen entirely out of sight.
- *
- * It is put on screen only when the challenge is still up after its [silentBudget] — that is, when it has
- * escalated to something only a person can finish. A login is shown immediately, since there is nothing to
- * solve on the user's behalf.
+ * When to reveal a challenge is the ViewModel's call (see [SiteSessionViewModel]). Until then the layer is
+ * composed — full-size, laid out, and painting, which is all the engine needs to work through a challenge —
+ * but z-ordered *underneath* the app, so the user goes on reading while it solves.
  *
  * What makes this safe is that **occlusion is not the same as being headless**. The deleted offscreen
  * solvers failed because their engine was zero-size and never attached, so it never rasterized and
@@ -121,41 +106,22 @@ private const val SLIDE_FRACTION = 24
  * in the platform compositor and is invisible to the page. Hence the rules this composable keeps: while
  * silent the layer is full-size and fully opaque, and *only* its draw order changes. Never fade it, never
  * shrink it, never take it out of the composition to hide it.
- *
- * @param onRevealedChange told whether the layer must be on top of the app, for a host that stacks it
- *   in a separate view (iOS's SwiftUI root). Inside one Compose tree the zIndex does this, and the
- *   default ignores it.
  */
 @Composable
-fun SiteSessionHost(
-    coordinator: SiteSessionCoordinator,
-    onRevealedChange: (Boolean) -> Unit = {},
-) {
-    DisposableEffect(coordinator) {
-        coordinator.attach()
-        onDispose { coordinator.detach() }
+fun SiteSessionHost(viewModel: SiteSessionViewModel = metroViewModel()) {
+    DisposableEffect(viewModel) {
+        viewModel.attach()
+        onDispose { viewModel.detach() }
     }
 
-    val pending by coordinator.pending.collectAsStateWithLifecycle()
-
-    // The session being rendered. Held separately from `pending` because the exit animation still needs a
-    // session to draw after the coordinator has cleared it.
-    var shown by remember { mutableStateOf<PendingSiteSession?>(null) }
-    // Which session has been put on screen — an identity, not a flag, so a new session starts silent by
-    // construction while one that is on its way out stays revealed for the whole of its exit.
-    var revealedSession by remember { mutableStateOf<PendingSiteSession?>(null) }
-
-    pending?.let { session ->
-        if (shown !== session) {
-            shown = session
-            // A login has nothing to solve out of sight — the user *is* the mechanism. Revealing it here
-            // rather than from an effect inside the layer keeps it from spending a frame behind the app.
-            if (session.request.reason != SiteSessionReason.CLOUDFLARE_CHALLENGE) revealedSession = session
-        }
-    }
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // The session being rendered. Held separately from `state` because the exit animation still needs a
+    // session to draw after the ViewModel has gone idle.
+    var shown by remember { mutableStateOf<SiteSessionState.Active?>(null) }
+    (state as? SiteSessionState.Active)?.let { shown = it }
 
     val session = shown ?: return
-    val revealed = revealedSession === session
+    val live = state is SiteSessionState.Active
 
     val reduceMotion = rememberReducedMotion()
     val enterMillis = if (reduceMotion) TanukiMotion.reducedMillis else TanukiMotion.screenEnterMillis
@@ -166,7 +132,7 @@ fun SiteSessionHost(
     // of whatever the user was doing. Deliberately **not** an `AnimatedVisibility`: that would keep the
     // layer out of the composition until it was revealed, and an engine that isn't composed can't solve
     // anything. This drives a `graphicsLayer` that is only applied once revealed (see the layer).
-    val onScreen = pending != null && revealed
+    val onScreen = live && session.revealed
     val presence by animateFloatAsState(
         targetValue = if (onScreen) 1f else 0f,
         animationSpec =
@@ -177,88 +143,49 @@ fun SiteSessionHost(
         label = "siteSessionPresence",
     )
 
-    // For a host that stacks this layer itself instead of relying on the zIndex below. iOS's SwiftUI root
-    // keeps the layer in its own view behind the app and needs to know when to bring it to the front.
-    // True from the reveal until the exit animation has finished.
-    val onTop = revealed && (pending != null || presence > 0f)
-    LaunchedEffect(onTop) { onRevealedChange(onTop) }
-
     // Composed while a session is live, and kept for as long as an exit animation is still running. A
     // session dismissed while still silent was never visible, so `presence` is already 0 and it simply goes.
-    if (pending != null || presence > 0f) {
+    if (live || presence > 0f) {
         SiteSessionLayer(
             session = session,
-            revealed = revealed,
             presence = presence,
             reduceMotion = reduceMotion,
-            onReveal = { revealedSession = session },
+            onSnapshot = viewModel::onSnapshot,
+            onDismiss = viewModel::onDismiss,
+            onDone = viewModel::onDone,
         )
     }
 }
 
 /**
- * @param revealed whether the layer is on screen for the user, as opposed to solving underneath the app.
  * @param presence how far through the reveal (or exit) animation the layer is, 0..1. Applied **only** when
- *   [revealed] — a silent layer must stay fully opaque, since an engine that isn't rasterized doesn't solve.
- * @param onReveal called when the challenge has outlived its silent budget and must be shown. Idempotent.
+ *   revealed — a silent layer must stay fully opaque, since an engine that isn't rasterized doesn't solve.
  */
 @Composable
 private fun SiteSessionLayer(
-    session: PendingSiteSession,
-    revealed: Boolean,
+    session: SiteSessionState.Active,
     presence: Float,
     reduceMotion: Boolean,
-    onReveal: () -> Unit,
+    onSnapshot: (SiteSessionResult) -> Unit,
+    onDismiss: () -> Unit,
+    onDone: () -> Unit,
 ) {
-    val request = session.request
-    // The latest snapshot the browser reported. Held so the confirm action has something to hand back for
-    // a login, where no predicate can decide on the user's behalf.
-    var snapshot by remember(session) { mutableStateOf(SiteSessionResult(emptyMap(), null)) }
-    // The cookies the browser already had before this session loaded anything. Platform cookie stores are
-    // shared and persistent, so a stale cf_clearance is usually sitting there — see isSatisfiedBy.
-    val baseline = remember(session) { mutableStateOf<Map<String, String>?>(null) }
+    val revealed = session.revealed
+    val isChallenge = session.isChallenge
 
     // Back dismisses the session rather than navigating the screen underneath, which would leave the user
     // looking at a layer they can't reach the app behind. Only while revealed: a silent layer is not what
     // the back gesture is aimed at, and swallowing it would break the app the user is still using.
     if (revealed) {
         val backState = rememberNavigationEventState(NavigationEventInfo.None)
-        NavigationBackHandler(state = backState, onBackCompleted = { session.cancel() })
+        NavigationBackHandler(state = backState, onBackCompleted = onDismiss)
     }
 
-    val isChallenge = request.reason == SiteSessionReason.CLOUDFLARE_CHALLENGE
-
-    // The silent budget is spent from when the session opened, not from when the challenge kind became
-    // known — the clock is the user's patience, and it started the moment their request stalled.
-    val opened = remember(session) { TimeSource.Monotonic.markNow() }
-    var budgetSpent by remember(session) { mutableStateOf(false) }
-
-    // Re-armed whenever the probe reports a different kind, which is how a challenge that comes back
-    // `interactive` cuts its own wait to nothing instead of sitting out a budget it can never satisfy.
-    LaunchedEffect(session, snapshot.challengeType) {
-        if (revealed) return@LaunchedEffect
-        val remaining = snapshot.challengeType.silentBudget - opened.elapsedNow()
-        if (remaining.isPositive()) delay(remaining)
-        budgetSpent = true
-    }
-
-    // Reveal only if there is still a challenge on screen when the budget runs out. A page that has moved
-    // on has nothing for the user to do, and the session is about to end on its own.
-    LaunchedEffect(budgetSpent, snapshot.onChallengePage) {
-        if (budgetSpent && snapshot.onChallengePage) onReveal()
-    }
-
-    // The backstop for a session that resolves neither way — see SILENT_SESSION_CEILING. Cancelled with the
-    // layer, so it only ever fires for a session that is genuinely still stuck.
-    LaunchedEffect(session) {
-        delay(SILENT_SESSION_CEILING)
-        onReveal()
-    }
     val titleResource =
-        if (isChallenge) Res.string.site_session_challenge_title else Res.string.site_session_login_title
+        if (isChallenge) R.string.site_session_challenge_title else R.string.site_session_login_title
     val messageResource =
-        if (isChallenge) Res.string.site_session_challenge_message else Res.string.site_session_login_message
-    val dismissResource = if (isChallenge) Res.string.site_session_close else Res.string.site_session_cancel
+        if (isChallenge) R.string.site_session_challenge_message else R.string.site_session_login_message
+    val dismissResource = if (isChallenge) R.string.site_session_close else R.string.site_session_cancel
     val dismissLabel = stringResource(dismissResource)
 
     Column(
@@ -314,7 +241,7 @@ private fun SiteSessionLayer(
                 modifier = Modifier.fillMaxWidth().height(SessionBarHeight).padding(horizontal = TanukiTheme.spacing.sm)
             ) {
                 TanukiIconButton(
-                    onClick = { session.cancel() },
+                    onClick = onDismiss,
                     modifier = Modifier.semantics { contentDescription = dismissLabel }
                 ) { tint -> CloseIcon(tint = tint, size = 22.dp) }
                 Text(
@@ -343,7 +270,7 @@ private fun SiteSessionLayer(
             ) {
                 ReasonBadge(isChallenge = isChallenge)
                 Text(
-                    text = stringResource(messageResource, request.host),
+                    text = stringResource(messageResource, session.host),
                     style = TanukiTheme.typography.body,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
@@ -368,27 +295,15 @@ private fun SiteSessionLayer(
                     )
         ) {
             SiteSessionWebView(
-                url = request.url,
+                url = session.url,
                 // Expire the cookie we're waiting on before loading, so the browser must genuinely re-solve.
                 // Without this Cloudflare accepts its own stale clearance in the browser, issues no new one,
                 // and the session waits forever for a change that never comes.
-                clearCookie = (request.completion as? SiteSessionCompletion.WhenCookieSet)?.cookieName,
+                clearCookie = session.clearCookie,
                 // While silent the engine is under the app; a tap that reached it would land on a browser
                 // the user can't see. Revealing hands the touches back.
                 interactive = revealed,
-                onSnapshot = { latest ->
-                    snapshot = latest
-                    val before = baseline.value
-                    if (before == null) {
-                        // First report, taken before the page has loaded: whatever is here is left over from a
-                        // previous session and is known-bad, since a request carrying it was just challenged.
-                        baseline.value = latest.cookies
-                    } else if (request.completion.isSatisfiedBy(before, latest)) {
-                        // A challenge that clears without interaction (or the moment the user taps the
-                        // checkbox) ends here, so the layer disappears on its own. Resolving twice is a no-op.
-                        session.finish(latest)
-                    }
-                },
+                onSnapshot = onSnapshot,
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -406,10 +321,10 @@ private fun SiteSessionLayer(
             // animate a spinner nobody can see, on exactly the frames the browser engine is busiest.
             if (revealed) {
                 Crossfade(
-                    targetState = isChallenge && !snapshot.onChallengePage,
+                    targetState = session.covered,
                     animationSpec = tween(TanukiMotion.screenEnterMillis, easing = TanukiMotion.EaseEnter)
                 ) { covered ->
-                    if (covered) ConnectingCover(host = request.host)
+                    if (covered) ConnectingCover(host = session.host)
                 }
             }
         }
@@ -418,7 +333,7 @@ private fun SiteSessionLayer(
         // means "signed in", so the user says when it's done; a challenge resolves itself and gets no
         // action bar at all, handing that height to the challenge widget. Dismissing is the bar's X in
         // both cases — repeating it down here would be two controls doing one job.
-        if (request.completion == SiteSessionCompletion.WhenUserConfirms) {
+        if (session.needsConfirm) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Row(
                 modifier =
@@ -431,8 +346,8 @@ private fun SiteSessionLayer(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TanukiButton(
-                    text = stringResource(Res.string.site_session_done),
-                    onClick = { session.finish(snapshot) },
+                    text = stringResource(R.string.site_session_done),
+                    onClick = onDone,
                     variant = TanukiButtonVariant.Filled
                 )
             }
@@ -476,7 +391,7 @@ private fun ConnectingCover(host: String) {
     ) {
         TanukiLoadingIndicator()
         Text(
-            text = stringResource(Res.string.site_session_connecting, host),
+            text = stringResource(R.string.site_session_connecting, host),
             style = TanukiTheme.typography.caption,
             color = TanukiTheme.colors.textFaint,
             textAlign = TextAlign.Center

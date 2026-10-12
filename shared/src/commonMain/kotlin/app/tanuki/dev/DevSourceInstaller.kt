@@ -6,13 +6,11 @@ import app.tanuki.core.domain.common.service.warn
 import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.SourceCatalog
-import app.tanuki.shared.resources.Res
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
 import kotlinx.coroutines.withContext
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /**
  * Temporary development convenience: copies the first-party `.wasm` bundles shipped inside the app
@@ -20,7 +18,7 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  *
  * This exists purely to unblock the pipeline. The real flow — fetch a repo index, show available
  * extensions, download and verify on demand, check versions for updates — replaces it entirely, at
- * which point this class and the `composeResources/files/sources/` directory both go away.
+ * which point this class, [readBundledSource] and the bundled `.wasm` files all go away.
  *
  * It doubles as the app's [SourceCatalog], which is how "what can be installed?" has an answer at all
  * before that remote repo exists — and therefore how [app.tanuki.core.domain.source.usecase.InstallSource]
@@ -31,7 +29,6 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  * so rebuilding a source during development actually reaches the device instead of being shadowed by
  * a stale copy. Without that, every source change would need an app uninstall.
  */
-@OptIn(ExperimentalResourceApi::class)
 @Inject
 @SingleIn(AppScope::class)
 @ContributesBinding(AppScope::class)
@@ -72,7 +69,7 @@ class DevSourceInstaller(
 
     /** Reads [sourceId]'s bundled `.wasm` out of the app's resources and into the store. */
     private suspend fun writeBundled(sourceId: String) {
-        val bytes = Res.readBytes("files/sources/$sourceId.wasm")
+        val bytes = readBundledSource(sourceId)
         bundleStore.writeBundle(sourceId, bytes)
     }
 
@@ -89,7 +86,7 @@ class DevSourceInstaller(
         /**
          * Source ids to install, matching the bundle ids in `devSourceBundles` in
          * `shared/build.gradle.kts`. Each must correspond to a
-         * `composeResources/files/sources/<id>.wasm`.
+         * bundled `<id>.wasm` (see [readBundledSource]).
          *
          * A `-pt-br` suffix is a second *language build* of the same crate, not a second source — see
          * the `language` module in that crate. MangaDex and MangaFire ship both; the pt-BR-only sites
@@ -111,3 +108,9 @@ class DevSourceInstaller(
             )
     }
 }
+
+/**
+ * The bundled `.wasm` for [sourceId]: Android's `composeResources/files/sources/`, iOS's app bundle
+ * `sources/` (copied there by `:shared:syncDevSourcesForXcode`). Throws if it isn't there.
+ */
+internal expect suspend fun readBundledSource(sourceId: String): ByteArray

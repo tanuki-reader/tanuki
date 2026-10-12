@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
@@ -23,14 +24,7 @@ import app.tanuki.assets.designSystem.component.LibraryTabIcon
 import app.tanuki.assets.designSystem.component.SearchIcon
 import app.tanuki.assets.designSystem.component.SettingsTabIcon
 import app.tanuki.core.navigation.TopLevelDestination
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.tab_activity
-import app.tanuki.shared.resources.tab_home
-import app.tanuki.shared.resources.tab_library
-import app.tanuki.shared.resources.tab_search
-import app.tanuki.shared.resources.tab_settings
-import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.stringResource
+import app.tanuki.shared.R
 
 /** Height of the icon+label content band, excluding the system safe-area inset added below it. */
 private val BottomBarContentHeight = 62.dp
@@ -101,11 +95,11 @@ private fun TopLevelDestination.TabIcon(tint: Color) {
 }
 
 /** The localized label resource for each tab. */
-private fun TopLevelDestination.labelRes(): StringResource =
+private fun TopLevelDestination.labelRes(): Int =
     when (this) {
-        TopLevelDestination.Library -> Res.string.tab_library
-        TopLevelDestination.Home -> Res.string.tab_home
-        TopLevelDestination.Activity -> Res.string.tab_activity
-        TopLevelDestination.Settings -> Res.string.tab_settings
-        TopLevelDestination.Search -> Res.string.tab_search
+        TopLevelDestination.Library -> R.string.tab_library
+        TopLevelDestination.Home -> R.string.tab_home
+        TopLevelDestination.Activity -> R.string.tab_activity
+        TopLevelDestination.Settings -> R.string.tab_settings
+        TopLevelDestination.Search -> R.string.tab_search
     }

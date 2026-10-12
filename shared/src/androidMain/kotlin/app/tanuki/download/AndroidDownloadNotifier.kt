@@ -13,24 +13,10 @@ import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.download.model.DownloadProgress
 import app.tanuki.core.domain.download.service.DownloadNotifier
 import app.tanuki.shared.R
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.notification_channel_downloads
-import app.tanuki.shared.resources.notification_channel_downloads_description
-import app.tanuki.shared.resources.notification_channel_downloads_done
-import app.tanuki.shared.resources.notification_channel_downloads_done_description
-import app.tanuki.shared.resources.notification_downloads_chapter
-import app.tanuki.shared.resources.notification_downloads_done
-import app.tanuki.shared.resources.notification_downloads_failed
-import app.tanuki.shared.resources.notification_downloads_pages
-import app.tanuki.shared.resources.notification_downloads_remaining
-import app.tanuki.shared.resources.notification_downloads_starting
-import app.tanuki.shared.resources.notification_downloads_title
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import org.jetbrains.compose.resources.getPluralString
-import org.jetbrains.compose.resources.getString
 
 /**
  * Android [DownloadNotifier]: one ongoing progress notification while the queue runs, and one summary
@@ -47,8 +33,8 @@ import org.jetbrains.compose.resources.getString
  * can actually get attention. A user who wants one and not the other can turn each off separately,
  * which is the whole point of channels.
  *
- * Built on the platform [NotificationManager] and copy resolved with Compose Resources' non-composable
- * `getString`/`getPluralString`, for the same reasons as `AndroidLibraryUpdateNotifier` — see its KDoc.
+ * Built on the platform [NotificationManager], with copy resolved through [Context] for the same reasons
+ * as `AndroidLibraryUpdateNotifier` — see its KDoc.
  * Permission is checked, never requested: `MainActivity` asks, and this quietly does nothing if the user
  * declined rather than failing the run.
  */
@@ -74,9 +60,9 @@ class AndroidDownloadNotifier(
 
         val title =
             if (failed > 0) {
-                getPluralString(Res.plurals.notification_downloads_failed, failed, failed)
+                context.resources.getQuantityString(R.plurals.notification_downloads_failed, failed, failed)
             } else {
-                getPluralString(Res.plurals.notification_downloads_done, downloaded, downloaded)
+                context.resources.getQuantityString(R.plurals.notification_downloads_done, downloaded, downloaded)
             }
         val notification =
             Notification
@@ -156,13 +142,13 @@ class AndroidDownloadNotifier(
      */
     private suspend fun DownloadProgress.bodyText(): String {
         val parts = mutableListOf<String>()
-        val label = chapter.chapterNumber?.let { getString(Res.string.notification_downloads_chapter, it.display) }
+        val label = chapter.chapterNumber?.let { context.getString(R.string.notification_downloads_chapter, it.display) }
         (label ?: chapter.name?.value)?.let(parts::add)
         download.pageCount?.let {
-            parts += getString(Res.string.notification_downloads_pages, download.downloadedPages, it)
+            parts += context.getString(R.string.notification_downloads_pages, download.downloadedPages, it)
         }
         if (remaining > 0) {
-            parts += getPluralString(Res.plurals.notification_downloads_remaining, remaining, remaining)
+            parts += context.resources.getQuantityString(R.plurals.notification_downloads_remaining, remaining, remaining)
         }
         return parts.joinToString(BODY_SEPARATOR)
     }
@@ -173,8 +159,8 @@ class AndroidDownloadNotifier(
             .Builder(context, PROGRESS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_download)
             .setCategory(Notification.CATEGORY_PROGRESS)
-            .setContentTitle(getString(Res.string.notification_downloads_title))
-            .setContentText(getString(Res.string.notification_downloads_starting))
+            .setContentTitle(context.getString(R.string.notification_downloads_title))
+            .setContentText(context.getString(R.string.notification_downloads_starting))
             .setContentIntent(launchIntent())
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -196,11 +182,11 @@ class AndroidDownloadNotifier(
         createNotificationChannel(
             NotificationChannel(
                 PROGRESS_CHANNEL_ID,
-                getString(Res.string.notification_channel_downloads),
+                context.getString(R.string.notification_channel_downloads),
                 // LOW: a status line, not an event. A chapter landing is not worth a sound.
                 NotificationManager.IMPORTANCE_LOW,
             ).apply {
-                description = getString(Res.string.notification_channel_downloads_description)
+                description = context.getString(R.string.notification_channel_downloads_description)
                 setShowBadge(false)
             },
         )
@@ -210,9 +196,9 @@ class AndroidDownloadNotifier(
         createNotificationChannel(
             NotificationChannel(
                 DONE_CHANNEL_ID,
-                getString(Res.string.notification_channel_downloads_done),
+                context.getString(R.string.notification_channel_downloads_done),
                 NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = getString(Res.string.notification_channel_downloads_done_description) },
+            ).apply { description = context.getString(R.string.notification_channel_downloads_done_description) },
         )
     }
 

@@ -21,6 +21,7 @@ import app.tanuki.features.settings.sources.viewmodel.SourcesViewModel
 import app.tanuki.features.settings.viewmodel.SettingsViewModel
 import app.tanuki.features.source.viewmodel.SourceBrowseViewModel
 import app.tanuki.features.source.viewmodel.SourceHomeViewModel
+import app.tanuki.platform.web.SiteSessionViewModel
 import dev.zacsweers.metrox.viewmodel.MetroViewModelFactory
 import kotlin.reflect.KClass
 import kotlin.uuid.Uuid
@@ -85,6 +86,9 @@ fun ScreenScope.downloadsViewModel(): DownloadsViewModel = viewModel(DownloadsVi
 fun ScreenScope.bookmarksViewModel(): BookmarksViewModel = viewModel(BookmarksViewModel::class)
 
 fun ScreenScope.sourcesViewModel(): SourcesViewModel = viewModel(SourcesViewModel::class)
+
+/** The browser-session layer's, which the root holds for the life of the UI. */
+fun ScreenScope.siteSessionViewModel(): SiteSessionViewModel = viewModel(SiteSessionViewModel::class)
 
 fun ScreenScope.globalSearchViewModel(query: String?): GlobalSearchViewModel =
     assistedViewModel(GlobalSearchViewModel::class) {

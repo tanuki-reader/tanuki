@@ -44,7 +44,7 @@ platform duplicates logic.
 | Some screen-local UI state lives in composables (e.g. Home's For You/Sources toggle, `rememberSaveable`) | `HomeScreen.kt:86` | Move it into the ViewModel as an input `MutableStateFlow`, so neither UI holds it |
 | `AppNavigator` / `NavCommand` have **no consumers** (only a KDoc mention in `MangaViewModel`) | `core/navigation/` | Leave as is. Wire it into both roots when deep links arrive |
 | ~~`UuidNavType` lives in `:core:navigation`~~ **Done:** moved to `:shared` as `internal` | `shared/…/navigation/UuidNavType.kt` | `:core:navigation` is Compose-free, and its header has no `NavType` |
-| `:shared`'s **own** public API is always in the framework header (`export` doesn't control it), so `App()`, the image loader builders, `AppGraph`, etc. pull Skiko/Coil/Ktor/Compose-runtime types into Swift | `shared/src/commonMain` | Harmless but noisy, and it slows Swift indexing. Mark Compose-facing `:shared` declarations `internal` as they're touched, and drop them in Phase 9 |
+| `:shared`'s **own** public API is always in the framework header (`export` doesn't control it), so `App()`, the image loader builders, `AppGraph`, etc. pull Skiko/Coil/Ktor/Compose-runtime types into Swift | `shared/src/commonMain` | ~~Harmless but noisy~~ **Done (Phase 9):** the Compose shell moved to `androidMain`, and the Coil loader builders went `internal` (header 2.37 → 1.76 MB, no Skiko types) |
 | Strings are in Compose Resources (~360 keys across modules), and SwiftUI can't read them natively | `features/*/composeResources/values*/strings.xml` | Needs a strings pipeline (see Decisions) |
 | State uses `kotlin.uuid.Uuid` and `kotlin.time.Instant` | e.g. `HomeState.kt` | Uuid reaches Swift as an opaque hashable class, which is fine for ids and navigation. For Instant, expose epoch millis or add one Swift extension to `Date` |
 | **Value classes reach Swift as an untyped `id`** (found in Phase 2): `Text` (`Category.name`, `Manga.title`, `SourceMeta.name`) can't be read from Swift | `:core:domain` models | Swift-facing state carries plain `String`s: map to a feature item type in the ViewModel (`CategoryItem`, `StorageSeriesItem`), as Home's items already did |
@@ -170,7 +170,7 @@ iOSApp (SwiftUI @main)
 | 6. Activity | stats charts (Swift Charts), history with swipe; merged history rows (see "UI/UX redesign") | 5–8 |
 | 7. Downloads | queue screen | 3–5 |
 | 8. Reader | paged + webtoon, prefetch, decode sizing, scrubber, scroll commands. Some layout logic must move into the VM first — **done 2026-10-11** (with the nav-bug fixes, sheets and page bookmarks) | 12–20 |
-| 9. Cleanup | delete the Compose bridge, drop Compose from the iOS framework, update CLAUDE.md | 2–4 |
+| 9. Cleanup | delete the Compose bridge, drop Compose from the iOS framework, update CLAUDE.md — **done 2026-10-12** (incl. the native session layer) | 2–4 |
 | **Total** | | **≈58–91** |
 
 The order after Home is a recommendation: simple to complex, with the Reader last because it's the
@@ -928,3 +928,50 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   - **Seen, not chased:** on a badly lagging emulator the previous-chapter button seemed to do nothing.
 
   Next: **Phase 9 — Cleanup**.
+
+- **2026-10-12 — Phase 9: Cleanup. The iOS framework links no Compose.**
+  - **What still pulled Compose in** (found while scoping; the bridge itself was already unused):
+    - The Cloudflare/login layer was still the Compose `SiteSessionHost`, through `SiteSessionViewController`.
+      Phase 0's SwiftUI overlay was never built.
+    - `:shared` commonMain held the Compose shell and `api`-depended on every Compose feature module.
+    - The iOS notifiers read copy, and `DevSourceInstaller` read the `.wasm` bundles, through Compose
+      Resources. Its library depends on Compose foundation, and its `Res` class is always generated in
+      commonMain, so Compose Resources can't be Android-only inside `:shared`.
+  - **Session layer:**
+    - New `SiteSessionViewModel` (`:shared` commonMain) owns what the composable decided: silent first, the
+      reveal after the type's silent budget (only if the challenge is still on screen), the 25 s ceiling,
+      the baseline cookies and `isSatisfiedBy`. 7 tests.
+    - Android's `SiteSessionHost` only renders it. iOS has `SiteSessionLayer.swift` over the same
+      ViewModel, with the `WKWebView` owned by Kotlin's `SiteSessionBrowser` (the old poll, minus Compose).
+    - WebKit warm-up is `warmUpWebEngine()`, called from `RootView`'s `.task`.
+    - `AppGraph.siteSessionCoordinator` and the unused `LocalAppGraph` are gone.
+  - **`:shared`:**
+    - `App` (with `TanukiComposeHost` inlined), the NavHost, the bottom bar, `DestinationContent`,
+      `UuidNavType`, `SiteSessionHost`, `ReducedMotion`, `SystemBarsEffect` and `WebEngineWarmupEffect`
+      moved to `androidMain`. Their iOS actuals, `ComposeBridge.kt` and the iOS `UuidNavType` test are deleted.
+    - Compose, Coil-Compose, navigation and the Compose feature modules are `androidMain` dependencies.
+      commonMain keeps Coil without Compose (`coil` + `coil-network-ktor3`) for `ImageBridge`. The Compose
+      compiler targets Android only.
+    - `:shared`'s strings are Android `res` (`src/androidMain/res`, `R.string`); the strings script reads
+      them from there. iOS notifiers use `localizedString(key, args…)` over the bundle's `Localizable` table.
+    - Bundled `.wasm`: Android Java resources (`src/androidMain/resources/sources`). On iOS,
+      `:shared:syncDevSourcesForXcode` copies them into the app bundle's `sources/` during the Xcode build.
+  - **Modules:** the 10 Compose feature modules and `:assets:designSystem` dropped their iOS targets.
+    `:features:reader` gained `withHostTest` so its 7 tests still run.
+  - **Swift:** `ComposeDestinationView.swift` and `ContentView.swift` are deleted. The swipe-back
+    extension moved to `SwipeBack.swift` (the reader hides its nav bar).
+  - **Skiko is still on the iOS classpath**, through `coil-core`, which `ImageBridge` fetches and caches
+    with. It's no longer in the header. Removing it means replacing Coil on iOS (Ktor + our own disk cache).
+    Not worth it now.
+  - **Verified:**
+    - `:shared` 25 iOS / 24 host tests (incl. `SiteSessionViewModelTest`), reader 7 host.
+    - `:androidApp:assembleDebug`; the APK carries `sources/*.wasm`.
+    - `iosSimulatorArm64CompileKlibraries` has no `org.jetbrains.compose`.
+    - Debug xcodebuild.
+    - Fresh install on a spare simulator: the app launches native, and all 5 bundled sources install from
+      the app bundle.
+  - **Not verified by hand:**
+    - A real Cloudflare challenge on either platform (silent solve, reveal, close, Done). There was no
+      challenge to trigger on demand.
+    - iOS notification copy in pt-BR.
+    - Android on a device.

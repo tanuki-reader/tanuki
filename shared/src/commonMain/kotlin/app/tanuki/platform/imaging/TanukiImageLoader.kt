@@ -42,7 +42,7 @@ import okio.Path
  *   loader never closes it out from under the source layer.
  */
 @OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) and CacheStrategy are experimental.
-fun newTanukiImageLoader(
+internal fun newTanukiImageLoader(
     context: PlatformContext,
     httpClient: HttpClient,
 ): ImageLoader =
@@ -101,7 +101,7 @@ private const val DISK_CACHE_MAX_BYTES = 256L * 1024 * 1024
  *   loader never closes it out from under the source layer.
  */
 @OptIn(ExperimentalCoilApi::class) // KtorNetworkFetcherFactory(httpClient = …) and CacheStrategy are experimental.
-fun newTanukiPageImageLoader(
+internal fun newTanukiPageImageLoader(
     context: PlatformContext,
     httpClient: HttpClient,
 ): ImageLoader =

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Localized copy, from the generated string tables in `Strings/`. Those are made from each Kotlin
-/// module's Compose `strings.xml` by `scripts/generate-ios-strings.py`. Edit the `strings.xml`, never
+/// module's `strings.xml` by `scripts/generate-ios-strings.py`. Edit the `strings.xml`, never
 /// the `.xcstrings`: copy has one source, shared with Android.
 ///
 /// Format arguments are positional, like the source (`%1$@` for a `String`, `%1$lld` for an `Int`), and

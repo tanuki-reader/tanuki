@@ -21,7 +21,7 @@
 	</array>
 
 	<!-- Launch screen: the brand mark on the app's dark canvas (the design system's `bg`, #0C0C0C),
-	     so the frames before Compose exists match the first frame it draws rather than flashing
+	     so the frames before the app draws match its first frame rather than flashing
 	     white. -->
 	<key>UILaunchScreen</key>
 	<dict>

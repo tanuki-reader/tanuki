@@ -27,9 +27,8 @@ toward the Mihon feature set incrementally. A previous, more fully-scaffolded at
 ./gradlew :androidApp:assembleDebug
 
 # iOS: open ./iosApp in Xcode and run from there (no gradle run task).
-# iosApp has a SwiftUI root (RootView: TabView + NavigationStack per tab); screens not yet migrated render
-# their Compose *Route through ComposeBridge.kt.
-# Target: iosApp is a native SwiftUI app consuming the shared Kotlin framework through SKIE.
+# iosApp is a native SwiftUI app (RootView: TabView + NavigationStack per tab) consuming the shared Kotlin
+# framework through SKIE. No Compose ships in it.
 ```
 
 ## Test
@@ -48,34 +47,27 @@ When adding tests, the `kotlin-test-generator` skill follows this project's conv
 
 ---
 
-## Platform UI split (decided — migration pending)
+## Platform UI split (done)
 
 **Decision:** the iOS app gets a **native SwiftUI UI** built on **Liquid Glass** (iOS 26); Android keeps
 its **Jetpack Compose** UI. What stays shared in Kotlin is everything below the UI: domain, data,
 network, sources, ViewModels (`StateFlow<UiState>` + action methods) and the `Destination` contract.
 This reverses the earlier "one Compose UI on both platforms" decision.
 
-> **Current state (2026-10):** iOS has a **SwiftUI root** (`iosApp/iosApp/Navigation/RootView.swift`: a
-> `TabView` with a `NavigationStack` of `Route`s per tab). `Navigation/DestinationView.swift` picks each
-> destination's screen: **every destination is SwiftUI-native** (Home, Settings, Library, Source browse,
-> Manga detail, Search, Activity, Downloads, Bookmarks and the Reader; `Features/<X>/`, over the matching
-> `:features:<x>:logic`). The Compose bridge (`shared/src/iosMain/…/ComposeBridge.kt`, `DestinationContent`)
-> no longer renders anything on iOS and goes in Phase 9 (cleanup), which is next. Phase 8 (Reader) fixed
-> the chapter-navigation bugs in the shared ViewModel, added the Chapters/Bookmarks and Reader settings
-> sheets and page bookmarks (Library ⋯ → Bookmarks, Manga detail's "Bookmarked" filter) on both platforms,
-> and replaced the iOS reader with SwiftUI. **Plan, estimates and
-> progress log: `docs/swiftui-migration.md`. Read it before any migration work, and update its progress
-> log at the end of the session.** Until the split lands:
-> - **New iOS-facing UI work goes to SwiftUI** in `iosApp`, not into shared Compose screens.
-> - Keep the Compose UI working on iOS (don't break the current host) until the SwiftUI screen that
->   replaces it ships. Migrate one feature slice at a time, in the order the plan sets
->   (home → settings → library → source browse → manga → activity → downloads → reader). Unmigrated
->   destinations keep rendering their Compose screen inside the SwiftUI root.
+> **Current state (2026-10, migration done):** iOS is **SwiftUI end to end**.
+> `iosApp/iosApp/Navigation/RootView.swift` is a `TabView` with a `NavigationStack` of `Route`s per tab; `Navigation/DestinationView.swift` renders every
+> destination natively (`Features/<X>/`, over the matching `:features:<x>:logic`), and the Cloudflare/login
+> layer is `Navigation/SiteSessionLayer.swift` over the shared `SiteSessionViewModel`. The iOS framework
+> links **no Compose**: `:shared`'s Compose shell (App, NavHost, `SiteSessionHost`) and its strings live in
+> `androidMain`, and the Compose `:features:<x>` modules and `:assets:designSystem` are Android-only targets.
+> History, decisions and the progress log: `docs/swiftui-migration.md`.
+> - **New iOS UI is SwiftUI** in `iosApp`; new Android UI is Compose. A new destination or screen isn't
+>   done until both render it over the same ViewModel.
 > - A Kotlin bump must wait until **both** SKIE and Metro support the new version. Build the iOS
 >   framework, not just Android, before calling it done.
-> - ViewModels must become consumable from Swift: move them out of the Compose `:features:<x>` modules
->   into Compose-free modules (the `:features:<x>:logic` / `:features:<x>:ui` pairs from "When to split")
->   that are exported in the iOS framework.
+> - ViewModels live in Compose-free `:features:<x>:logic` modules exported to the iOS framework; Compose
+>   screens live in `:features:<x>`. Nothing an iOS module depends on may pull Compose (or Compose
+>   Resources, whose library brings Compose foundation) into the framework.
 
 - **Swift ↔ Kotlin bridge: SKIE.** `StateFlow`/`Flow` arrive in Swift as `AsyncSequence`, sealed types as
   exhaustive Swift enums (`onEnum(of:)`), `suspend` functions as `async`. Don't hand-write Flow wrappers
@@ -109,28 +101,26 @@ Start as **packages inside the shared module(s)**. Promote a package to its own 
 something concrete forces it (see "When to split" below) — JetBrains' new default deliberately favors one
 shared module with a clear responsibility, so don't over-modularize.
 
-> **Current state (2026-09):** the actual Gradle modules are:
+> **Current state (2026-10):** the actual Gradle modules are:
 >
 > | Module | What's in it | Compose? |
 > |---|---|---|
 > | `:androidApp` | thin Android host | — |
-> | `iosApp` (Xcode) | today a thin host for the Compose UI; target: the native SwiftUI app (screens, Swift design system, SKIE consumers) | — (SwiftUI) |
-> | `:shared` | app shell: the one `Scaffold`/`NavHost`, Metro `AppGraph`, platform bindings | yes |
+> | `iosApp` (Xcode) | the native SwiftUI app (screens, Swift design system, SKIE consumers) | — (SwiftUI) |
+> | `:shared` | app shell: Metro `AppGraph`, `AppStartup`, platform bindings, the iOS framework (`ScreenScope`, `ImageBridge`); Android's Compose shell (`App`, `NavHost`, `SiteSessionHost`) in `androidMain` | Android only |
 > | `:core:domain` | models, repository interfaces, use cases, `DispatcherProvider`/`Logger` | no |
 > | `:core:data` | Room entities/DAOs + repository implementations | no |
 > | `:core:navigation` | `Destination`, `NavEvent`, `NavCommand`, `AppNavigator` | no |
 > | **`:core:presentation`** | **`TanukiViewModel`** + **`StateViewModel<S>`** — the base classes every screen's ViewModel extends | no |
 > | `:core:source` | WASM source runtime + Cloudflare/session networking | no |
-> | `:features:<x>` | one per slice (`library`, `manga`, `reader`, `activity`, `home`, `source`, `settings`) — each holds that slice's Compose screens **and** its ViewModels | yes |
-> | `:assets:designSystem` | the Compose design system — **Android dialect** of the Tanuki Design System | yes |
+> | `:features:<x>` | one per slice — that slice's Compose screens (Android-only target) | yes |
+> | `:features:<x>:logic` | that slice's ViewModels and Swift-facing state, exported to the iOS framework | no |
+> | `:assets:designSystem` | the Compose design system — **Android dialect** of the Tanuki Design System (Android-only target) | yes |
 >
 > There is **no `:sharedLogic` / `:sharedUI` split** — those names in this doc and below are the **target**
-> vocabulary. They now map onto the `:core:*` modules (Compose-free foundation, the `sharedLogic` role) and
-> the `:features:*` + `:shared` + `:assets:designSystem` modules (Compose, the `sharedUI` role). Because a
-> feature module holds its screens *and* its ViewModels together, the "`sharedLogic` never imports Compose"
-> rule is inside `:features:<x>` still a *design intent* enforced by package discipline (ViewModels live in
-> `…/<feature>/viewmodel/` and must not import Compose), not a module boundary. It **is** a real,
-> compiler-enforced boundary in `:core:*`, none of which may depend on Compose.
+> vocabulary. They map onto the Compose-free `:core:*` and `:features:<x>:logic` modules (the `sharedLogic`
+> role, compiler-enforced: none may depend on Compose) and the Android-only Compose modules `:features:<x>`,
+> `:assets:designSystem` and `:shared`'s `androidMain` (the `sharedUI` role).
 
 ```
 sharedLogic/   (KMP — ALL platforms, NEVER imports Compose)
@@ -170,9 +160,9 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
 - Use the KMP `ViewModel` from `androidx.lifecycle.viewmodel` (already a dependency) so both platforms
   get lifecycle scoping for free.
 - **Android:** Compose screens collect state with `collectAsStateWithLifecycle()` and call ViewModel
-  methods. **iOS (target):** SwiftUI observes `uiState` through SKIE's `AsyncSequence` in an
+  methods. **iOS:** SwiftUI observes `uiState` through SKIE's `AsyncSequence` in an
   `@Observable` holder and calls the same methods (see "Platform UI split"). No reducers/intents/MVI
-  machinery on either side. (Today iOS still runs the Compose screens.)
+  machinery on either side.
 - **Keep ViewModel APIs Swift-friendly:** UI state as data classes / sealed interfaces (SKIE turns them
   into enums), actions as plain methods with simple parameters, no Compose types (`Color`, `ImageVector`,
   `StringResource` resolved to text) in state. **No value classes in Swift-facing state**: `Text` and
@@ -223,9 +213,8 @@ state as a `StateFlow<XxxUiState>`, with plain methods for user actions (`onSear
 
 ### Navigation: shared contract, native rendering
 
-Single-activity on Android; a SwiftUI `App` on iOS (today still a root view controller hosting the
-Compose UI). The **set of destinations is defined once in `sharedLogic`** as a serializable sealed type;
-each platform renders it natively.
+Single-activity on Android; a SwiftUI `App` on iOS. The **set of destinations is defined once in
+`sharedLogic`** as a serializable sealed type; each platform renders it natively.
 
 ```kotlin
 // sharedLogic — the ONE definition of what screens exist
@@ -241,9 +230,9 @@ sealed interface NavEvent { data class Go(val to: Destination) : NavEvent; data 
 ```
 
 - **Android:** **Jetpack Navigation Compose**; a single `NavHost` switches over `Destination`.
-- **iOS (target):** a `TabView` (Liquid Glass tab bar) whose tabs each own a `NavigationStack`; a
+- **iOS:** a `TabView` (Liquid Glass tab bar) whose tabs each own a `NavigationStack`; a
   `NavigationPath` of `Destination` values, rendered with `.navigationDestination` and an exhaustive
-  `switch onEnum(of: destination)`. Until the split, iOS uses the same Compose `NavHost`.
+  `switch onEnum(of: destination)`.
 - Navigation *intent* lives in shared ViewModels (`NavEvent`); each platform's navigator performs the
   push/pop. Routes and params are defined once in `Destination`, so they cannot drift; a new destination
   is not done until both platforms render it.
@@ -275,7 +264,7 @@ togglable. Natural first split: `:core`, `:domain`, `:data`, `:source`, then `:f
 | Database | Room KMP  |
 | Networking | Ktor (replaces OkHttp in shared code) |
 | Android UI | Jetpack Compose + Material 3 (`sharedUI`, `:assets:designSystem`) |
-| iOS UI | SwiftUI on iOS 26 with Liquid Glass (`iosApp`) — native, not Compose (migration pending) |
+| iOS UI | SwiftUI on iOS 26 with Liquid Glass (`iosApp`) — native, not Compose |
 | Swift ↔ Kotlin bridge | SKIE (Flow → AsyncSequence, sealed → enum, suspend → async) |
 | iOS WebView (Cloudflare) | `WKWebView` headless via `expect`/`actual` — not part of the Compose UI tree |
 | Extensions (both platforms) | WASM source runtime — single shared mechanism, no JSCore, no APK loader |
@@ -334,13 +323,11 @@ language of both platforms. Don't invent ad-hoc colors, type sizes, spacing or c
 Every user-facing string MUST be localizable — the app ships in **English** and **Brazilian
 Portuguese (pt-BR)** for now, more later. No hardcoded display copy.
 
-- **Android (and the Compose UI that iOS still runs today): Compose Multiplatform Resources.** Strings
-  live in `sharedUI/src/commonMain/composeResources/`: `values/strings.xml` (en) and
-  `values-pt-rBR/strings.xml` (pt-BR).
-- **Native iOS UI: open decision.** How SwiftUI screens get localized copy (an Xcode String Catalog in
-  `iosApp`, or one shared string source both platforms read) is **not decided yet**. Raise it before the
-  first SwiftUI screen ships; don't pick one silently. Whatever is chosen, en + pt-BR stay in parity
-  with Android.
+- **Android: Compose Multiplatform Resources.** Each feature's strings live in
+  `features/<x>/src/commonMain/composeResources/`: `values/strings.xml` (en) and
+  `values-pt-rBR/strings.xml` (pt-BR). `:shared`'s (tabs, notifications, the session layer) are Android
+  `res` in `shared/src/androidMain/res/`, read with `R.string`, because Compose Resources in `:shared`
+  would put Compose in the iOS framework.
 - In composables, reference strings by generated id: `Text(stringResource(Res.string.filter_by_category))`
   — never an inline display literal. Dynamic values go through format args
   (`stringResource(Res.string.show_n_titles, n)`), not string concatenation; counts use
@@ -356,8 +343,8 @@ Portuguese (pt-BR)** for now, more later. No hardcoded display copy.
   turns every module's `strings.xml` into `iosApp/iosApp/Strings/<Module>.xcstrings` on each Xcode
   build, and fails if a language is missing a key. Swift uses `tr("key", args…, table: .home)`. Edit the
   `strings.xml`, never the generated `.xcstrings`.
-- Status: **not wired up yet** — `composeResources/` string catalogs don't exist. Set up `values/` +
-  `values-pt-rBR/` for the Compose UI; the iOS mechanism waits on the open decision above.
+- Kotlin code on iOS that needs copy with no screen up (notifications) reads the same table through
+  `localizedString(key, args…)` (`shared/src/iosMain/…/platform/LocalizedString.kt`).
 
 ## Key Interface — Never Break This
 
@@ -453,9 +440,9 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
   SQLite driver** (`androidx.sqlite:sqlite-bundled`) so iOS/native works; add the KSP room compiler per
   target. Don't reach for SQLDelight — Room is the decided choice.
 - Don't import Android-specific Compose APIs in `commonMain`.
-- Don't build new iOS UI in Compose — new iOS screens are SwiftUI. Don't remove the Compose host for a
-  slice until its SwiftUI replacement ships. Don't put presentation logic in Swift; it belongs in the
-  shared ViewModel.
+- Don't build iOS UI in Compose, and don't let Compose back into the iOS framework (no Compose or Compose
+  Resources dependency in `:shared` commonMain/iosMain or in anything it exports). Don't put presentation
+  logic in Swift; it belongs in the shared ViewModel.
 - Don't expose Compose types (`Color`, `ImageVector`, `StringResource`, `@Composable` lambdas) from
   ViewModels or anything exported to the iOS framework.
 - Don't hand-write Flow/suspend bridges for Swift — SKIE handles them.
@@ -499,7 +486,6 @@ Keep three layers distinct — only the middle one carries the `app.tanuki` umbr
 - Apple Liquid Glass (implemented natively in the iOS app): https://developer.apple.com/documentation/technologyoverviews/liquid-glass
 - SF Symbols: https://developer.apple.com/sf-symbols/
 - Material Symbols: https://fonts.google.com/icons
-- Compose Multiplatform for iOS (current iOS host, until the split): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-multiplatform-ios.html
 - Compose Multiplatform Resources (localized strings, images): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-multiplatform-resources.html
 - Navigation Compose (multiplatform): https://www.jetbrains.com/help/kotlin-multiplatform-dev/compose-navigation-routing.html
 - KMP docs: https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html

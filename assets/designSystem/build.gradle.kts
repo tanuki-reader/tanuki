@@ -9,9 +9,6 @@ plugins {
 }
 
 kotlin {
-    iosArm64()
-    iosSimulatorArm64()
-
     androidLibrary {
         namespace = "app.tanuki.assets.designSystem"
         compileSdk =

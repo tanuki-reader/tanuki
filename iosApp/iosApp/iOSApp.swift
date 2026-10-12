@@ -6,7 +6,7 @@ import Shared
 struct iOSApp: App {
     init() {
         // Must happen before launch finishes: iOS requires every BGTaskScheduler identifier to be
-        // registered by then and throws otherwise. Doing it here, rather than when the Compose view
+        // registered by then and throws otherwise. Doing it here, rather than when the first view
         // is created, is the difference between "registered in time" and a launch-time crash.
         IosBackgroundTasksKt.registerLibraryUpdateTask()
         IosDownloadTasksKt.registerDownloadTask()
@@ -19,7 +19,7 @@ struct iOSApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
                 // Scene content only appears for a launch with UI. A background task launch runs init
                 // but never this, which is the point (see AppStartup). Idempotent, so re-appearing is
                 // harmless.

@@ -11,18 +11,10 @@ import app.tanuki.core.domain.common.service.info
 import app.tanuki.core.domain.update.model.MangaUpdateSummary
 import app.tanuki.core.domain.update.service.LibraryUpdateNotifier
 import app.tanuki.shared.R
-import app.tanuki.shared.resources.Res
-import app.tanuki.shared.resources.notification_channel_updates
-import app.tanuki.shared.resources.notification_channel_updates_description
-import app.tanuki.shared.resources.notification_updates_chapters
-import app.tanuki.shared.resources.notification_updates_line
-import app.tanuki.shared.resources.notification_updates_title
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
-import org.jetbrains.compose.resources.getPluralString
-import org.jetbrains.compose.resources.getString
 
 /**
  * Android [LibraryUpdateNotifier], posting one grouped notification.
@@ -32,9 +24,9 @@ import org.jetbrains.compose.resources.getString
  * many releases, so the compat layer would add a dependency to paper over versions the app cannot run
  * on anyway.
  *
- * Copy is resolved with Compose Resources' **non-composable** `getString`/`getPluralString`, which
- * follow the system locale — the right source here, since a notification is read outside the app and
- * there is no composition to inherit a locale from.
+ * Copy is resolved from the app's resources through [Context], which follows the system locale — the
+ * right source here, since a notification is read outside the app and there is no composition to
+ * inherit a locale from.
  *
  * Permission is checked, never requested: `POST_NOTIFICATIONS` needs an Activity to prompt from and
  * this runs from a background worker. `MainActivity` asks; if the user declined, this quietly does
@@ -85,16 +77,16 @@ class AndroidLibraryUpdateNotifier(
             return setContentTitle(single.title).setContentText(single.chapterCountText())
         }
 
-        val lines = summaries.map { getString(Res.string.notification_updates_line, it.title, it.chapterCountText()) }
+        val lines = summaries.map { context.getString(R.string.notification_updates_line, it.title, it.chapterCountText()) }
         val inbox = Notification.InboxStyle()
         lines.forEach(inbox::addLine)
-        return setContentTitle(getPluralString(Res.plurals.notification_updates_title, summaries.size, summaries.size))
+        return setContentTitle(context.resources.getQuantityString(R.plurals.notification_updates_title, summaries.size, summaries.size))
             .setContentText(lines.joinToString(SUMMARY_SEPARATOR))
             .setStyle(inbox)
     }
 
     private suspend fun MangaUpdateSummary.chapterCountText(): String =
-        getPluralString(Res.plurals.notification_updates_chapters, newChapterCount, newChapterCount)
+        context.resources.getQuantityString(R.plurals.notification_updates_chapters, newChapterCount, newChapterCount)
 
     private suspend fun NotificationManager.ensureChannel() {
         // Cheap to re-create: the platform ignores a channel that already exists and never overwrites
@@ -102,9 +94,9 @@ class AndroidLibraryUpdateNotifier(
         createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
-                getString(Res.string.notification_channel_updates),
+                context.getString(R.string.notification_channel_updates),
                 NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = getString(Res.string.notification_channel_updates_description) },
+            ).apply { description = context.getString(R.string.notification_channel_updates_description) },
         )
     }
 

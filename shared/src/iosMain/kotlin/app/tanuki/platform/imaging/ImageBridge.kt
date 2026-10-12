@@ -25,9 +25,8 @@ import platform.Foundation.create
  *
  * SwiftUI's AsyncImage/URLSession can't do what makes a cover load: fetch over the shared,
  * Cloudflare-aware Ktor client (it holds the solved `cf_clearance`), send the cover's headers, and
- * cache successes only. Coil already does all of that for the Compose screens, so Swift asks Coil too,
- * through the *same* loader instance, and shares its memory cache and its one disk cache over
- * `cover_cache`. A cover cached by a Compose screen is a hit for a SwiftUI one, and back.
+ * cache successes only. Coil does all of that (and does it for Android's Compose screens), so Swift
+ * asks Coil, through one process-wide loader with one disk cache over `cover_cache`.
  *
  * What Swift gets is the **encoded** image: Coil fetches and caches, a pass-through decoder hands back
  * the bytes, and Swift decodes with ImageIO at the size it draws. Decoding into a Skia bitmap here and
@@ -48,8 +47,8 @@ suspend fun loadCoverData(
 
 /**
  * A reader page at [url] with [headers] (a source's Referer, say), as encoded image data, or `null` when
- * it can't be had. Through the reader's own page loader — the same one, and the same `page_cache`, as
- * the Compose reader (see [sharedPageImageLoader]) — so a page prefetched by either is a hit for both.
+ * it can't be had. Through the reader's own page loader and its `page_cache` (see
+ * [sharedPageImageLoader]).
  * A downloaded page is a local file, and Swift reads it itself; this is for source pages only.
  */
 suspend fun loadPageData(
@@ -59,9 +58,8 @@ suspend fun loadPageData(
     loadEncodedImage(sharedPageImageLoader(PlatformContext.INSTANCE, appGraph.sourceHttpClient), url, headers)?.toNSData()
 
 /**
- * Coil's singleton loader, built by [newTanukiImageLoader] over the shared source client. It's the same
- * factory the Compose host (`TanukiComposeHost`) registers, so whichever side asks first creates it, and
- * there is only ever one `DiskCache` over `cover_cache`. Two over one directory would corrupt each other.
+ * Coil's singleton loader, built by [newTanukiImageLoader] over the shared source client, so there is
+ * only ever one `DiskCache` over `cover_cache`. Two over one directory would corrupt each other.
  */
 private fun coverImageLoader(): ImageLoader {
     SingletonImageLoader.setSafe { context -> newTanukiImageLoader(context, appGraph.sourceHttpClient) }
@@ -85,8 +83,8 @@ internal suspend fun loadEncodedImage(
                     NetworkHeaders.Builder().apply { headers.forEach { (name, value) -> add(name, value) } }.build()
                 }
             ).decoderFactory(PassThroughDecoder)
-            // The memory cache holds decoded bitmaps for Compose. Encoded bytes don't belong in it: they'd
-            // count against its budget, and a Compose screen asking for this URL would get bytes back.
+            // Coil's memory cache is for decoded bitmaps, and Nuke keeps the memory cache on iOS: encoded
+            // bytes in it would only count against its budget.
             .memoryCachePolicy(CachePolicy.DISABLED)
             .build()
     return when (val result = loader.execute(request)) {
