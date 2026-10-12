@@ -50,6 +50,8 @@ struct ActivityScreen: View {
 private struct HistorySections: View {
     let days: [HistoryDay]
     let vm: ActivityViewModel
+    /// The row whose Delete was tapped, awaiting confirmation. UI-only state, like a field being typed.
+    @State private var pendingDelete: Shared.HistoryRow?
 
     var body: some View {
         if days.isEmpty {
@@ -62,16 +64,31 @@ private struct HistorySections: View {
                     Button { vm.onRowClick(row: row) } label: { HistoryRowView(row: row, day: day) }
                         .buttonStyle(.plain)
                         .listRowBackground(Color.tk.surfaceRaised)
+                        // Text-only swipe actions, as on the Sources rows: Delete is destructive and confirms
+                        // first, the same movement as removing a source.
                         .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) { vm.onDeleteRow(row: row) } label: {
-                                Label(tr("activity_action_delete", table: .activity), systemImage: "trash")
+                            Button(tr("activity_action_delete", table: .activity), role: .destructive) {
+                                pendingDelete = row
                             }
-                            Button { vm.onOpenSeries(mangaId: row.mangaId) } label: {
-                                Label(tr("activity_action_series", table: .activity), systemImage: "book")
+                            Button(tr("activity_action_series", table: .activity)) {
+                                vm.onOpenSeries(mangaId: row.mangaId)
                             }
                         }
                 }
             }
+        }
+        .alert(
+            tr("activity_delete_title", pendingDelete?.title ?? "", table: .activity),
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            presenting: pendingDelete
+        ) { row in
+            Button(tr("activity_cancel", table: .activity), role: .cancel) { pendingDelete = nil }
+            Button(tr("activity_action_delete", table: .activity), role: .destructive) {
+                vm.onDeleteRow(row: row)
+                pendingDelete = nil
+            }
+        } message: { _ in
+            Text(tr("activity_delete_message", table: .activity))
         }
     }
 

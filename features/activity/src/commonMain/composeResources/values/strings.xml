@@ -11,6 +11,9 @@
     <string name="activity_cover_content_description">Cover of %1$s</string>
     <string name="activity_action_series">Series</string>
     <string name="activity_action_delete">Delete</string>
+    <string name="activity_delete_title">Delete history for %1$s?</string>
+    <string name="activity_delete_message">These reads are removed from your history.</string>
+    <string name="activity_cancel">Cancel</string>
     <string name="activity_day_today">Today</string>
     <string name="activity_day_yesterday">Yesterday</string>
     <plurals name="activity_days_ago">

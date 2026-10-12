@@ -11,6 +11,9 @@
     <string name="activity_cover_content_description">Capa de %1$s</string>
     <string name="activity_action_series">Série</string>
     <string name="activity_action_delete">Excluir</string>
+    <string name="activity_delete_title">Excluir o histórico de %1$s?</string>
+    <string name="activity_delete_message">Estas leituras são removidas do seu histórico.</string>
+    <string name="activity_cancel">Cancelar</string>
     <string name="activity_day_today">Hoje</string>
     <string name="activity_day_yesterday">Ontem</string>
     <plurals name="activity_days_ago">

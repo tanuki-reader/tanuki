@@ -52,6 +52,23 @@
         }
       }
     },
+    "activity_cancel": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelar"
+          }
+        }
+      }
+    },
     "activity_chapter_range": {
       "extractionState": "manual",
       "localizations": {
@@ -358,6 +375,40 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "activity_delete_message": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These reads are removed from your history."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas leituras são removidas do seu histórico."
+          }
+        }
+      }
+    },
+    "activity_delete_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete history for %1$@?"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Excluir o histórico de %1$@?"
           }
         }
       }
