@@ -42,6 +42,7 @@ import androidx.navigationevent.compose.NavigationBackHandler
 import androidx.navigationevent.compose.rememberNavigationEventState
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.assets.designSystem.TanukiRadii
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.CloseIcon
 import app.tanuki.assets.designSystem.component.LockIcon
@@ -63,7 +64,7 @@ import app.tanuki.shared.R
 import dev.zacsweers.metrox.viewmodel.metroViewModel
 
 /** Height of the layer's own bar, matching the design system's app-bar height. */
-private val SessionBarHeight = 56.dp
+private val SessionBarHeight = TanukiSpacing.appBarHeight
 
 /**
  * Draw order for a revealed layer: above the whole app, since it is now the thing the user must deal with.
@@ -246,7 +247,7 @@ private fun SiteSessionLayer(
                 ) { tint -> CloseIcon(tint = tint, size = 22.dp) }
                 Text(
                     text = stringResource(titleResource),
-                    style = TanukiTheme.typography.title,
+                    style = TanukiTheme.typography.headline,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,

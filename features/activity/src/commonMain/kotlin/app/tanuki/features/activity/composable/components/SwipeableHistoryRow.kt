@@ -94,7 +94,7 @@ internal fun SwipeableHistoryRow(
             ActionBobble(
                 label = deleteLabel,
                 container = TanukiTheme.colors.danger,
-                content = Color.White,
+                content = MaterialTheme.colorScheme.onError,
                 icon = { tint -> TrashIcon(tint = tint) },
                 progress = ::progress,
                 // No close(): deleting removes the row from the list, so there's nothing left to snap back.

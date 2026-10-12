@@ -30,7 +30,7 @@ internal fun StatTile(
         ) {
             Text(
                 text = value,
-                style = TanukiTheme.typography.title,
+                style = TanukiTheme.typography.headline,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

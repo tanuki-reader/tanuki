@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import app.tanuki.assets.designSystem.TanukiTheme
-import app.tanuki.assets.designSystem.component.ChevronRightIcon
 import app.tanuki.assets.designSystem.component.SectionHeader
 import app.tanuki.assets.designSystem.component.SourceIcon
 import app.tanuki.assets.designSystem.component.TanukiButton
@@ -264,7 +263,6 @@ private fun ReadingModeRow(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        ChevronRightIcon(tint = TanukiTheme.colors.textFaint)
     }
 }
 

@@ -9,6 +9,7 @@
     <!-- Aviso mostrado quando o "puxar para atualizar" da tela de detalhes falha. -->
     <string name="manga_refresh_failed">Não foi possível atualizar pela fonte</string>
     <string name="manga_refresh_retry">Tentar de novo</string>
+    <string name="manga_refresh_dismiss">Agora não</string>
 
     <string name="manga_no_chapters">Nenhum capítulo ainda</string>
 

@@ -35,10 +35,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /** The design system's Android app-bar height (`--appbar-h`). */
-private val AppBarHeight = 56.dp
+private val AppBarHeight = TanukiSpacing.appBarHeight
 
 /** Peak opacity of the circular scrim behind the back button while it floats over content. */
 private const val FLOATING_BACK_SCRIM_ALPHA = 0.7f
@@ -172,7 +173,7 @@ fun TanukiDetailTopBar(
             }
             Text(
                 text = title,
-                style = TanukiTheme.typography.title,
+                style = TanukiTheme.typography.headline,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

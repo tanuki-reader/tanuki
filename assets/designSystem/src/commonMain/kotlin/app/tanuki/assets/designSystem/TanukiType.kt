@@ -10,88 +10,99 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
- * Tanuki typography tokens — Android dialect, synced from `tokens/typography.css`.
+ * The Bricolage Grotesque display face (bundled, OFL) at [weight], with its optical-size axis set to
+ * [opticalSize] so each display style gets the cut drawn for its size.
+ */
+internal expect fun displayFontFamily(
+    weight: FontWeight,
+    opticalSize: Float,
+): FontFamily
+
+/**
+ * The Tanuki type scale, Android dialect, from the design system's `tokens.json`.
  *
- * The Android face is **Roboto**, which is the platform default — so [FontFamily.Default] resolves to
- * it with no font bundling. (iOS uses SF Pro via the system stack in its own SwiftUI token set.)
- * Scale from the design doc: Display 28 / Title 20 / Headline 17 / Body 14 / Caption 11 / Label 9.
+ * Display styles (`hero`, `titleXl`, `titleL`) are Bricolage Grotesque, always bold and tracked slightly
+ * tight; never use them for body text, numbers or anything under 20sp. Text styles are the platform face
+ * (Roboto, [FontFamily.Default]); `numeric` is mono, for counts and page numbers. Nothing is under 11sp.
  */
 @Immutable
 object TanukiTextStyles {
-    private val ui = FontFamily.Default // Roboto on Android
-    private val mono = FontFamily.Monospace // Roboto Mono on Android
+    private val text = FontFamily.Default
+    private val mono = FontFamily.Monospace
 
-    private val Regular = FontWeight.W400
-    private val Medium = FontWeight.W500
-    private val Bold = FontWeight.W700
-
-    val display =
+    /** Series title on the manga detail hero; the onboarding headline. One per screen. */
+    val hero =
         TextStyle(
-            fontFamily = ui,
-            fontWeight = Bold,
+            fontFamily = displayFontFamily(FontWeight.W700, 34f),
+            fontWeight = FontWeight.W700,
+            fontSize = 34.sp,
+            lineHeight = 38.sp,
+            letterSpacing = (-0.02).em,
+        )
+
+    /** Large screen titles (Library, Browse, …) when the bar is expanded. */
+    val titleXl =
+        TextStyle(
+            fontFamily = displayFontFamily(FontWeight.W700, 28f),
+            fontWeight = FontWeight.W700,
             fontSize = 28.sp,
-            lineHeight = 34.sp,
-            letterSpacing = (-0.02).em
+            lineHeight = 32.sp,
+            letterSpacing = (-0.015).em,
         )
-    val title =
+
+    /** Dialog and sheet titles, empty-state headlines, section heroes. */
+    val titleL =
         TextStyle(
-            fontFamily = ui,
-            fontWeight = Bold,
-            fontSize = 20.sp,
-            lineHeight = 26.sp,
-            letterSpacing = (-0.02).em
+            fontFamily = displayFontFamily(FontWeight.W600, 22f),
+            fontWeight = FontWeight.W600,
+            fontSize = 22.sp,
+            lineHeight = 28.sp,
+            letterSpacing = (-0.01).em,
         )
-    val headline =
-        TextStyle(
-            fontFamily = ui,
-            fontWeight = Medium,
-            fontSize = 17.sp,
-            lineHeight = 22.sp
-        )
-    val body =
-        TextStyle(
-            fontFamily = ui,
-            fontWeight = Regular,
-            fontSize = 14.sp,
-            lineHeight = 20.sp
-        )
-    val caption =
-        TextStyle(
-            fontFamily = ui,
-            fontWeight = Regular,
-            fontSize = 11.sp,
-            lineHeight = 15.sp
-        )
+
+    /** Collapsed top-bar titles, row titles that lead a group, card titles. */
+    val headline = TextStyle(fontFamily = text, fontWeight = FontWeight.W600, fontSize = 17.sp, lineHeight = 22.sp)
+
+    /** Synopsis and long-form text on the detail screen. */
+    val bodyLg = TextStyle(fontFamily = text, fontWeight = FontWeight.W400, fontSize = 16.sp, lineHeight = 24.sp)
+
+    /** Default UI text: list-row titles, settings, menu items. */
+    val body = TextStyle(fontFamily = text, fontWeight = FontWeight.W400, fontSize = 14.sp, lineHeight = 20.sp)
+
+    /** Buttons, chips, tabs, segmented controls, text links. */
     val label =
-        TextStyle(
-            fontFamily = ui,
-            fontWeight = Medium,
-            fontSize = 9.sp,
-            lineHeight = 12.sp,
-            letterSpacing = 0.04.em
-        )
-    val mono14 =
-        TextStyle(
-            fontFamily = mono,
-            fontWeight = Regular,
-            fontSize = 14.sp,
-            lineHeight = 20.sp
-        )
+        TextStyle(fontFamily = text, fontWeight = FontWeight.W600, fontSize = 13.sp, lineHeight = 16.sp, letterSpacing = 0.01.em)
+
+    /** Metadata lines: chapter date, source name, file size. */
+    val caption = TextStyle(fontFamily = text, fontWeight = FontWeight.W400, fontSize = 12.sp, lineHeight = 16.sp)
+
+    /** Section headers above grouped lists. Set the text in uppercase. */
+    val overline =
+        TextStyle(fontFamily = text, fontWeight = FontWeight.W700, fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.06.em)
+
+    /** Series title on a cover tile, two lines max. */
+    val tileTitle = TextStyle(fontFamily = text, fontWeight = FontWeight.W600, fontSize = 12.sp, lineHeight = 15.sp)
+
+    /** Counts, progress and page numbers, in mono for a steady width. */
+    val numeric = TextStyle(fontFamily = mono, fontWeight = FontWeight.W500, fontSize = 13.sp, lineHeight = 16.sp)
 }
 
-/**
- * Material 3 [Typography] mapped from the Tanuki scale, so components reading
- * `MaterialTheme.typography` get on-brand styles. The full named set (incl. caption/label/mono) is on
- * [TanukiTextStyles], reached via [LocalTanukiTypography].
- */
+/** Material 3 [Typography] slots mapped per the design system, so M3 components come out on-brand. */
 fun tanukiTypography(): Typography =
-    Typography(
-        displayLarge = TanukiTextStyles.display,
-        titleLarge = TanukiTextStyles.title,
-        titleMedium = TanukiTextStyles.headline,
-        bodyMedium = TanukiTextStyles.body,
-        bodySmall = TanukiTextStyles.caption,
-        labelSmall = TanukiTextStyles.label
-    )
+    with(TanukiTextStyles) {
+        Typography(
+            displaySmall = hero,
+            headlineMedium = titleXl,
+            headlineSmall = titleL,
+            titleLarge = titleL,
+            titleMedium = headline,
+            bodyLarge = bodyLg,
+            bodyMedium = body,
+            bodySmall = caption,
+            labelLarge = label,
+            labelMedium = label,
+            labelSmall = overline,
+        )
+    }
 
 val LocalTanukiTypography = staticCompositionLocalOf { TanukiTextStyles }

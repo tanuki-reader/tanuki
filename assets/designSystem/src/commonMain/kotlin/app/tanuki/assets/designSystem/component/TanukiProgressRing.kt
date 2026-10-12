@@ -1,5 +1,6 @@
 package app.tanuki.assets.designSystem.component
 
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.tooling.preview.Preview
@@ -66,7 +66,7 @@ fun TanukiProgressRing(
     modifier: Modifier = Modifier,
     size: Dp = 20.dp,
     color: Color = TanukiTheme.colors.accent,
-    trackColor: Color = TanukiTheme.colors.scrimSoft
+    trackColor: Color = TanukiTheme.colors.line
 ) {
     // Only started when it is actually going to be drawn: a determinate ring that kept an infinite
     // transition running would animate a value nothing reads, once per row, for as long as the screen is

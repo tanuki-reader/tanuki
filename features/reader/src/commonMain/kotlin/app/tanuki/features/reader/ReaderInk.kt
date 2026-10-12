@@ -1,7 +1,7 @@
 package app.tanuki.features.reader
 
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.staticCompositionLocalOf
 import app.tanuki.assets.designSystem.ReaderColors
 import app.tanuki.core.domain.settings.model.ReaderBackground
 
@@ -15,9 +15,9 @@ internal fun ReaderBackground?.ground(): Color =
 
 /**
  * Text and glyphs drawn straight on the reader's ground (transition slides, the end slide, the error):
- * white on black, `reader-sepia-ink` on sepia and on paper. The chrome sits on its own surface and doesn't
+ * paper on black, `reader-sepia-ink` on sepia and on paper. The chrome sits on its own surface and doesn't
  * use it.
  */
-internal fun ReaderBackground?.ink(): Color = if (this == ReaderBackground.Black || this == null) Color.White else ReaderColors.SepiaInk
+internal fun ReaderBackground?.ink(): Color = if (this == ReaderBackground.Black || this == null) ReaderColors.Paper else ReaderColors.SepiaInk
 
-internal val LocalReaderInk = staticCompositionLocalOf { Color.White }
+internal val LocalReaderInk = staticCompositionLocalOf { ReaderColors.Paper }

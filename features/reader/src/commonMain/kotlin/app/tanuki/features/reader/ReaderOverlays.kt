@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,11 +25,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.ReaderColors
 import app.tanuki.assets.designSystem.TanukiMotion
 import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
@@ -66,7 +67,7 @@ internal fun BoxScope.ChapterProgressBar(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .height(PROGRESS_BAR_HEIGHT)
-                .background(Color.White.copy(alpha = 0.16f))
+                .background(LocalReaderInk.current.copy(alpha = 0.16f))
         ) {
             Box(
                 Modifier
@@ -121,13 +122,13 @@ internal fun BoxScope.ChapterChangeIndicator(
                 .statusBarsPadding()
                 .padding(top = TanukiTheme.spacing.sm)
                 .clip(TanukiRadii.pillShape)
-                .background(TanukiTheme.colors.scrimSoft)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = TanukiTheme.spacing.md, vertical = TanukiTheme.spacing.xs)
         ) {
             Text(
                 text = title,
                 style = TanukiTheme.typography.caption,
-                color = Color.White
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -142,7 +143,7 @@ private const val CHAPTER_PILL_VISIBLE_MS = 2200L
 @Preview(showBackground = true)
 @Composable
 private fun ChapterProgressBarPreview() {
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(Modifier.fillMaxSize().background(ReaderColors.Black)) {
         ChapterProgressBar(currentPage = 3, pageCount = 10, reversed = false, visible = true)
     }
 }

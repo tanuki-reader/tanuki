@@ -8,6 +8,7 @@ struct DownloadsScreen: View {
     @Binding var path: [Route]
     @State private var model = ScreenModel({ $0.downloadsViewModel() }, uiState: \.uiState)
     @State private var confirmingCancelAll = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let state = model.state
@@ -77,7 +78,7 @@ struct DownloadsScreen: View {
             .scrollContentBackground(.hidden)
             // Dimmed, not disabled: the rows leaving one by one are the feedback that a sweep is working.
             .opacity(state.busy ? 0.5 : 1)
-            .animation(.default, value: state.series)
+            .animation(reduceMotion ? TK.Motion.reduced : TK.Motion.enter, value: state.series)
         }
     }
 }
@@ -155,7 +156,7 @@ private struct ChapterRow: View {
 
     var body: some View {
         HStack(spacing: TK.Space.s3) {
-            leading.frame(width: 20, height: 20)
+            leading.frame(width: TK.Size.iconSm, height: TK.Size.iconSm)
             VStack(alignment: .leading, spacing: TK.Space.s1) {
                 Text(title).tkStyle(.body).foregroundStyle(Color.tk.ink).lineLimit(1)
                 Text(status)

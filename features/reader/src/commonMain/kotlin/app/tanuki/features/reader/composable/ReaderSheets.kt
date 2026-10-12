@@ -15,10 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DownloadDone
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +30,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.component.TanukiSymbols
 import app.tanuki.assets.designSystem.ReaderColors
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCover
@@ -45,6 +42,7 @@ import app.tanuki.assets.designSystem.component.TanukiSegmentedControl
 import app.tanuki.core.domain.manga.model.ReadingMode
 import app.tanuki.core.domain.settings.model.ReaderBackground
 import app.tanuki.features.reader.LocalPageImageLoader
+import app.tanuki.features.reader.ink
 import app.tanuki.features.reader.composable.components.chapterTitle
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_background_black
@@ -196,7 +194,7 @@ private fun ChapterRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.semantics { contentDescription = description }
             ) {
-                Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = TanukiTheme.colors.accent, modifier = Modifier.size(16.dp))
+                Icon(TanukiSymbols.BookmarkFilled, contentDescription = null, tint = TanukiTheme.colors.accent, modifier = Modifier.size(16.dp))
                 Text(
                     text = chapter.bookmarkCount.toString(),
                     style = TanukiTheme.typography.caption,
@@ -206,7 +204,7 @@ private fun ChapterRow(
         }
         if (chapter.isDownloaded) {
             Icon(
-                Icons.Rounded.DownloadDone,
+                TanukiSymbols.DownloadDone,
                 contentDescription = stringResource(Res.string.reader_chapter_downloaded),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
@@ -315,10 +313,10 @@ private fun SettingsSheet(
             modifier = Modifier.fillMaxWidth().padding(horizontal = TanukiTheme.spacing.gutter),
             horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.lg)
         ) {
-            BackgroundSwatch(ReaderColors.Black, Color.White, stringResource(Res.string.reader_background_black), background == ReaderBackground.Black) {
+            BackgroundSwatch(ReaderColors.Black, ReaderBackground.Black.ink(), stringResource(Res.string.reader_background_black), background == ReaderBackground.Black) {
                 onBackgroundChange(ReaderBackground.Black)
             }
-            BackgroundSwatch(ReaderColors.Paper, Color.Black, stringResource(Res.string.reader_background_paper), background == ReaderBackground.Paper) {
+            BackgroundSwatch(ReaderColors.Paper, ReaderBackground.Paper.ink(), stringResource(Res.string.reader_background_paper), background == ReaderBackground.Paper) {
                 onBackgroundChange(ReaderBackground.Paper)
             }
             BackgroundSwatch(ReaderColors.Sepia, ReaderColors.SepiaInk, stringResource(Res.string.reader_background_sepia), background == ReaderBackground.Sepia) {
@@ -369,7 +367,7 @@ private fun BackgroundSwatch(
                     ).padding(3.dp)
                     .background(ground, CircleShape)
         ) {
-            if (selected) Icon(Icons.Rounded.Check, contentDescription = null, tint = ink)
+            if (selected) Icon(TanukiSymbols.Check, contentDescription = null, tint = ink)
         }
         Text(
             text = label,

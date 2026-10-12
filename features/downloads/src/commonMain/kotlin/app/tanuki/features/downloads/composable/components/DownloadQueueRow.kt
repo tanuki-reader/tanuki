@@ -114,7 +114,6 @@ internal fun DownloadQueueRow(
         },
         // The row itself does nothing, so it must not look like it opens something. Its two controls are
         // the only targets on it.
-        showChevron = false
     )
 }
 

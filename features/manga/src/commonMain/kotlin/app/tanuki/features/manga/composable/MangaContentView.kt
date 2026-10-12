@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.MangaCoverTile
 import app.tanuki.assets.designSystem.component.TanukiTag
@@ -60,7 +61,7 @@ import org.jetbrains.compose.resources.stringResource
 /** The two panes of the detail body's tabbed section. Ordinal order drives the slide direction. */
 
 /** Matches the design system's detail app-bar height; the hero collapses down to this (under the bar). */
-private val DetailBarHeight = 56.dp
+private val DetailBarHeight = TanukiSpacing.appBarHeight
 
 /**
  * The detail body: a **collapsing** hero, then a Chapters / Info segmented control, then the selected
@@ -306,7 +307,7 @@ internal fun RecommendationsRow(
     Column(Modifier.padding(vertical = spacing.sm), verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
         Text(
             text = stringResource(Res.string.manga_metadata_recommendations),
-            style = TanukiTheme.typography.title,
+            style = TanukiTheme.typography.headline,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = spacing.gutter)
         )

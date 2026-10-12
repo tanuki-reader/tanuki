@@ -203,7 +203,7 @@ private struct SettingsSheet: View {
                     .overlay {
                         if selected { Image(systemName: "checkmark").foregroundStyle(ReaderGround.ink(background)) }
                     }
-                    .frame(width: 44, height: 44)
+                    .frame(width: TK.Size.tapIos, height: TK.Size.tapIos)
                 Text(tr(key, table: .reader)).tkStyle(.caption).foregroundStyle(Color.tk.ink)
             }
         }

@@ -2,6 +2,8 @@ package app.tanuki.assets.designSystem
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 
@@ -35,6 +37,7 @@ fun TanukiTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = tanukiTypography(),
+            shapes = tanukiShapes,
             content = content
         )
     }
@@ -51,3 +54,12 @@ object TanukiTheme {
     val typography: TanukiTextStyles
         @Composable get() = LocalTanukiTypography.current
 }
+/** The M3 shape scale on the design system's radii (xs 4, sm 8, md 12, lg 16, xl 28). */
+private val tanukiShapes =
+    Shapes(
+        extraSmall = RoundedCornerShape(TanukiRadii.xs),
+        small = TanukiRadii.chipShape,
+        medium = TanukiRadii.fieldShape,
+        large = TanukiRadii.cardShape,
+        extraLarge = TanukiRadii.dialogShape,
+    )

@@ -1794,6 +1794,23 @@
         }
       }
     },
+    "manga_refresh_dismiss": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not now"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agora não"
+          }
+        }
+      }
+    },
     "manga_refresh_failed": {
       "extractionState": "manual",
       "localizations": {

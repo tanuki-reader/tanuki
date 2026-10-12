@@ -98,7 +98,7 @@ struct MangaScreen: View {
             isPresented: Binding(get: { content.refresh.failed }, set: { _ in })
         ) {
             Button(tr("manga_refresh_retry", table: .manga)) { model.vm.onRefresh() }
-            Button("OK", role: .cancel) { model.vm.onDismissRefreshError() }
+            Button(tr("manga_refresh_dismiss", table: .manga), role: .cancel) { model.vm.onDismissRefreshError() }
         }
     }
 
@@ -135,6 +135,7 @@ struct MangaScreen: View {
                     header.readingStatus.map(readingStatusTitle) ?? tr("manga_info_add_to_library", table: .manga),
                     systemImage: header.inLibrary ? "bookmark.fill" : "bookmark"
                 )
+                .contentTransition(.symbolEffect(.replace))
                 .frame(maxWidth: .infinity)
             }
             Button {
@@ -143,7 +144,11 @@ struct MangaScreen: View {
                 Label(tr("manga_action_categories", table: .manga), systemImage: "folder").frame(maxWidth: .infinity)
             }
         }
-        .buttonStyle(.glass)
+        // Content, not navigation: solid capsules on `surface-raised`, never glass (glass is the chrome layer).
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .tint(Color.tk.surfaceRaised)
+        .foregroundStyle(Color.tk.ink)
         .controlSize(.large)
         .padding(.horizontal, TK.Space.s5)
     }
@@ -176,7 +181,7 @@ struct MangaScreen: View {
             }
         }
         .padding(.horizontal, TK.Space.s4)
-        .frame(minHeight: 48)
+        .frame(minHeight: TK.Size.tapIos)
         .contentShape(Rectangle())
     }
 
@@ -255,7 +260,8 @@ struct MangaScreen: View {
 
     private func selectionBar(_ content: MangaStateContent) -> some View {
         let selection = content.selection
-        return HStack {
+        // Neighbouring glass buttons share one container, so they merge instead of overlapping.
+        return GlassEffectContainer { HStack {
             Button(tr("manga_selection_mark_read", table: .manga), systemImage: "checkmark.circle") {
                 model.vm.onMarkSelectionRead(read: true)
             }
@@ -272,7 +278,7 @@ struct MangaScreen: View {
                 model.vm.onDeleteSelectionDownloads()
             }
             .disabled(!selection.canDeleteDownload)
-        }
+        } }
         .labelStyle(.iconOnly)
         .buttonStyle(.glass)
         .controlSize(.large)
@@ -541,12 +547,12 @@ private struct MangaHero: View {
         HStack(alignment: .bottom, spacing: TK.Space.s4) {
             MangaCover(seed: seed, url: header.coverUrl, headers: header.coverHeaders)
                 .frame(width: 124)
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 2)
+                .shadow(color: Color.tk.shadowCover, radius: 4, y: 2) // shadow-cover: 0 2px 8px, the hero cover only
                 .onLongPressGesture(perform: onChooseCover)
                 .accessibilityAction(named: tr("manga_metadata_cover_title", table: .manga), onChooseCover)
             VStack(alignment: .leading, spacing: TK.Space.s1) {
                 Text(header.title)
-                    .tkStyle(.titleXL)
+                    .tkStyle(.hero)
                     .foregroundStyle(Color.tk.ink)
                     .lineLimit(4)
                 if let author = header.author {
@@ -671,7 +677,7 @@ private struct ChapterRowView: View {
             } label: {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(Color.tk.accent)
             }
-            .frame(width: 44, height: 44)
+            .frame(width: TK.Size.tapIos, height: TK.Size.tapIos)
             .accessibilityLabel(tr("manga_download_downloaded", table: .manga))
         case .downloading:
             Button(action: onDownload) {
@@ -679,19 +685,19 @@ private struct ChapterRowView: View {
                     .progressViewStyle(.circular)
                     .tint(Color.tk.accent)
             }
-            .frame(width: 44, height: 44)
+            .frame(width: TK.Size.tapIos, height: TK.Size.tapIos)
             .accessibilityLabel(tr("manga_download_cancel", table: .manga))
         case .queued:
             Button(action: onDownload) { Image(systemName: "clock").foregroundStyle(Color.tk.inkMuted) }
-                .frame(width: 44, height: 44)
+                .frame(width: TK.Size.tapIos, height: TK.Size.tapIos)
                 .accessibilityLabel(tr("manga_download_queued", table: .manga))
         case .failed:
             Button(action: onDownload) { Image(systemName: "exclamationmark.circle").foregroundStyle(Color.tk.danger) }
-                .frame(width: 44, height: 44)
+                .frame(width: TK.Size.tapIos, height: TK.Size.tapIos)
                 .accessibilityLabel(tr("manga_download_failed", table: .manga))
         case nil:
             Button(action: onDownload) { Image(systemName: "arrow.down.circle").foregroundStyle(Color.tk.inkMuted) }
-                .frame(width: 44, height: 44)
+                .frame(width: TK.Size.tapIos, height: TK.Size.tapIos)
                 .accessibilityLabel(tr("manga_download_chapter", table: .manga))
         }
     }

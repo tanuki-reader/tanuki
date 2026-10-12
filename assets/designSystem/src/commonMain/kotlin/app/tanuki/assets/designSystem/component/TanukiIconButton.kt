@@ -14,10 +14,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiRadii
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /** Square hit target from the design system's `IconButton` — honors the 44dp minimum tap area. */
-private val IconButtonSize = 44.dp
+private val IconButtonSize = TanukiSpacing.tapMin
 
 /**
  * Icon-only tap target for app-bar actions and row controls — the **Android dialect** of the design

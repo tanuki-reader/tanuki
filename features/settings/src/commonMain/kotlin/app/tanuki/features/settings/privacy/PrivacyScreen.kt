@@ -113,7 +113,6 @@ private fun PrivacyScreen(
                 TanukiListRow(
                     title = stringResource(Res.string.settings_reset_identifier),
                     onClick = onResetIdentifier,
-                    showChevron = false
                 )
             }
             Text(

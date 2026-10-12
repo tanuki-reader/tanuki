@@ -1,5 +1,7 @@
 package app.tanuki.navigation
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.height
@@ -60,7 +62,7 @@ internal fun TanukiBottomBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = { onSelect(destination) },
-                icon = { destination.TabIcon(tint) },
+                icon = { destination.TabIcon(tint, selected) },
                 label = {
                     Text(
                         text = stringResource(destination.labelRes()),
@@ -82,17 +84,24 @@ internal fun TanukiBottomBar(
 private fun NavDestination?.isOn(destination: TopLevelDestination): Boolean =
     this?.hierarchy?.any { it.hasRoute(destination::class) } == true
 
-/** The design-system glyph for each tab. */
+/** The design-system glyph for each tab: FILL 0 at rest, FILL 1 when selected, crossfaded over 200ms. */
 @Composable
-private fun TopLevelDestination.TabIcon(tint: Color) {
-    when (this) {
-        TopLevelDestination.Library -> LibraryTabIcon(tint)
-        TopLevelDestination.Home -> HomeTabIcon(tint)
-        TopLevelDestination.Activity -> ActivityTabIcon(tint)
-        TopLevelDestination.Settings -> SettingsTabIcon(tint)
-        TopLevelDestination.Search -> SearchIcon(tint, size = 24.dp)
+private fun TopLevelDestination.TabIcon(
+    tint: Color,
+    selected: Boolean,
+) {
+    Crossfade(selected, animationSpec = tween(FILL_SWAP_MILLIS), label = "tab-fill") { filled ->
+        when (this) {
+            TopLevelDestination.Library -> LibraryTabIcon(tint, filled = filled)
+            TopLevelDestination.Home -> HomeTabIcon(tint, filled = filled)
+            TopLevelDestination.Activity -> ActivityTabIcon(tint, filled = filled)
+            TopLevelDestination.Settings -> SettingsTabIcon(tint, filled = filled)
+            TopLevelDestination.Search -> SearchIcon(tint, size = 24.dp)
+        }
     }
 }
+
+private const val FILL_SWAP_MILLIS = 200
 
 /** The localized label resource for each tab. */
 private fun TopLevelDestination.labelRes(): Int =

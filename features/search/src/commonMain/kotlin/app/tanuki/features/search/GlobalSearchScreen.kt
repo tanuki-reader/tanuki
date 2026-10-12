@@ -200,7 +200,7 @@ private fun Header(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column {
-            Text(text = title, style = TanukiTheme.typography.title, color = MaterialTheme.colorScheme.onBackground)
+            Text(text = title, style = TanukiTheme.typography.headline, color = MaterialTheme.colorScheme.onBackground)
             subtitle?.let { Text(text = it, style = TanukiTheme.typography.caption, color = TanukiTheme.colors.textFaint) }
         }
         if (action != null) {

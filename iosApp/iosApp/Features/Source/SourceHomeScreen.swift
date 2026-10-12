@@ -39,7 +39,7 @@ struct SourceHomeScreen: View {
             ProgressView().frame(maxWidth: .infinity).padding(.top, TK.Space.s16)
         case .error:
             ContentUnavailableView {
-                Label(tr("source_load_error", table: .source), systemImage: "exclamationmark.triangle")
+                Label(tr("source_load_error", table: .source), systemImage: "exclamationmark.circle")
             } actions: {
                 Button(tr("source_retry", table: .source)) { model.vm.onRetry() }
             }

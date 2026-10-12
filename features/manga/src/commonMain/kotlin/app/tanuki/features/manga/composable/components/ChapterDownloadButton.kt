@@ -1,7 +1,6 @@
 package app.tanuki.features.manga.composable.components
 
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,14 +98,7 @@ internal fun ChapterDownloadButton(
                     TanukiProgressRing(progress = download.progress, size = GlyphSize)
 
                 DownloadState.Downloaded ->
-                    DownloadedIcon(
-                        tint = TanukiTheme.colors.success,
-                        // Near-black on the green disc in the dark dialect, near-white in the light one:
-                        // the tick contrasts with the *disc*, so it holds on a selected row's accent wash
-                        // exactly as it does on the plain list.
-                        knockout = MaterialTheme.colorScheme.surface,
-                        size = GlyphSize
-                    )
+                    DownloadedIcon(tint = TanukiTheme.colors.success, size = GlyphSize)
 
                 DownloadState.Failed ->
                     ErrorIcon(tint = TanukiTheme.colors.danger, size = GlyphSize)

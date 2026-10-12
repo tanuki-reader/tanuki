@@ -49,13 +49,13 @@ fun TanukiFilterChip(
         modifier =
             modifier
                 .alpha(if (dimmed) 0.4f else 1f)
-                .clip(TanukiRadii.pillShape)
+                .clip(TanukiRadii.chipShape)
                 .background(fill)
                 .then(
                     if (selected) {
                         Modifier
                     } else {
-                        Modifier.border(1.dp, MaterialTheme.colorScheme.outline, TanukiRadii.pillShape)
+                        Modifier.border(1.dp, MaterialTheme.colorScheme.outline, TanukiRadii.chipShape)
                     }
                 ).clickable(
                     interactionSource = remember { MutableInteractionSource() },

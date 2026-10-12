@@ -5,8 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import app.tanuki.assets.designSystem.component.TanukiSymbols
 import app.tanuki.assets.designSystem.component.TanukiLoadingIndicator
 import app.tanuki.assets.designSystem.component.TanukiMenu
 import app.tanuki.assets.designSystem.component.TanukiMenuItem
@@ -168,7 +167,7 @@ private fun LibraryMoreMenu(onBookmarks: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(Res.string.library_more))
+            Icon(TanukiSymbols.MoreVert, contentDescription = stringResource(Res.string.library_more))
         }
         TanukiMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             TanukiMenuItem(

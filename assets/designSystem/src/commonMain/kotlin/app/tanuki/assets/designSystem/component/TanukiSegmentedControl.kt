@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiRadii
@@ -70,9 +69,9 @@ fun <T> TanukiSegmentedControl(
     BoxWithConstraints(
         modifier =
             modifier
-                .clip(TanukiRadii.containerShape)
+                .clip(TanukiRadii.pillShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .border(BOX_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant, TanukiRadii.containerShape)
+                .border(BOX_BORDER_WIDTH, MaterialTheme.colorScheme.outlineVariant, TanukiRadii.pillShape)
                 .padding(inset)
                 .pointerInput(count) {
                     // Segment under x, in a track `size.width` px wide split into `count` equal segments.
@@ -124,7 +123,7 @@ fun <T> TanukiSegmentedControl(
                 .offset(x = thumbOffset)
                 .width(segmentWidth)
                 .height(SEGMENT_HEIGHT)
-                .clip(RoundedCornerShape(TanukiRadii.container - inset))
+                .clip(TanukiRadii.pillShape)
                 .background(TanukiTheme.colors.accent)
         )
 
@@ -144,7 +143,7 @@ fun <T> TanukiSegmentedControl(
                 ) {
                     Text(
                         text = seg.label,
-                        style = TanukiTheme.typography.body.copy(fontWeight = FontWeight.Medium),
+                        style = TanukiTheme.typography.label,
                         color =
                             if (on) {
                                 MaterialTheme.colorScheme.onPrimary

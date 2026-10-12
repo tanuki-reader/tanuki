@@ -31,8 +31,8 @@ fun TanukiCard(
     content: @Composable () -> Unit
 ) {
     Surface(
-        modifier = modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, TanukiRadii.chipShape),
-        shape = TanukiRadii.chipShape,
+        modifier = modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, TanukiRadii.cardShape),
+        shape = TanukiRadii.cardShape,
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp, // dark, flat surfaces — colour carries elevation, not tint
         content = content
@@ -85,7 +85,7 @@ fun TanukiSectionGroup(
         modifier =
             modifier
                 .fillMaxWidth()
-                .clip(TanukiRadii.chipShape)
+                .clip(TanukiRadii.cardShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         content = content
     )

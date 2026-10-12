@@ -52,7 +52,7 @@ internal fun HistoryList(
             item(key = "day-${day.year}-${day.month}-${day.day}") {
                 Text(
                     text = dayLabel(day),
-                    style = TanukiTheme.typography.label,
+                    style = TanukiTheme.typography.overline,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier =
                         Modifier

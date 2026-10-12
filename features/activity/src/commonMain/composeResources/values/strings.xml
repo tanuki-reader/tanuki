@@ -91,4 +91,7 @@
     <string name="activity_month_oct">Oct</string>
     <string name="activity_month_nov">Nov</string>
     <string name="activity_month_dec">Dec</string>
+    <!-- Axis names the reading chart reads out to VoiceOver (iOS Charts). -->
+    <string name="activity_chart_axis_date">Date</string>
+    <string name="activity_chart_axis_chapters">Chapters</string>
 </resources>

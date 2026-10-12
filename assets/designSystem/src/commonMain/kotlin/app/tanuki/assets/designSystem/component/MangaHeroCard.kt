@@ -17,21 +17,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import app.tanuki.assets.designSystem.TanukiElevation
 import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
-import app.tanuki.assets.designSystem.coverGradient
+import app.tanuki.assets.designSystem.coverGround
 import coil3.compose.AsyncImage
 
 /** Card height; the card's width comes from [MangaHeroCard]'s caller. */
@@ -43,28 +38,21 @@ private val HeroCardCoverWidth = 92.dp
 /** Corner radius of the card panel — the sheet radius (16.dp), softer than a cover's. */
 private val HeroCardCorner = TanukiRadii.card
 
-/** Blur softening the cover backdrop into a colour wash rather than legible art behind the title. */
-private val HeroCardBackdropBlur = 16.dp
-
-/** Backdrop opacity — dim enough that the title stays legible over the wash on either theme. */
-private const val HERO_CARD_BACKDROP_ALPHA = 0.45f
-
 /**
- * A wide "hero" card: the series cover, blurred and dimmed, washes the whole panel; the title sits on the
- * legible left half while an elevated portrait [MangaCover] of the real art sits at the trailing edge.
- * This is the design system's landscape counterpart to the portrait [MangaCoverTile] — the same blurred
- * cover-backdrop treatment as the MangaDetail hero, packaged as a reusable carousel card.
+ * A wide "hero" card: the title on the left of an opaque `surface` panel, the portrait [MangaCover] at the
+ * trailing edge. The landscape counterpart to the portrait [MangaCoverTile]. No backdrop wash: Android has
+ * no blur, and the cover carries the colour.
  *
  * Loads its own art from [coverUrl] via Coil's singleton `ImageLoader` (configured in `App.kt`), exactly
- * like [MangaCoverTile], so callers stay image-loader-agnostic; a `null` [coverUrl] leaves the
- * deterministic [coverGradient] fallback washing the panel and filling the cover.
+ * like [MangaCoverTile], so callers stay image-loader-agnostic; a `null` [coverUrl] leaves the cover on its
+ * fallback [coverGround].
  *
  * The caller fixes the card [width] (height is fixed by the design so a row of cards aligns); in a
  * carousel, size it so the next card peeks in.
  *
- * @param seed stable key (the manga id) picking the fallback gradient, so a series keeps one colour.
+ * @param seed stable key (the manga id) picking the fallback ground, so a series keeps one colour.
  * @param title the series title, drawn prominently on the left.
- * @param coverUrl remote cover art URL; `null` shows the gradient fallback.
+ * @param coverUrl remote cover art URL; `null` shows the fallback ground.
  * @param onClick invoked when the card is tapped.
  * @param width the card's width; height is fixed at [HeroCardHeight].
  * @param coverHeaders headers the cover fetch must carry — empty for almost every source, non-empty
@@ -84,7 +72,6 @@ fun MangaHeroCard(
 ) {
     val spacing = TanukiTheme.spacing
     val colors = TanukiTheme.colors
-    val background = MaterialTheme.colorScheme.background
     val shape = RoundedCornerShape(HeroCardCorner)
 
     Box(
@@ -94,30 +81,9 @@ fun MangaHeroCard(
                 .height(HeroCardHeight)
                 .clip(shape)
                 .background(MaterialTheme.colorScheme.surface)
-                .border(0.5.dp, colors.scrimSoft, shape)
+                .border(0.5.dp, colors.line, shape)
                 .clickable(onClick = onClick)
     ) {
-        // Cover-derived backdrop, blurred and dimmed so its colours wash the panel; the gradient fallback
-        // stands in when the series has no cover URL (or while the art loads / on failure).
-        if (coverUrl != null) {
-            AsyncImage(
-                model = coverImageRequest(coverUrl, coverHeaders),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize().blur(HeroCardBackdropBlur).alpha(HERO_CARD_BACKDROP_ALPHA)
-            )
-        } else {
-            Box(Modifier.matchParentSize().alpha(HERO_CARD_BACKDROP_ALPHA).background(coverGradient(seed)))
-        }
-        // Left-weighted veil: near-opaque under the title, clearing toward the cover so the art shows.
-        Box(
-            Modifier.matchParentSize().background(
-                Brush.horizontalGradient(
-                    0f to background.copy(alpha = 0.88f),
-                    1f to background.copy(alpha = 0.15f)
-                )
-            )
-        )
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.lg),
@@ -126,7 +92,7 @@ fun MangaHeroCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = TanukiTheme.typography.title,
+                    style = TanukiTheme.typography.titleL,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
@@ -144,10 +110,7 @@ fun MangaHeroCard(
             }
             MangaCover(
                 seed = seed,
-                modifier =
-                    Modifier
-                        .width(HeroCardCoverWidth)
-                        .shadow(TanukiElevation.level3, TanukiRadii.coverShape),
+                modifier = Modifier.width(HeroCardCoverWidth),
                 image = coverUrl?.let { url ->
                     {
                         AsyncImage(

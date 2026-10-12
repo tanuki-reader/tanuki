@@ -174,7 +174,7 @@ private fun RailSection(
         ) {
             Text(
                 text = if (listing == null) stringResource(Res.string.source_all_series) else listingLabel(listing),
-                style = TanukiTheme.typography.title,
+                style = TanukiTheme.typography.headline,
                 color = MaterialTheme.colorScheme.onBackground
             )
             if (rail.status == RailStatus.Loaded) {

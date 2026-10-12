@@ -7,58 +7,55 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Tanuki spacing, radii and hit-target tokens — Android dialect, synced from `tokens/spacing.css`.
- *
- * 8pt grid with 4px half-steps. Radii use the **Material (tight)** family; the iOS Liquid Glass radii
- * (10px+) live in the SwiftUI token set. Material elevation here is dp-based (Compose `tonalElevation`
- * / `shadowElevation`); the iOS glass blur/shadow tokens are SwiftUI-only.
+ * Tanuki spacing, radii and hit-target tokens, Android dialect, from the design system's `tokens.json`.
+ * 4pt grid. Elevation is a step up the surface ladder, not a shadow; [TanukiElevation] is for the few
+ * things that float (menus, snackbars, sheets).
  */
 @Immutable
 object TanukiSpacing {
-    // 8pt grid (with 4px half-steps)
     val none: Dp = 0.dp
-    val xxs: Dp = 2.dp // --space-1
-    val xs: Dp = 4.dp // --space-2
-    val sm: Dp = 8.dp // --space-3
-    val md: Dp = 12.dp // --space-4
-    val lg: Dp = 16.dp // --space-5
-    val xl: Dp = 20.dp // --space-6
-    val xxl: Dp = 24.dp // --space-7
-    val x3l: Dp = 32.dp // --space-8
-    val x4l: Dp = 40.dp // --space-9
-    val x5l: Dp = 48.dp // --space-10
-    val x6l: Dp = 64.dp // --space-12
+    val xxs: Dp = 2.dp // space-0-5
+    val xs: Dp = 4.dp // space-1
+    val sm: Dp = 8.dp // space-2
+    val md: Dp = 12.dp // space-3
+    val lg: Dp = 16.dp // space-4
+    val xl: Dp = 20.dp // space-5
+    val xxl: Dp = 24.dp // space-6
+    val x3l: Dp = 32.dp // space-8
+    val x4l: Dp = 40.dp
+    val x5l: Dp = 48.dp // space-12
+    val x6l: Dp = 64.dp // space-16
 
     // Screen gutters
-    val gutter: Dp = 16.dp
+    val gutter: Dp = 16.dp // space-4 on phones
     val gutterTight: Dp = 12.dp
-    val gridGap: Dp = 12.dp // library cover grid gap
+    val gridGap: Dp = 8.dp // cover-grid gap on phones (space-2)
 
     // Hit targets & bar heights
-    val tapMin: Dp = 44.dp // minimum interactive target
-    val barHeight: Dp = 56.dp
-    val appBarHeight: Dp = 56.dp
+    val tapMin: Dp = 48.dp // tap-android
+    val barHeight: Dp = 64.dp // bar-android
+    val appBarHeight: Dp = 64.dp // bar-android
 }
 
-/** Corner radii — Material (tight) family. */
+/** Corner radii (`radius-*`) and the shape each component family takes on Android. */
 @Immutable
 object TanukiRadii {
-    val container: Dp = 4.dp // --r-android: Material filled container
-    val chip: Dp = 8.dp // Material chip / tag
-    val cover: Dp = 6.dp // manga cover art corners
-    val card: Dp = 16.dp // --radius-lg: cards, menus, dialogs
-    val sheet: Dp = 28.dp // --radius-xl: bottom sheet top corners
-    val pill: Dp = 999.dp // search pill, FAB, badges
+    val xs: Dp = 4.dp // cover thumbnails at 40dp and below
+    val chip: Dp = 8.dp // radius-sm: cover art, filter chips
+    val cover: Dp = 8.dp // radius-sm
+    val field: Dp = 12.dp // radius-md: text fields, cards nested in lists
+    val card: Dp = 16.dp // radius-lg: cards, menus
+    val sheet: Dp = 28.dp // radius-xl: bottom sheets (top corners), dialogs
+    val pill: Dp = 999.dp // radius-full: buttons, badges, switches, search
 
-    val containerShape = RoundedCornerShape(container)
-    val menuShape = RoundedCornerShape(card)
     val chipShape = RoundedCornerShape(chip)
     val coverShape = RoundedCornerShape(cover)
+    val fieldShape = RoundedCornerShape(field)
+    val cardShape = RoundedCornerShape(card)
+    val menuShape = RoundedCornerShape(card)
     val sheetShape = RoundedCornerShape(topStart = sheet, topEnd = sheet)
+    val dialogShape = RoundedCornerShape(sheet)
     val pillShape = RoundedCornerShape(pill)
-
-    /** All-corner radius for a centered dialog card. */
-    val dialogShape = RoundedCornerShape(card)
 }
 
 /** Material elevation steps (dp). Used as Compose `tonalElevation` / `shadowElevation`. */

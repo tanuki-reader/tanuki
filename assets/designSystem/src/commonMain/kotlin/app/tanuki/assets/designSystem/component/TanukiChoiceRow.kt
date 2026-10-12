@@ -55,7 +55,6 @@ fun TanukiChoiceRow(
             },
         onClick = onClick,
         // A chevron would promise a sub-screen; the tick is the whole answer.
-        showChevron = false,
         trailing = {
             Box(
                 modifier = Modifier.size(CheckSize),

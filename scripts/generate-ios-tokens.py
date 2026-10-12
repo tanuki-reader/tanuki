@@ -2,7 +2,7 @@
 """Generates the iOS design tokens from the Tanuki Design System's tokens.json.
 
 Usage: python3 -I scripts/generate-ios-tokens.py iosApp/design/tokens.json iosApp/iosApp \
-           assets/designSystem/src/commonMain/kotlin/app/tanuki/assets/designSystem/ReaderColors.kt
+           assets/designSystem/src/commonMain/kotlin/app/tanuki/assets/designSystem
 
 `tokens.json` is a checked-in copy of the design-system artifact's `project/tokens.json`. Refresh it
 when the design changes, then re-run this. The script writes:
@@ -12,9 +12,9 @@ when the design changes, then re-run this. The script writes:
 - `DesignSystem/TanukiColors.swift` (`Color.tk.*`) and `DesignSystem/TanukiTokens.swift` (`TK.Space`,
   `TK.Radius`, `TK.Size`).
 
-- With the optional third argument, the Android reader grounds (`reader-*`) as `ReaderColors.kt`. Android's
-  full palette is still hand-kept in `TanukiColors.kt` (it predates these tokens); the reader colours are
-  the first generated slice of it.
+- With the optional third argument (the Android design-system package directory), the Android palette:
+  `TanukiPalette.kt` (`TanukiNight` / `TanukiDay`, every color token per theme) and `ReaderColors.kt`
+  (the theme-invariant reader grounds). `TanukiColors.kt` maps them onto Material 3 and `TanukiColors`.
 
 Never edit the outputs by hand. `glass-*` and `scrim` are skipped: they exist for the web previews
 (Liquid Glass and the system scrim are drawn by iOS itself), and Swift never paints them.
@@ -91,6 +91,14 @@ def main(tokens_path: Path, app: Path) -> None:
     emitted = [t for t in colors if not SKIPPED.match(t["name"])]
     for token in emitted:
         write_json(folder / f"{camel(token['name'])}.colorset", colorset(*themed(token["value"])))
+    # Shadows: only their colour is themed, so each becomes a colorset; offset and blur stay at the call
+    # site (`.shadow(color: Color.tk.shadowCover, radius: 4, y: 2)` for `0 2px 8px`). Only `shadow-cover` applies
+    # to iOS: menus and sheets are system glass, which draws its own lift.
+    shadows = [t for t in tokens["shadow"]["tokens"] if t["name"] == "shadow-cover"]
+    shadow_color = lambda css: re.search(r"rgba\([^)]+\)", css).group(0)
+    for token in shadows:
+        write_json(folder / f"{camel(token['name'])}.colorset",
+                   colorset(shadow_color(token["value"]["light"]), shadow_color(token["value"]["dark"])))
     write_json(app / "Assets.xcassets/AccentColor.colorset", colorset(*themed(by_name["accent"])))
 
     lines = [HEADER, "import SwiftUI", "", "/// The Tanuki palette, iOS dialect: `Color.tk.canvas`, `Color.tk.ink`, …",
@@ -99,6 +107,9 @@ def main(tokens_path: Path, app: Path) -> None:
              "extension Color {", "    enum tk {"]
     for token in emitted:
         lines.append(f"        /// {token['usage']}")
+        lines.append(f'        static let {camel(token["name"])} = Color("Tanuki/{camel(token["name"])}")')
+    for token in shadows:
+        lines.append(f"        /// Shadow colour, `{token['value']['dark']}` at night. {token['usage']}")
         lines.append(f'        static let {camel(token["name"])} = Color("Tanuki/{camel(token["name"])}")')
     covers = [camel(t["name"]) for t in emitted if t["name"].startswith("cover-") and t["name"] != "cover-scrim"]
     lines += ["", "        /// The fallback cover grounds, in design order. Pick one by hashing the manga id.",
@@ -126,6 +137,34 @@ def main(tokens_path: Path, app: Path) -> None:
     print(f"{len(emitted)} colors, {len(covers)} cover fallbacks → {app}")
 
 
+def kotlin_color(value: str) -> str:
+    r, g, b, a = rgba(value)
+    return f"Color(0x{round(a * 255):02X}{r:02X}{g:02X}{b:02X})"
+
+
+def android_palette(tokens_path: Path, out: Path) -> None:
+    """Every color token but `glass-*` (iOS previews only), once per theme, as `TanukiNight` / `TanukiDay`."""
+    colors = [t for t in json.loads(tokens_path.read_text())["color"]["tokens"] if not t["name"].startswith("glass-")]
+    by_name = {t["name"]: t["value"] for t in colors}
+
+    def resolve(value: str) -> str:
+        ref = re.fullmatch(r"\{(.+)\}", value)
+        return resolve(by_name[ref.group(1)]) if ref else value
+
+    lines = [HEADER.rstrip("\n"), "package app.tanuki.assets.designSystem", "",
+             "import androidx.compose.ui.graphics.Color", ""]
+    for obj, theme, doc in (("TanukiNight", "dark", "Night (sumi), the default theme."),
+                            ("TanukiDay", "light", "Day (washi).")):
+        lines += [f"/** The design system's color tokens, {doc} */", f"object {obj} {{"]
+        for token in colors:
+            value = token["value"] if isinstance(token["value"], str) else token["value"][theme]
+            name = camel(token["name"])
+            lines += [f"    /** {token['usage']} */", f"    val {name[:1].upper() + name[1:]} = {kotlin_color(resolve(value))}"]
+        lines += ["}", ""]
+    (out / "TanukiPalette.kt").write_text("\n".join(lines))
+    print(f"{len(colors)} colors x 2 themes → {out / 'TanukiPalette.kt'}")
+
+
 def android_reader_colors(tokens_path: Path, out: Path) -> None:
     """The `reader-*` tokens (theme-invariant) as a Compose `ReaderColors` object."""
     reader = [t for t in json.loads(tokens_path.read_text())["color"]["tokens"] if t["name"].startswith("reader-")]
@@ -134,10 +173,8 @@ def android_reader_colors(tokens_path: Path, out: Path) -> None:
              "/** The reader's page grounds and the ink on sepia. Theme-invariant: the reader picks its own ground. */",
              "object ReaderColors {"]
     for token in reader:
-        r, g, b, a = rgba(token["value"])
         name = camel(token["name"].removeprefix("reader-"))
-        lines += [f"    /** {token['usage']} */",
-                  f"    val {name[:1].upper() + name[1:]} = Color(0x{round(a * 255):02X}{r:02X}{g:02X}{b:02X})"]
+        lines += [f"    /** {token['usage']} */", f"    val {name[:1].upper() + name[1:]} = {kotlin_color(token['value'])}"]
     out.write_text("\n".join(lines + ["}", ""]))
     print(f"{len(reader)} reader colors → {out}")
 
@@ -145,4 +182,5 @@ def android_reader_colors(tokens_path: Path, out: Path) -> None:
 if __name__ == "__main__":
     main(Path(sys.argv[1]), Path(sys.argv[2]))
     if len(sys.argv) > 3:
-        android_reader_colors(Path(sys.argv[1]), Path(sys.argv[3]))
+        android_palette(Path(sys.argv[1]), Path(sys.argv[3]))
+        android_reader_colors(Path(sys.argv[1]), Path(sys.argv[3]) / "ReaderColors.kt")

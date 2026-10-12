@@ -20,9 +20,13 @@
 		<string>app.tanuki.downloads</string>
 	</array>
 
-	<!-- Launch screen: the brand mark on the app's dark canvas (the design system's `bg`, #0C0C0C),
-	     so the frames before the app draws match its first frame rather than flashing
-	     white. -->
+	<!-- Launch screen: the leaf-page mark on the design system's `canvas` (LaunchBackground: washi by
+	     day, sumi at night), so the frames before the app draws match its first frame. -->
+	<!-- The design system's display face, for the `hero` text style (TanukiType.swift). -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>BricolageGrotesque-Bold.ttf</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>

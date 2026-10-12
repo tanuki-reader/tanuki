@@ -90,9 +90,9 @@ fun TanukiTextField(
                 contentAlignment = Alignment.CenterStart,
                 modifier =
                     Modifier
-                        .clip(TanukiRadii.chipShape)
+                        .clip(TanukiRadii.fieldShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(FieldBorderWidth, MaterialTheme.colorScheme.outlineVariant, TanukiRadii.chipShape)
+                        .border(FieldBorderWidth, MaterialTheme.colorScheme.outlineVariant, TanukiRadii.fieldShape)
                         .padding(horizontal = TanukiTheme.spacing.md, vertical = TanukiTheme.spacing.md)
             ) {
                 if (value.isEmpty()) {

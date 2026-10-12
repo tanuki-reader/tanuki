@@ -16,13 +16,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
-import androidx.compose.material.icons.rounded.Bookmark
-import androidx.compose.material.icons.rounded.BookmarkBorder
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import app.tanuki.assets.designSystem.component.TanukiSymbols
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.TanukiMenu
 import app.tanuki.assets.designSystem.component.TanukiMenuItem
@@ -108,7 +102,7 @@ internal fun BoxScope.ReaderChrome(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(Res.string.reader_back))
+                    Icon(TanukiSymbols.ArrowBack, contentDescription = stringResource(Res.string.reader_back))
                 }
                 Column(Modifier.weight(1f).padding(horizontal = TanukiTheme.spacing.xs)) {
                     Text(
@@ -129,7 +123,7 @@ internal fun BoxScope.ReaderChrome(
                 }
                 IconButton(onClick = onToggleBookmark) {
                     Icon(
-                        imageVector = if (isBookmarked) Icons.Rounded.Bookmark else Icons.Rounded.BookmarkBorder,
+                        imageVector = if (isBookmarked) TanukiSymbols.BookmarkFilled else TanukiSymbols.Bookmark,
                         contentDescription =
                             stringResource(if (isBookmarked) Res.string.reader_bookmark_remove else Res.string.reader_bookmark_add),
                         // State, so accent (design system: accent marks state and the one primary action).
@@ -170,8 +164,8 @@ internal fun BoxScope.ReaderChrome(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    ChromeAction(Icons.AutoMirrored.Rounded.FormatListBulleted, stringResource(Res.string.reader_chapters), onOpenChapters)
-                    ChromeAction(Icons.Rounded.Tune, stringResource(Res.string.reader_settings), onOpenSettings)
+                    ChromeAction(TanukiSymbols.FormatListBulleted, stringResource(Res.string.reader_chapters), onOpenChapters)
+                    ChromeAction(TanukiSymbols.Tune, stringResource(Res.string.reader_settings), onOpenSettings)
                 }
             }
         }
@@ -183,7 +177,7 @@ private fun MoreMenu(onOpenInBrowser: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { expanded = true }) {
-            Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(Res.string.reader_more))
+            Icon(TanukiSymbols.MoreVert, contentDescription = stringResource(Res.string.reader_more))
         }
         TanukiMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             TanukiMenuItem(

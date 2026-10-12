@@ -56,7 +56,7 @@ fun DesignSystemShowcase(modifier: Modifier = Modifier) {
         ) {
             Text(
                 text = "Tanuki Design System",
-                style = TanukiTheme.typography.display,
+                style = TanukiTheme.typography.hero,
                 color = MaterialTheme.colorScheme.onBackground
             )
 

@@ -22,7 +22,6 @@ junit = "4.13.2"
 kotlin = "2.4.20"
 material3 = "1.11.0-alpha07"
 # Material Icons (Rounded) for Android screens. 1.7.3 is the last JetBrains published; the icon set is frozen.
-composeMaterialIcons = "1.7.3"
 coroutines = "1.11.0"
 ktor = "3.5.1"
 datetime = "0.8.0"
@@ -102,7 +101,6 @@ androidx-lifecycle-runtimeCompose = { module = "org.jetbrains.androidx.lifecycle
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }
 compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "composeMultiplatform" }
 compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "material3" }
-compose-materialIconsExtended = { module = "org.jetbrains.compose.material:material-icons-extended", version.ref = "composeMaterialIcons" }
 compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "composeMultiplatform" }
 androidx-navigationevent-compose = { module = "androidx.navigationevent:navigationevent-compose", version.ref = "androidx-navigationevent" }
 compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "composeMultiplatform" }

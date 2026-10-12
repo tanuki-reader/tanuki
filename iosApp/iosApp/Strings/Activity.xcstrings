@@ -161,6 +161,40 @@
         }
       }
     },
+    "activity_chart_axis_chapters": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chapters"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capítulos"
+          }
+        }
+      }
+    },
+    "activity_chart_axis_date": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Date"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data"
+          }
+        }
+      }
+    },
     "activity_cover_content_description": {
       "extractionState": "manual",
       "localizations": {

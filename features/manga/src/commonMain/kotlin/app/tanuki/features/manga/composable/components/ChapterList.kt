@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -30,6 +28,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.component.TanukiSymbols
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ArrowDownwardIcon
 import app.tanuki.assets.designSystem.component.ArrowUpwardIcon
@@ -364,7 +363,7 @@ private fun BookmarkMark(count: Int) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = description }
     ) {
-        Icon(Icons.Rounded.Bookmark, contentDescription = null, tint = TanukiTheme.colors.accent, modifier = Modifier.size(BookmarkMarkSize))
+        Icon(TanukiSymbols.BookmarkFilled, contentDescription = null, tint = TanukiTheme.colors.accent, modifier = Modifier.size(BookmarkMarkSize))
         if (count > 1) {
             Text(text = count.toString(), style = TanukiTheme.typography.caption, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }

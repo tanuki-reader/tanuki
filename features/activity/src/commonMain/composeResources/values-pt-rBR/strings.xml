@@ -91,4 +91,6 @@
     <string name="activity_month_oct">Out</string>
     <string name="activity_month_nov">Nov</string>
     <string name="activity_month_dec">Dez</string>
+    <string name="activity_chart_axis_date">Data</string>
+    <string name="activity_chart_axis_chapters">Capítulos</string>
 </resources>

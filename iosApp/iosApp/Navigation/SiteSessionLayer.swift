@@ -124,7 +124,7 @@ struct SiteSessionLayer: View {
                 Image(systemName: session.isChallenge ? "checkmark.shield" : "lock")
                     .foregroundStyle(Color.tk.accent)
                     .frame(width: 32, height: 32)
-                    .background(Color.tk.accentTint, in: .rect(cornerRadius: TK.Radius.sm))
+                    .background(Color.tk.accentTint, in: .rect(cornerRadius: TK.Radius.sm, style: .continuous))
                 Text(tr(session.isChallenge ? "site_session_challenge_message" : "site_session_login_message", session.host))
                     .tkStyle(.body)
                     .foregroundStyle(Color.tk.inkMuted)

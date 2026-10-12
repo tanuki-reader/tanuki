@@ -396,7 +396,6 @@ private fun StorageBreakdown(
                 title = stringResource(Res.string.settings_storage_delete_all),
                 leading = { TrashIcon(tint = TanukiTheme.colors.danger, size = RowGlyphSize) },
                 onClick = onDeleteAll,
-                showChevron = false,
                 // The one irreversible row on the screen: `danger`-tinted, sat below a divider at the
                 // end of the group, and confirmed. Colour is not the whole signal — the trash glyph and
                 // its position after everything else say the same thing.

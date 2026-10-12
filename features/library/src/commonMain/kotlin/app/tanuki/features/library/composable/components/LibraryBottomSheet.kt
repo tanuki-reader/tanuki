@@ -33,7 +33,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.ArrowDownwardIcon
@@ -145,7 +144,7 @@ internal fun LibraryBottomSheet(
     TanukiBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Text(
             text = stringResource(Res.string.library_sheet_title),
-            style = TanukiTheme.typography.title,
+            style = TanukiTheme.typography.titleL,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = spacing.gutter, vertical = spacing.xs)
         )
@@ -269,7 +268,7 @@ private fun SortRow(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clip(TanukiRadii.containerShape)
+                .clip(TanukiRadii.fieldShape)
                 .background(if (selected) TanukiTheme.colors.accentTint else MaterialTheme.colorScheme.surface)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
@@ -423,7 +422,7 @@ private fun CategorySection(
                 stringResource(
                     if (matchAny) Res.string.library_category_badge_or else Res.string.library_category_badge_and
                 ),
-            style = TanukiTheme.typography.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.02.em),
+            style = TanukiTheme.typography.label,
             color = TanukiTheme.colors.accent
         )
         Text(
@@ -456,11 +455,7 @@ private fun CategorySection(
 private fun GroupLabel(text: String) {
     Text(
         text = text.uppercase(),
-        style =
-            TanukiTheme.typography.caption.copy(
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.06.em
-            ),
+        style = TanukiTheme.typography.overline,
         color = TanukiTheme.colors.textFaint,
         modifier = Modifier.padding(horizontal = TanukiTheme.spacing.xxs)
     )

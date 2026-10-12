@@ -23,6 +23,12 @@ kotlin {
         compilerOptions {
             jvmTarget = JvmTarget.JVM_11
         }
+
+        // Packages `androidMain/res` (the Bricolage Grotesque display font); the AGP KMP library plugin
+        // disables Android resource processing by default.
+        androidResources {
+            enable = true
+        }
     }
 
     sourceSets {

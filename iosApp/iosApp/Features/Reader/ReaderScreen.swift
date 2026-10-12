@@ -64,7 +64,7 @@ struct ReaderGround: View {
     }
 
     static func ink(_ background: ReaderBackground?) -> Color {
-        background == nil || background == .black ? .white : Color.tk.readerSepiaInk
+        background == nil || background == .black ? Color.tk.readerPaper : Color.tk.readerSepiaInk
     }
 }
 

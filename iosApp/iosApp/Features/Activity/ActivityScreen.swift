@@ -214,11 +214,11 @@ private struct StatisticsSections: View {
                 .foregroundStyle(Color.tk.inkMuted)
             Chart(stats.bars, id: \.self) { bar in
                 BarMark(
-                    x: .value("Date", barDate(bar), unit: unit),
-                    y: .value("Chapters", Int(bar.count))
+                    x: .value(tr("activity_chart_axis_date", table: .activity), barDate(bar), unit: unit),
+                    y: .value(tr("activity_chart_axis_chapters", table: .activity), Int(bar.count))
                 )
                 .foregroundStyle(isSelected(bar) ? Color.tk.accent : Color.tk.accent.opacity(0.35))
-                .cornerRadius(3)
+                .cornerRadius(TK.Radius.xs)
             }
             .chartXSelection(value: $selected)
             .chartXAxis {
@@ -294,7 +294,7 @@ private struct StatisticsSections: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(TK.Space.s3)
-        .background(Color.tk.surfaceRaised, in: RoundedRectangle(cornerRadius: TK.Radius.md))
+        .background(Color.tk.surfaceRaised, in: RoundedRectangle(cornerRadius: TK.Radius.md, style: .continuous))
     }
 }
 

@@ -32,10 +32,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /** The design system's Android app-bar height (`--appbar-h`). */
-private val AppBarHeight = 56.dp
+private val AppBarHeight = TanukiSpacing.appBarHeight
 
 /**
  * The screen app bar — the **Android (Material You) dialect** of the design system's `TopBar`. By default
@@ -145,7 +146,7 @@ fun TanukiTopBar(
         } else {
             Text(
                 text = title,
-                style = TanukiTheme.typography.title,
+                style = TanukiTheme.typography.titleXl,
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier =
                     Modifier

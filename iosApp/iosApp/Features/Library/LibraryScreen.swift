@@ -20,6 +20,7 @@ struct LibraryScreen: View {
                         Image(systemName: filterActive
                             ? "line.3.horizontal.decrease.circle.fill"
                             : "line.3.horizontal.decrease")
+                            .contentTransition(.symbolEffect(.replace))
                     }
                     .accessibilityLabel(tr("library_sheet_title", table: .library))
                     Menu {

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- `canvas` (Day, washi): the splash and window follow the system's light mode. -->
+    <color name="tanuki_background">#F7F3EC</color>
+</resources>

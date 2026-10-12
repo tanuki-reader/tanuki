@@ -21,10 +21,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /** The design system's app-bar height (`--appbar-h`), shared with [TanukiDetailTopBar]. */
-private val AppBarHeight = 56.dp
+private val AppBarHeight = TanukiSpacing.appBarHeight
 
 /**
  * The **contextual** app bar a screen swaps in while a multi-select is active — the counterpart to
@@ -84,7 +85,7 @@ fun TanukiSelectionTopBar(
         }
         Text(
             text = title,
-            style = TanukiTheme.typography.title,
+            style = TanukiTheme.typography.headline,
             color = TanukiTheme.colors.accent,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

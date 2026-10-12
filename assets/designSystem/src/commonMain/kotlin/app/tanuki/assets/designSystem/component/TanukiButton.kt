@@ -19,13 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import app.tanuki.assets.designSystem.TanukiRadii
+import app.tanuki.assets.designSystem.TanukiSpacing
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /** Tanuki's primary action control's fills (design system `Button` `variant`). */
@@ -67,10 +66,10 @@ fun TanukiButton(
                 .then(if (block) Modifier.fillMaxWidth() else Modifier)
                 .height(height)
                 .alpha(if (enabled) 1f else 0.4f)
-                .clip(TanukiRadii.containerShape)
+                .clip(TanukiRadii.pillShape)
                 .background(colors.background)
                 .then(
-                    colors.border?.let { Modifier.border(it, TanukiRadii.containerShape) } ?: Modifier
+                    colors.border?.let { Modifier.border(it, TanukiRadii.pillShape) } ?: Modifier
                 ).clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -80,11 +79,7 @@ fun TanukiButton(
     ) {
         Text(
             text = text,
-            style =
-                TanukiTheme.typography.body.copy(
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.01.em
-                ),
+            style = TanukiTheme.typography.label,
             color = colors.content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -95,7 +90,7 @@ fun TanukiButton(
 private fun TanukiButtonSize.height(): Dp =
     when (this) {
         TanukiButtonSize.Small -> 34.dp
-        TanukiButtonSize.Medium -> 44.dp
+        TanukiButtonSize.Medium -> TanukiSpacing.tapMin
         TanukiButtonSize.Large -> 52.dp
     }
 

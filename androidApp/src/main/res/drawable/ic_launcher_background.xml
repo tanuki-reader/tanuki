@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Launcher icon background — the design system's "app icon · dark" treatment
-  (guidelines/brand-logo.card.html): the mark on `surface` token #141414, not on the app's `bg` token.
--->
+<!-- Launcher icon background: the design system's app icon ground, `canvas` (Night) #0f0d0b. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#141414"
+        android:fillColor="#0F0D0B"
         android:pathData="M0,0h108v108h-108z" />
 </vector>

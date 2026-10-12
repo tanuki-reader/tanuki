@@ -13,10 +13,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import app.tanuki.assets.designSystem.TanukiRadii
+import app.tanuki.assets.designSystem.TanukiNight
 import app.tanuki.assets.designSystem.TanukiTheme
 import coil3.compose.AsyncImage
 
@@ -83,8 +83,9 @@ fun MangaCoverTile(
         )
         Text(
             text = title,
-            style = TanukiTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
-            color = Color.White,
+            style = TanukiTheme.typography.tileTitle,
+            // Paper text on `cover-scrim`: art is never themed, so neither is the title over it.
+            color = TanukiNight.Ink,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.sm, vertical = spacing.xs)
@@ -92,11 +93,11 @@ fun MangaCoverTile(
     }
 }
 
-/** Transparent → dark wash over the lower cover, protecting the overlaid title from bright art. */
+/** Transparent → `cover-scrim` wash over the lower cover, protecting the overlaid title from bright art. */
 private val COVER_TITLE_SCRIM =
     Brush.verticalGradient(
         0.45f to Color.Transparent,
-        1f to Color.Black.copy(alpha = 0.78f)
+        1f to TanukiNight.CoverScrim
     )
 
 @Composable

@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import app.tanuki.assets.designSystem.component.TanukiSymbols
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.features.reader.resources.Res
 import app.tanuki.features.reader.resources.reader_next_chapter
@@ -73,7 +71,7 @@ internal fun ColumnScope.PageScrubber(
         horizontalArrangement = Arrangement.spacedBy(TanukiTheme.spacing.xs)
     ) {
         IconButton(onClick = onPreviousChapter, enabled = hasPreviousChapter) {
-            Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(Res.string.reader_previous_chapter))
+            Icon(TanukiSymbols.SkipPrevious, contentDescription = stringResource(Res.string.reader_previous_chapter))
         }
         // A slider needs at least two pages to have anywhere to travel; a one-page chapter just spaces.
         if (pageCount > 1) {
@@ -110,7 +108,7 @@ internal fun ColumnScope.PageScrubber(
             Spacer(Modifier.weight(1f))
         }
         IconButton(onClick = onNextChapter, enabled = hasNextChapter) {
-            Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(Res.string.reader_next_chapter))
+            Icon(TanukiSymbols.SkipNext, contentDescription = stringResource(Res.string.reader_next_chapter))
         }
     }
 }

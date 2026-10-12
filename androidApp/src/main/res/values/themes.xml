@@ -6,9 +6,8 @@
       process starts. No androidx.core.splashscreen needed — minSdk is well past 31, so the platform
       API is always available.
 
-      Colours are the design system's dark canvas (tokens/colors.css): the `bg` token, #0C0C0C, behind
-      the mark. That rather than the launcher icon's `surface` #141414, because a splash screen stands
-      in for the app's first frame — and the app's first frame is drawn on `bg`.
+      Colours are the design system's `canvas` token (values/colors.xml, Night; values-notnight, Day):
+      a splash screen stands in for the app's first frame, and the app's first frame is drawn on `canvas`.
 
       The window background matches, so the hand-off from splash to the Compose UI is seamless instead
       of flashing the platform's default white. The rest of the app's colour comes from TanukiTheme in

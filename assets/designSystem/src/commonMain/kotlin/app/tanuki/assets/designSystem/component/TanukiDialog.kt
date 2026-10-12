@@ -71,7 +71,7 @@ fun TanukiDialog(
         ) {
             Text(
                 text = title,
-                style = TanukiTheme.typography.title,
+                style = TanukiTheme.typography.titleL,
                 color = MaterialTheme.colorScheme.onSurface
             )
             content?.invoke(this)

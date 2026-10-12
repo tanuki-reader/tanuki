@@ -9,6 +9,7 @@
     <!-- Banner shown when a pull-to-refresh on the detail screen fails. -->
     <string name="manga_refresh_failed">Couldn\'t refresh from the source</string>
     <string name="manga_refresh_retry">Retry</string>
+    <string name="manga_refresh_dismiss">Not now</string>
 
     <string name="manga_no_chapters">No chapters yet</string>
 

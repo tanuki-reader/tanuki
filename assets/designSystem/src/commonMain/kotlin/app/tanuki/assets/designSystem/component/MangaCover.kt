@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.tanuki.assets.designSystem.TanukiRadii
 import app.tanuki.assets.designSystem.TanukiTheme
-import app.tanuki.assets.designSystem.coverGradient
+import app.tanuki.assets.designSystem.coverGround
 
 private const val IMAGE_BOX_SIZE = 10
 
@@ -36,11 +36,11 @@ private const val IMAGE_BOX_SIZE = 10
  * **Image-loader-agnostic by design.** The design system does not depend on an image library: pass the
  * decoded art via [image] (the feature layer supplies e.g., a Coil `AsyncImage` routed through the shared
  * Cloudflare-aware cover pipeline). When [image] is `null` — no cover, loading, or failure — the
- * deterministic [coverGradient] from [seed] shows instead. The title caption *below* a grid cover is tile
+ * fallback [coverGround] from [seed] shows instead. The title caption *below* a grid cover is tile
  * chrome, not part of the cover; it belongs to the library card that composes this.
  *
- * @param seed stable key (the manga id) that picks the fallback gradient, so a series keeps one colour.
- * @param image optional art slot filling the cover; `null` renders the gradient fallback.
+ * @param seed stable key (the manga id) that picks the fallback ground, so a series keeps one colour.
+ * @param image optional art slot filling the cover; `null` renders the fallback ground.
  */
 @Composable
 fun MangaCover(
@@ -58,8 +58,8 @@ fun MangaCover(
             modifier
                 .aspectRatio(COVER_ASPECT)
                 .clip(shape)
-                .background(coverGradient(seed))
-                .border(0.5.dp, colors.scrimSoft, shape)
+                .background(coverGround(seed))
+                .border(0.5.dp, colors.line, shape)
     ) {
         image?.invoke(this)
 
@@ -83,8 +83,8 @@ fun MangaCover(
     }
 }
 
-/** Cover art aspect ratio (width: height). */
-private const val COVER_ASPECT = 2f / 3f
+/** The design system's `cover-ratio` (width / height, ~5:7); every cover surface crops to it. */
+private const val COVER_ASPECT = 0.7f
 
 @Composable
 private fun UnreadBadge(
@@ -94,7 +94,7 @@ private fun UnreadBadge(
     val colors = TanukiTheme.colors
     Text(
         text = count.toString(),
-        style = TanukiTheme.typography.label,
+        style = TanukiTheme.typography.numeric,
         color = MaterialTheme.colorScheme.onPrimary,
         modifier =
             modifier

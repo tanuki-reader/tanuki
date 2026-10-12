@@ -51,7 +51,7 @@ internal fun MangaCategoriesSheet(
     TanukiBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Text(
             text = stringResource(Res.string.manga_categories_title),
-            style = TanukiTheme.typography.title,
+            style = TanukiTheme.typography.titleL,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = spacing.gutter, vertical = spacing.xs)
         )

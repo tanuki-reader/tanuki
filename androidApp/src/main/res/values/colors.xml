@@ -5,7 +5,7 @@
       Everything else lives in TanukiTheme; these are duplicated here because a theme attribute cannot
       reference a Compose value.
 
-      `bg` token from the design system's tokens/colors.css.
+      The design system's `canvas` token: Night (sumi) here, Day (washi) in values-notnight.
     -->
-    <color name="tanuki_background">#0C0C0C</color>
+    <color name="tanuki_background">#0F0D0B</color>
 </resources>

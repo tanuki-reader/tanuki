@@ -20,9 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import app.tanuki.assets.designSystem.TanukiTheme
 import app.tanuki.assets.designSystem.component.TanukiBottomSheet
 import app.tanuki.assets.designSystem.component.TanukiButton
@@ -79,7 +77,7 @@ internal fun ChapterFilterSheet(
     TanukiBottomSheet(onDismissRequest = onDismiss, modifier = modifier) {
         Text(
             text = stringResource(Res.string.manga_filter_title),
-            style = TanukiTheme.typography.title,
+            style = TanukiTheme.typography.titleL,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = spacing.gutter, vertical = spacing.xs)
         )
@@ -166,11 +164,7 @@ internal fun ChapterFilterSheet(
 private fun GroupLabel(text: String) {
     Text(
         text = text.uppercase(),
-        style =
-            TanukiTheme.typography.caption.copy(
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.06.em
-            ),
+        style = TanukiTheme.typography.overline,
         color = TanukiTheme.colors.textFaint,
         modifier = Modifier.padding(horizontal = TanukiTheme.spacing.xxs)
     )

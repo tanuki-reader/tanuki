@@ -56,7 +56,7 @@ fun TanukiLoadingIndicator(
     )
 
     val accent = TanukiTheme.colors.accent
-    val track = TanukiTheme.colors.scrimSoft
+    val track = TanukiTheme.colors.line
 
     Box(modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {

@@ -18,11 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.contentDescription
@@ -39,7 +36,6 @@ import app.tanuki.assets.designSystem.component.LabelIcon
 import app.tanuki.assets.designSystem.component.MangaCover
 import app.tanuki.assets.designSystem.component.TanukiTag
 import app.tanuki.assets.designSystem.component.coverImageRequest
-import app.tanuki.assets.designSystem.coverGradient
 import app.tanuki.core.domain.manga.model.Manga
 import app.tanuki.core.domain.manga.model.PublishStatus
 import app.tanuki.core.domain.manga.model.ReadingStatus
@@ -65,34 +61,15 @@ import org.jetbrains.compose.resources.stringResource
 /** Width of the hero cover, a touch larger than the library grid tile so the detail reads as primary. */
 private val HeroCoverWidth = 118.dp
 
-// Backdrop opacity + top-scrim are theme-aware because a *cover under a scrim* reads very differently on
-// dark vs light: on the dark canvas the spec's dim 0.22 over a near-black scrim already shows the colours
-// well, but on the light canvas that same wash sits under a cream scrim and washes out to ~13% cover
-// ("basically white"). Light mode therefore needs a much higher cover opacity and a near-transparent top
-// scrim so a comparable amount of the art actually shows.
-
-/** Cover-backdrop opacity on the light canvas — higher, to survive the cream scrim above it. */
-private const val HERO_BACKDROP_ALPHA_LIGHT = 0.55f
-
-/** Top-of-backdrop scrim alpha on light: near-transparent so the cover shows rather than the cream. */
-private const val HERO_SCRIM_TOP_LIGHT = 0.05f
-
-/** Blur radius softening the cover backdrop so it reads as a colour wash, not legible art behind text. */
-private val HeroBackdropBlur = 12.dp
-
 private const val MAX_HERO_CATEGORY_CHIPS = 2
 
 /** Size of the leading label glyph on the hero's category row. */
 private val CategoryGlyphSize = 16.dp
 
 /**
- * The detail hero: the cover art itself — blurred and heavily dimmed — washes the full-bleed backdrop so
- * the whole palette of the cover colours the header, fading into the screen canvas; an elevated
- * [MangaCover] is laid over it beside the title, publication-status chip, chapter count, and category
- * chips. This is the design system's `AndroidMangaDetailScreen` hero treatment (blurred cover backdrop,
- * not a single extracted colour); a series with no cover URL falls back to the deterministic
- * [coverGradient]. The author moves to the Info tab, and rating/genres from the reference are omitted
- * until the domain [Manga] model carries them.
+ * The detail hero, on the screen canvas: the [MangaCover] (the only cover with `shadow-cover`) beside the
+ * title, publication-status chip, chapter count, and category chips. No blurred cover backdrop: Android
+ * has no blur, and the art carries the colour (same as iOS). The author moves to the Info tab.
  *
  * @param manga the series to present.
  * @param header the merged header (title, cover) the page shows.
@@ -109,9 +86,6 @@ internal fun MangaHero(
     modifier: Modifier = Modifier
 ) {
     val spacing = TanukiTheme.spacing
-    val background = MaterialTheme.colorScheme.background
-    val backdropAlpha = HERO_BACKDROP_ALPHA_LIGHT
-    val scrimTopAlpha = HERO_SCRIM_TOP_LIGHT
     val seed = manga.id.toString()
     // The merged header (matched metadata unless the user prefers the source's) — same as iOS.
     val coverUrl = header.coverUrl
@@ -119,30 +93,6 @@ internal fun MangaHero(
     val statusLabel = heroLine.status?.labelResource()?.let { stringResource(it) }
 
     Box(modifier = modifier.fillMaxWidth()) {
-        // Cover-derived backdrop: the cover art, blurred and dimmed, so its colours wash the header.
-        // Falls back to the deterministic gradient when the series has no cover URL.
-        if (coverUrl != null) {
-            AsyncImage(
-                model = coverImageRequest(coverUrl, coverHeaders),
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.matchParentSize().blur(HeroBackdropBlur).alpha(backdropAlpha)
-            )
-        } else {
-            Box(Modifier.matchParentSize().alpha(backdropAlpha).background(coverGradient(seed)))
-        }
-        // Fade the backdrop into the screen canvas: a light scrim up top (so the cover shows), ramping to
-        // the opaque background at the base — with enough veil behind the title band to keep it legible.
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        0f to background.copy(alpha = scrimTopAlpha),
-                        1f to background
-                    )
-                )
-        )
         Row(
             horizontalArrangement = Arrangement.spacedBy(spacing.lg),
             verticalAlignment = Alignment.CenterVertically,
@@ -170,7 +120,7 @@ internal fun MangaHero(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = header.title,
-                    style = TanukiTheme.typography.title,
+                    style = TanukiTheme.typography.hero,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
@@ -254,8 +204,8 @@ private fun ReadingStatusPill(
 ) {
     val spacing = TanukiTheme.spacing
     val selected = status != null
-    val accent = TanukiTheme.colors.accentHover
-    val contentColor = if (selected) accent else TanukiTheme.colors.textFaint
+    // Selected: `ink` on `accent-tint` with the glyph in `accent`, as the design system's selected state.
+    val contentColor = if (selected) MaterialTheme.colorScheme.onSurface else TanukiTheme.colors.textFaint
     val label =
         status?.let { stringResource(it.labelResource()) } ?: stringResource(Res.string.manga_reading_status_set)
 
@@ -275,7 +225,11 @@ private fun ReadingStatusPill(
                 ).clickable(onClick = onClick)
                 .padding(horizontal = spacing.md, vertical = spacing.xs)
     ) {
-        BookmarkIcon(tint = contentColor, size = StatusGlyphSize)
+        BookmarkIcon(
+            tint = if (selected) TanukiTheme.colors.accent else contentColor,
+            size = StatusGlyphSize,
+            filled = selected,
+        )
         Text(
             text = label,
             style = TanukiTheme.typography.caption.copy(fontWeight = FontWeight.Medium),

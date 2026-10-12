@@ -34,7 +34,7 @@ struct ReaderChrome: View {
         GlassEffectContainer {
             HStack(spacing: TK.Space.s2) {
                 Button { vm.onBack() } label: { Image(systemName: "chevron.backward") }
-                    .buttonStyle(.glass)
+                    .buttonStyle(.glass(.clear))
                     .accessibilityLabel(tr("reader_back", table: .reader))
                 VStack(alignment: .leading, spacing: 0) {
                     Text(chapterTitle)
@@ -43,7 +43,7 @@ struct ReaderChrome: View {
                     // Content from the source, never localized.
                     Text(content.mangaTitle)
                         .tkStyle(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.tk.inkMuted)
                         .lineLimit(1)
                 }
                 .padding(.horizontal, TK.Space.s4)
@@ -53,9 +53,9 @@ struct ReaderChrome: View {
                 Button { vm.onToggleBookmark() } label: {
                     Image(systemName: content.isCurrentPageBookmarked ? "bookmark.fill" : "bookmark")
                         .symbolEffect(.bounce, value: content.isCurrentPageBookmarked)
-                        .foregroundStyle(content.isCurrentPageBookmarked ? Color.tk.accent : Color.primary)
+                        .foregroundStyle(content.isCurrentPageBookmarked ? Color.tk.accent : Color.tk.ink)
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.glass(.clear))
                 .accessibilityLabel(tr(content.isCurrentPageBookmarked ? "reader_bookmark_remove" : "reader_bookmark_add", table: .reader))
                 Menu {
                     Button(tr("reader_open_in_browser", table: .reader), systemImage: "safari") {
@@ -64,7 +64,7 @@ struct ReaderChrome: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.glass(.clear))
                 .accessibilityLabel(tr("reader_more", table: .reader))
             }
         }
@@ -77,7 +77,7 @@ struct ReaderChrome: View {
             VStack(spacing: TK.Space.s2) {
                 HStack(spacing: TK.Space.s2) {
                     Button { vm.onPreviousChapter() } label: { Image(systemName: "backward.end.fill") }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.glass(.clear))
                         .disabled(!content.hasPreviousChapter)
                         .accessibilityLabel(tr("reader_previous_chapter", table: .reader))
                     PageScrubber(content: content, vm: vm)
@@ -85,7 +85,7 @@ struct ReaderChrome: View {
                         .padding(.vertical, TK.Space.s1)
                         .glassEffect(.clear, in: .capsule)
                     Button { vm.onNextChapter() } label: { Image(systemName: "forward.end.fill") }
-                        .buttonStyle(.glass)
+                        .buttonStyle(.glass(.clear))
                         .disabled(!content.hasNextChapter)
                         .accessibilityLabel(tr("reader_next_chapter", table: .reader))
                 }
@@ -97,7 +97,7 @@ struct ReaderChrome: View {
                         Label(tr("reader_settings", table: .reader), systemImage: "textformat.size")
                     }
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(.glass(.clear))
                 .tkStyle(.label)
             }
         }

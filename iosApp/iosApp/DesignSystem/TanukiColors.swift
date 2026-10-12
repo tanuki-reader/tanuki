@@ -70,6 +70,8 @@ extension Color {
         static let coverOchre = Color("Tanuki/coverOchre")
         /// Fallback cover ground #6.
         static let coverTeal = Color("Tanuki/coverTeal")
+        /// Shadow colour, `0 2px 8px rgba(0,0,0,0.5)` at night. Cover art on the detail hero only. Grid covers stay flat.
+        static let shadowCover = Color("Tanuki/shadowCover")
 
         /// The fallback cover grounds, in design order. Pick one by hashing the manga id.
         static let coverFallbacks: [Color] = [coverRust, coverIndigo, coverMoss, coverPlum, coverOchre, coverTeal]

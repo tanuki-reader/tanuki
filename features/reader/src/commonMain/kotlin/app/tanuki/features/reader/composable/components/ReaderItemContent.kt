@@ -268,13 +268,13 @@ private fun TransitionSection(
     ) {
         Text(
             text = label,
-            style = TanukiTheme.typography.label,
+            style = TanukiTheme.typography.overline,
             color = if (emphasized) TanukiTheme.colors.accent else LocalReaderInk.current.copy(alpha = FAINT_INK),
             textAlign = TextAlign.Center
         )
         Text(
             text = title,
-            style = if (emphasized) TanukiTheme.typography.headline else TanukiTheme.typography.title,
+            style = if (emphasized) TanukiTheme.typography.headline else TanukiTheme.typography.titleL,
             color = if (emphasized) LocalReaderInk.current else LocalReaderInk.current.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )

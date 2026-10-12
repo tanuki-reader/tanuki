@@ -54,7 +54,6 @@ fun TanukiSwitchRow(
             },
         onClick = if (enabled) ({ onCheckedChange(!checked) }) else null,
         // The switch already shows where the row leads; a chevron would promise a sub-screen.
-        showChevron = false,
         trailing = {
             Switch(
                 checked = checked,

@@ -39,19 +39,17 @@ object TanukiListRowDefaults {
 /**
  * A dense, tappable list item — the **Android (Material) dialect** of the design system's `ListRow`,
  * used for drill-down rows (settings categories, sources, extensions). An optional [leading] slot (an
- * icon/thumbnail), a [title] with an optional [subtitle] beneath it, an optional [trailing] slot, and —
- * when [onClick] is set — a trailing chevron by default, so the row reads as "opens a sub-screen".
+ * icon/thumbnail), a [title] with an optional [subtitle] beneath it, and an optional [trailing] slot. No
+ * chevron: Android rows don't carry one (the design system's dialect rule); the row itself is the target.
  *
  * [title]/[subtitle] are already-resolved strings (content or `stringResource(...)`); the component never
- * inlines display literals. Set [showChevron] `= false` to suppress the chevron on a tappable row whose
- * action isn't navigation (e.g. a row-level toggle lives in [trailing]).
+ * inlines display literals.
  *
  * @param title the primary label.
- * @param onClick invoked when the row is tapped; `null` renders a non-interactive row (no ripple/chevron).
+ * @param onClick invoked when the row is tapped; `null` renders a non-interactive row.
  * @param subtitle a secondary line beneath the title (e.g. the current value of the setting).
  * @param leading a leading icon/thumbnail slot.
- * @param trailing a trailing control slot, placed before the chevron.
- * @param showChevron whether to show the drill-down chevron; defaults to `true` when [onClick] is set.
+ * @param trailing a trailing control slot.
  * @param subtitleColor overrides the subtitle's colour. For a row whose second line reports a *state*
  *   rather than a value — a download that failed, a source that couldn't install — where the muted
  *   default reads as "here is a detail" when it needs to read as "here is a problem". Colour is never the
@@ -69,7 +67,6 @@ fun TanukiListRow(
     subtitle: String? = null,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
-    showChevron: Boolean = onClick != null,
     subtitleColor: Color? = null,
     destructive: Boolean = false
 ) {
@@ -114,9 +111,6 @@ fun TanukiListRow(
             }
         }
         trailing?.invoke(this)
-        if (showChevron) {
-            ChevronRightIcon(tint = TanukiTheme.colors.textFaint)
-        }
     }
 }
 

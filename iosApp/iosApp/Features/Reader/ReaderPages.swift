@@ -24,6 +24,7 @@ struct WebtoonStrip: View {
     @State private var pinchStart: CGFloat = 1
     @State private var offsetX: CGFloat = 0
     @State private var dragStart: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
@@ -65,7 +66,7 @@ struct WebtoonStrip: View {
                     .onEnded { _ in dragStart = offsetX }
             )
             .onTapGesture(count: 2) {
-                withAnimation(TK.Motion.enter) {
+                withAnimation(reduceMotion ? TK.Motion.reduced : TK.Motion.enter) {
                     scale = scale > 1 ? 1 : 2
                     pinchStart = scale
                     offsetX = 0
@@ -167,6 +168,7 @@ private struct ZoomablePage<Content: View>: View {
     @State private var pinchStart: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var dragStart: CGSize = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
@@ -190,7 +192,7 @@ private struct ZoomablePage<Content: View>: View {
                     including: scale > 1 ? .all : .subviews
                 )
                 .onTapGesture(count: 2) {
-                    withAnimation(TK.Motion.enter) { setScale(scale > 1 ? 1 : 2, in: geo.size) }
+                    withAnimation(reduceMotion ? TK.Motion.reduced : TK.Motion.enter) { setScale(scale > 1 ? 1 : 2, in: geo.size) }
                     pinchStart = scale
                 }
                 .onTapGesture(perform: onTap)
@@ -263,7 +265,7 @@ private struct PageImage: View {
             if let image = state.image {
                 image.resizable().aspectRatio(contentMode: .fit)
             } else if state.error != nil {
-                Image(systemName: "exclamationmark.triangle")
+                Image(systemName: "exclamationmark.circle")
                     .font(.largeTitle)
                     .foregroundStyle(ink.opacity(0.6))
                     .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil)
@@ -328,7 +330,7 @@ private struct EndSlide: View {
     var body: some View {
         VStack(spacing: TK.Space.s3) {
             Image(systemName: "books.vertical")
-                .font(.system(size: 48))
+                .font(.largeTitle).imageScale(.large)
                 .foregroundStyle(ink.opacity(0.5))
             Text(tr("reader_end_title", table: .reader))
                 .tkStyle(.headline)
