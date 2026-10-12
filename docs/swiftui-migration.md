@@ -886,4 +886,45 @@ Decided from a review of iOS screenshots: when a slice migrates, rebuild it **to
   verified by hand:** the scroll on a device. Left: iOS has no page-ratio memory like Android's
   `PageAspectRatios` yet.
 
+- **2026-10-12 — Reader: chapter runaway after a long chapter leaves or arrives (both platforms).** The
+  placeholder fix above was real, but the bug kept happening. **Reproduced on the Android emulator**
+  (Pixel 9, "The Greatest Estate Developer", ch. 1 = 205 pages): one "next chapter" tap, then no touch,
+  and the reader ran through 4 chapters, one hop per eviction (~750 ms apart), landing on pages 64, 29, 84.
+  - **Cause (instrumented):** evicting a long chapter shifts every index by 200+. Compose finds the first
+    visible item by key only within ~100 items of its last index (`NearestItemsExtraItemCount`); past that
+    it keeps the old *index*, a page in a later chapter. The `Reanchor` meant to catch that reached the
+    collector before the new list was composed, so it resolved against the **old** list, read "already
+    there" and did nothing. The layout then reported the wrong page, the ViewModel moved the window there,
+    and that move scheduled the next eviction. Separately, `requestScrollToItem` cancels a fling (its
+    KDoc), and eviction / the previous-chapter warm ran 750 ms after the *chapter* went quiet, mid-fling.
+  - **Fix:**
+    - **Android:** `PinOnReindex` (`ReaderContent.kt`), a `SideEffect` that runs after the new list is
+      composed and before it is measured. It pins the item on screen by key, keeping its offset, when the
+      shift is beyond Compose's reach. Both layouts ignore `Reanchor` now.
+    - **ViewModel:** `onScrollingChange` (Android `isScrollInProgress`, iOS `onScrollPhaseChange`).
+      Eviction and the previous-chapter warm wait for the chapter to be quiet *and* the viewport to stop;
+      `Reanchor` is held while it moves and sent when it stops.
+    - **iOS:** `.reanchor` holds focus reports for a layout pass and scrolls only if the page has left the
+      screen, so the offset into a tall page isn't lost.
+  - **Verified:**
+    - Reader 56 (+3: eviction and the previous-chapter warm wait for the scroll to stop; a re-anchor is
+      held during it), host + iOS; `:features:reader` 7; `:androidApp:assembleDebug`; Debug xcodebuild.
+    - Emulator, same repro: one move per tap, no runaway; the 205-page eviction kept 1.2 at page 1.
+    - Emulator, forward flings across a boundary: one crossing, eviction only after the flings stopped,
+      1.2 kept at page 16.
+    - Emulator, backward flings: one crossing; ch. 1 (205 pages) prepended above with the page held.
+  - **Not verified:**
+    - iOS by hand: SwiftUI's own keep-by-id across a 200-item shift, and the fling feel both ways.
+    - Pager modes on Android.
+  - **Deliberately not done:** focus at the screen centre (UX change, revisit after a device check).
+  - **Follow-up, same day — iOS flick scrolling up** (owner's device recording, Eleceed 413 → 412). The
+    content dropped ~100 pt each time a page entered at the top edge. A page that scrolled away came back
+    as a `width / 0.7` placeholder, then grew to its real webtoon height above the reader. Its image
+    had left Nuke's memory cache: a tall page decoded at screen width is megabytes. Fix: `PageRatios`
+    (`ReaderPages.swift`, Android's `PageAspectRatios`), filled from `LazyImage.onCompletion`, trimmed to
+    the window's keys, used for the strip placeholder's height. Debug xcodebuild passes; **not verified on
+    a device yet.** Pages never loaded this session (a previous chapter read from the middle) can still
+    grow once.
+  - **Seen, not chased:** on a badly lagging emulator the previous-chapter button seemed to do nothing.
+
   Next: **Phase 9 — Cleanup**.

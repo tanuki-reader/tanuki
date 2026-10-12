@@ -217,11 +217,11 @@ sealed interface ReaderCommand {
      * Keep the viewport on the same logical page after the item list was re-indexed above it — an adjacent
      * chapter's pages inserted, or the chapter two behind evicted.
      *
-     * Mostly belt-and-braces: both layouts are keyed by [ReaderItem.key] and restore their own position
-     * during measure. But Compose builds its key→index map only over a window of roughly a hundred items
-     * around the last known position, and outside it the lookup silently keeps the stale index — so a
-     * shift larger than that (a long webtoon chapter leaving the window) would jump. Every layout applies
-     * it, but only when the item on screen isn't already [key], so it never fights a scroll in progress.
+     * A fallback: the layouts are keyed by [ReaderItem.key] and hold their own place. Only sent while the
+     * viewport is still (a scroll in progress defers it), and a layout applies it only if [key] has left
+     * the screen. Android doesn't use it at all: it reaches the collector before the new list is composed,
+     * so it would resolve against the old one; the Compose layouts pin their item before the next measure
+     * instead (`PinOnReindex`).
      */
     data class Reanchor(override val key: String) : ReaderCommand
 

@@ -31,8 +31,10 @@ import kotlin.uuid.Uuid
  *   are split because the index moves *mid-gesture*, not on settle: a pager's `currentPage` flips once a
  *   drag passes the snap halfway point, and a strip's `firstVisibleItemIndex` changes throughout a fling.
  *   Evicting on the move would pull items out from above a viewport the user still has a finger on. So
- *   the ViewModel debounces eviction on a quiet index (`EVICT_QUIET_MS`), which also makes oscillating
- *   across a boundary free — it never drops what it is about to need again.
+ *   the ViewModel evicts only once the index has been quiet for `EVICT_QUIET_MS` and the viewport has
+ *   stopped scrolling (a quiet index alone isn't a parked reader: a strip fling runs on through the new
+ *   chapter), which also makes oscillating across a boundary free — it never drops what it is about to
+ *   need again.
  * - **[withPages] ignores an insert from outside the radius.** A fetch started before the window moved
  *   on must not put the chapter back, or the window would grow by one every time the user out-ran a load.
  *

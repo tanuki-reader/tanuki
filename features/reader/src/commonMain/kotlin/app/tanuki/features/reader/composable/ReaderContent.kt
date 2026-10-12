@@ -7,8 +7,10 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
@@ -32,6 +34,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -45,10 +48,10 @@ import org.jetbrains.compose.resources.stringResource
  * How far ahead pages are warmed is the ViewModel's call too ([prefetchBudget]), since it is the half of
  * the reader that can see the connection.
  *
- * - **command:** the ViewModel drives the viewport back via [commands], each naming an item by key — a
- *   [ReaderCommand.Reanchor] to hold position when the list is re-indexed above the current page, and a
- *   [ReaderCommand.Jump] for the scrubber, chapter buttons and chapter list. The key is resolved against
- *   the list this composition renders, waiting for it to appear (see [awaitIndexOf]).
+ * - **command:** the ViewModel drives the viewport via [commands]: a [ReaderCommand.Jump] for the scrubber,
+ *   chapter buttons and chapter list, naming an item by key, resolved against the list this composition
+ *   renders once it appears (see [awaitIndexOf]). Holding position when the list is re-indexed above the
+ *   current page is the layouts' own job here (see [PinOnReindex]), so [ReaderCommand.Reanchor] is ignored.
  */
 @Composable
 internal fun ReaderContent(
@@ -59,6 +62,7 @@ internal fun ReaderContent(
     val commands = viewModel.commands
     val onItemFocused: (String) -> Unit = viewModel::onItemFocused
     val onToggleChrome: () -> Unit = viewModel::onToggleChrome
+    val onScrollingChange: (Boolean) -> Unit = viewModel::onScrollingChange
     if (content.items.isEmpty()) {
         TanukiEmptyState(
             message = stringResource(Res.string.reader_no_pages),
@@ -90,16 +94,21 @@ internal fun ReaderContent(
                             ?.key as? String
                     }.filterNotNull().collect(onItemFocused)
                 }
-                // The pager anchors by key during measure (see [PagedReader]), so a re-anchor is usually a no-op
-                // — skipped when the page on screen is already the one named — and otherwise the guard against
-                // a shift too large for Compose's key→index window. Explicit jumps always have to be applied.
+                LaunchedEffect(pagerState) { snapshotFlow { pagerState.isScrollInProgress }.collect(onScrollingChange) }
+                PinOnReindex(
+                    items = content.items,
+                    onScreen = {
+                        pagerState.layoutInfo.visiblePagesInfo
+                            .firstOrNull { it.index == pagerState.currentPage }
+                            ?.let { it.index to it.key }
+                    },
+                    pin = { index -> pagerState.requestScrollToPage(index, pagerState.currentPageOffsetFraction) }
+                )
                 LaunchedEffect(pagerState, commands) {
                     commands.collect { command ->
+                        if (command !is ReaderCommand.Jump) return@collect // Reanchor: see [PinOnReindex]
                         val index = awaitIndexOf(command.key) { items } ?: return@collect
-                        when (command) {
-                            is ReaderCommand.Jump -> pagerState.scrollToPage(index)
-                            is ReaderCommand.Reanchor -> if (pagerState.currentPage != index) pagerState.requestScrollToPage(index)
-                        }
+                        pagerState.scrollToPage(index)
                     }
                 }
                 PagePrefetch(content.items, pagerState.currentPage, prefetchBudget, ratios)
@@ -117,21 +126,17 @@ internal fun ReaderContent(
                         .filterNotNull()
                         .collect(onItemFocused)
                 }
-                // The strip keeps its visible item anchored by key when the list changes above it, but only
-                // within Compose's ~100-item key window; a long webtoon chapter leaving or arriving shifts
-                // further than that. So a re-anchor is applied when the first visible item isn't the one named
-                // — with `requestScrollToItem`, which keeps the offset into the page and, unlike
-                // `scrollToItem`, doesn't cancel a fling in progress.
+                LaunchedEffect(listState) { snapshotFlow { listState.isScrollInProgress }.collect(onScrollingChange) }
+                PinOnReindex(
+                    items = content.items,
+                    onScreen = { listState.layoutInfo.visibleItemsInfo.firstOrNull()?.let { it.index to it.key } },
+                    pin = { index -> listState.requestScrollToItem(index, listState.firstVisibleItemScrollOffset) }
+                )
                 LaunchedEffect(listState, commands) {
                     commands.collect { command ->
+                        if (command !is ReaderCommand.Jump) return@collect // Reanchor: see [PinOnReindex]
                         val index = awaitIndexOf(command.key) { items } ?: return@collect
-                        when (command) {
-                            is ReaderCommand.Jump -> listState.scrollToItem(index)
-                            is ReaderCommand.Reanchor ->
-                                if (listState.firstVisibleItemIndex != index) {
-                                    listState.requestScrollToItem(index, listState.firstVisibleItemScrollOffset)
-                                }
-                        }
+                        listState.scrollToItem(index)
                     }
                 }
                 PagePrefetch(content.items, listState.firstVisibleItemIndex, prefetchBudget, ratios)
@@ -178,6 +183,39 @@ internal fun ReaderContent(
         onBackgroundChange = viewModel::onBackgroundChange
     )
 }
+
+/**
+ * Keeps the item on screen in place when [items] is re-indexed above it: a chapter evicted from the
+ * window, or the previous one prepended. Both layouts re-find their first item by key, but only within
+ * [COMPOSE_KEY_REACH] items of where it was; past that they keep the old *index*, which now names a page
+ * further on (often in another chapter). The reader then reports that page as the one being read and the
+ * window moves again, so one long chapter leaving could run the reader through several chapters on its own.
+ *
+ * Runs as a [SideEffect]: after the new list is composed and before it is measured, so [onScreen] still
+ * reads the old layout and [pin] lands in the very measure that would have slipped. Within reach it leaves
+ * the layout to it, because a pin cancels a fling in progress and Compose's own re-anchoring doesn't.
+ *
+ * This is why the layouts ignore [ReaderCommand.Reanchor]: it reaches the collector before the new list is
+ * composed, so its key resolves against the old list and reads as "already there".
+ */
+@Composable
+private fun PinOnReindex(
+    items: List<ReaderItem>,
+    onScreen: () -> Pair<Int, Any>?,
+    pin: (Int) -> Unit
+) {
+    val pinnedFor = remember { arrayOfNulls<List<ReaderItem>>(1) }
+    SideEffect {
+        if (pinnedFor[0] === items) return@SideEffect
+        pinnedFor[0] = items
+        val (was, key) = onScreen() ?: return@SideEffect
+        val index = items.indexOfFirst { it.key == key }
+        if (index >= 0 && abs(index - was) > COMPOSE_KEY_REACH) pin(index)
+    }
+}
+
+/** How far from its last index a lazy layout looks an item's key up (Compose's `NearestItemsExtraItemCount`). */
+private const val COMPOSE_KEY_REACH = 100
 
 /** How long a command waits for its item to reach the rendered list before it is dropped. */
 private const val COMMAND_KEY_TIMEOUT_MS = 1_000L

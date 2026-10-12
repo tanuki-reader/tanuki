@@ -4,14 +4,17 @@ import SwiftUI
 
 // MARK: - Webtoon strip
 
-/// Long strip: pages stacked with no gaps, scrolled freely. The focused item is the topmost visible one.
+/// Long strip: pages stacked with no gaps, scrolled freely. Reports every key on screen (the reader focuses
+/// the topmost) and whether the strip is moving.
 /// Pinch or double-tap zooms the whole strip (not one page), so neighbouring pages stay aligned; while
 /// zoomed, a horizontal drag walks the page sideways.
 struct WebtoonStrip: View {
     let items: [any ReaderItem]
     @Binding var position: ScrollPosition
     let ground: ReaderBackground
-    let onFocus: (String) -> Void
+    let ratios: PageRatios
+    let onVisible: ([String]) -> Void
+    let onScrolling: (Bool) -> Void
     let onTap: () -> Void
 
     /// Width:height reserved for a page before its image arrives (Android's `DEFAULT_PAGE_ASPECT_RATIO`).
@@ -27,16 +30,22 @@ struct WebtoonStrip: View {
             ScrollView(.vertical) {
                 LazyVStack(spacing: 0) {
                     ForEach(items, id: \.key) { item in
-                        ReaderItemView(item: item, ground: ground, fill: false, placeholderHeight: geo.size.width / Self.placeholderRatio)
+                        ReaderItemView(
+                            item: item,
+                            ground: ground,
+                            fill: false,
+                            placeholderHeight: geo.size.width / (ratios.of(item.key) ?? Self.placeholderRatio),
+                            onSize: { ratios.record(item.key, $0) }
+                        )
                             .frame(minHeight: item is ReaderItemPageItem ? 0 : geo.size.height)
                     }
                 }
                 .scrollTargetLayout()
             }
             .scrollPosition($position, anchor: .top)
-            .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.01) { keys in
-                if let top = topmost(keys, in: items) { onFocus(top) }
-            }
+            .onChange(of: items.count) { ratios.retain(items.map(\.key)) }
+            .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.01, onVisible)
+            .onScrollPhaseChange { _, phase in onScrolling(phase != .idle) }
             .scaleEffect(scale, anchor: .top)
             .offset(x: offsetX)
             .gesture(
@@ -75,6 +84,28 @@ struct WebtoonStrip: View {
     }
 }
 
+/// The real width:height of every strip page that has loaded, for as long as its chapter is in the window
+/// (Android's `PageAspectRatios`). A page that scrolls away is torn down, and its decoded image usually
+/// leaves Nuke's memory cache too (a tall page at screen width is megabytes). Back on screen it would
+/// start as a `placeholderRatio` slot and then grow to its real height. Scrolling up, that growth happens
+/// at the top of the screen and shoves everything below it down. Not observed: the ratio only matters
+/// when a page's view is built, and once its image is in the image sizes itself.
+final class PageRatios {
+    private var ratios: [String: CGFloat] = [:]
+
+    func of(_ key: String) -> CGFloat? { ratios[key] }
+
+    func record(_ key: String, _ size: CGSize) {
+        if size.width > 0, size.height > 0 { ratios[key] = size.width / size.height }
+    }
+
+    /// Forgets the pages whose chapter left the window.
+    func retain(_ keys: [String]) {
+        let live = Set(keys)
+        ratios = ratios.filter { live.contains($0.key) }
+    }
+}
+
 // MARK: - Paged
 
 /// One page per swipe: horizontal (L→R, or R→L laid out right to left) or vertical. Each page zooms on its
@@ -86,7 +117,8 @@ struct PagedReader: View {
     @Binding var position: ScrollPosition
     @Binding var zoomed: Bool
     let ground: ReaderBackground
-    let onFocus: (String) -> Void
+    let onVisible: ([String]) -> Void
+    let onScrolling: (Bool) -> Void
     let onTap: () -> Void
 
     var body: some View {
@@ -97,9 +129,8 @@ struct PagedReader: View {
         .scrollIndicators(.hidden)
         .scrollDisabled(zoomed)
         .scrollPosition($position)
-        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.6) { keys in
-            if let top = topmost(keys, in: items) { onFocus(top) }
-        }
+        .onScrollTargetVisibilityChange(idType: String.self, threshold: 0.6, onVisible)
+        .onScrollPhaseChange { _, phase in onScrolling(phase != .idle) }
         // Right to left: the pager runs from the right edge; each page is laid back out left to right.
         .environment(\.layoutDirection, rightToLeft ? .rightToLeft : .leftToRight)
     }
@@ -205,11 +236,13 @@ struct ReaderItemView: View {
     /// spinner's size, so a whole unloaded chapter fit on one screen and a single swipe ran through
     /// several chapters.
     let placeholderHeight: CGFloat?
+    /// Strip only: the loaded page's size, so it can hold that height the next time it is built.
+    var onSize: ((CGSize) -> Void)? = nil
 
     var body: some View {
         switch onEnum(of: item) {
         case let .pageItem(page):
-            PageImage(page: page, fill: fill, placeholderHeight: placeholderHeight, ink: ReaderGround.ink(ground))
+            PageImage(page: page, fill: fill, placeholderHeight: placeholderHeight, ink: ReaderGround.ink(ground), onSize: onSize)
         case let .transition(transition):
             TransitionSlide(transition: transition, ink: ReaderGround.ink(ground))
         case .end:
@@ -223,6 +256,7 @@ private struct PageImage: View {
     let fill: Bool
     let placeholderHeight: CGFloat?
     let ink: Color
+    let onSize: ((CGSize) -> Void)?
 
     var body: some View {
         LazyImage(request: PageRequest.make(page)) { state in
@@ -243,6 +277,9 @@ private struct PageImage: View {
             }
         }
         .pipeline(.tanukiPages)
+        .onCompletion { result in
+            if case let .success(response) = result { onSize?(response.image.size) }
+        }
         .accessibilityLabel(tr("reader_page_indicator", Int(page.pageNumber) + 1, Int(page.pageCount), table: .reader))
     }
 }

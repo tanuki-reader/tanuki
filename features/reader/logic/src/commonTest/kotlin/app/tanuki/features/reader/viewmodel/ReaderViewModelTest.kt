@@ -426,6 +426,66 @@ class ReaderViewModelTest {
         assertEquals(3, viewModel.content().loadedChapterIds.size)
     }
 
+    @Test
+    fun `eviction waits for the scroll to stop and not just the chapter`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        viewModel.focusAt(0)
+        runCurrent()
+
+        // A long strip fling carries on through the new chapter well after the chapter id stops changing.
+        viewModel.onScrollingChange(true)
+        viewModel.crossInto(world.chapterIds[START + 1])
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS * 4)
+        runCurrent()
+        assertEquals(4, viewModel.content().loadedChapterIds.size)
+
+        viewModel.onScrollingChange(false)
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
+        runCurrent()
+        assertEquals(world.chapterIds.slice(START..START + 2), viewModel.content().loadedChapterIds)
+    }
+
+    @Test
+    fun `the previous chapter is not warmed in above a moving viewport`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+
+        viewModel.onScrollingChange(true)
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS * 4)
+        runCurrent()
+        assertFalse(world.chapterIds[START - 1] in viewModel.content().loadedChapterIds)
+
+        viewModel.onScrollingChange(false)
+        advanceTimeBy(ReaderViewModel.EVICT_QUIET_MS + 1)
+        runCurrent()
+        assertTrue(world.chapterIds[START - 1] in viewModel.content().loadedChapterIds)
+    }
+
+    @Test
+    fun `a list shift during a scroll re-anchors only once the scroll stops`() = runTest {
+        val world = World()
+        val viewModel = world.viewModel()
+        runCurrent()
+        val commands = mutableListOf<ReaderCommand>()
+        val job = collectCommands(viewModel, commands)
+
+        // Scrolling up onto the leading slide loads the previous chapter in above it, mid-gesture.
+        viewModel.onScrollingChange(true)
+        val slide = viewModel.content().items[0].key
+        viewModel.focusAt(0)
+        runCurrent()
+        assertTrue(world.chapterIds[START - 1] in viewModel.content().loadedChapterIds)
+        assertTrue(commands.none { it is ReaderCommand.Reanchor }, "re-anchored mid-scroll: $commands")
+
+        viewModel.onScrollingChange(false)
+        runCurrent()
+        assertEquals(slide, commands.filterIsInstance<ReaderCommand.Reanchor>().single().key)
+        job.cancel()
+    }
+
     // ---- The spine is live ---------------------------------------------------------------------
 
     @Test

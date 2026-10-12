@@ -55,6 +55,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -86,9 +87,8 @@ import kotlin.uuid.Uuid
  * "At most three" is enforced, not merely described: [ReaderWindow] drops what falls outside the window,
  * so a long session holds three chapters however many it has read through. When the visible page crosses
  * into a neighbouring chapter the window slides one step — the new neighbour is preloaded, the one two
- * behind is dropped, and the viewport keeps its page. Both layouts re-anchor themselves by item key
- * during measure; [ReaderCommand.Reanchor] is the fallback for shifts Compose's key lookup can't see
- * (see its KDoc). The chrome (title, scrubber) always reflects whichever chapter the visible page
+ * behind is dropped, and the viewport keeps its page. The layouts hold their place by item key
+ * themselves; [ReaderCommand.Reanchor] is the fallback for a layout that can't (see its KDoc). The chrome (title, scrubber) always reflects whichever chapter the visible page
  * belongs to.
  *
  * ## Reactive shape (mirrors the other feature ViewModels)
@@ -104,10 +104,11 @@ import kotlin.uuid.Uuid
  * chapter and a chrome toggle rebuild nothing (see [frames]).
  *
  * Four pipelines hang off it. **Fetching is flow-driven** — every chapter change drives [warmWindow],
- * which loads the current chapter and warms its successor. **Eviction** runs once the window has held
- * still for [EVICT_QUIET_MS], because the reader's position moves mid-gesture and dropping items from
- * above a viewport under a live finger is not something to do eagerly — and the previous chapter is warmed
- * on the same quiet beat, since its pages land above the viewport too. **Progress** is a debounced flow,
+ * which loads the current chapter and warms its successor. **Eviction** runs once the chapter has held
+ * still for [EVICT_QUIET_MS] *and* the viewport has stopped moving ([onScrollingChange]): dropping items
+ * from above a moving viewport shoves what is on screen, and a strip fling runs on long after the chapter
+ * stops changing — and the previous chapter is warmed on the same quiet beat, since its pages land above
+ * the viewport too. **Progress** is a debounced flow,
  * so a fast swipe writes once. And the **spine** is live: the chapter list can change under an open
  * reader, so the session is re-projected onto it rather than snapshotted (see [spines] and [reproject]).
  *
@@ -218,6 +219,9 @@ class ReaderViewModel(
     /** Whether a finger is on the scrubber, which holds the chrome open. */
     private val scrubbing = MutableStateFlow(false)
 
+    /** Whether the viewport is moving, as the layout reports it (see [onScrollingChange]). */
+    private val scrolling = MutableStateFlow(false)
+
     /**
      * This series' page bookmarks. Small, and read on every page turn (is *this* page bookmarked?), so it
      * is held for the reader's life rather than only while the sheet is open.
@@ -283,17 +287,20 @@ class ReaderViewModel(
             .launchIn(viewModelScope)
 
         // Eviction pipeline: drop what has fallen outside the window, but only once the reader has
-        // *settled*. The index moves mid-gesture (a pager's currentPage flips at the halfway point of a
-        // drag; a strip's first visible item changes throughout a fling), so evicting the moment it moves
-        // would pull items out from above a viewport the user still has a finger on — and the re-anchor
-        // that followed would cancel the in-flight settle. Waiting for a quiet index also makes crossing
-        // a boundary back and forth free: it never drops what it is about to need again.
+        // *settled*: the chapter has held still for [EVICT_QUIET_MS] and the viewport isn't moving. A quiet
+        // chapter alone isn't enough — a strip fling runs on through the new chapter's pages long after it
+        // stops changing — and dropping items from above a moving viewport shoves what is on screen, while
+        // the re-anchor that follows cancels the fling. Waiting also makes crossing a boundary back and
+        // forth free: it never drops what it is about to need again.
         bootstrap
             .flatMapLatest { stage ->
                 if (stage !is Bootstrap.Ready) {
                     emptyFlow()
                 } else {
-                    window.currentChapters().debounce(EVICT_QUIET_MS).map { stage.session }
+                    combine(window.currentChapters(), scrolling) { _, moving -> moving }
+                        .debounce(EVICT_QUIET_MS)
+                        .filter { moving -> !moving }
+                        .map { stage.session }
                 }
             }.onEach { active ->
                 val evicted = window.updateAndGet { it.evicted(active) }
@@ -563,6 +570,15 @@ class ReaderViewModel(
 
     fun onChaptersTabChange(tab: ReaderChaptersTab) {
         chaptersTab.value = tab
+    }
+
+    /**
+     * The viewport started or stopped moving (a drag, a fling, a page settling). Nothing is dropped from or
+     * warmed in above a moving viewport, and a re-anchor held back while it moved is sent once it stops.
+     */
+    fun onScrollingChange(scrolling: Boolean) {
+        this.scrolling.value = scrolling
+        if (!scrolling) (uiState.value as? Content)?.let { reanchorIfNeeded(it.items) }
     }
 
     /** The scrubber was grabbed or let go; the chrome stays up while it is held. */
@@ -867,11 +883,13 @@ class ReaderViewModel(
 
     /**
      * If the focused item moved within the rebuilt [items] — an adjacent chapter's pages inserted above the
-     * viewport, or the chapter two behind evicted from it — tell paged layouts to re-anchor to it. Runs as
-     * a side effect of each new [Content] emission. A key that is *gone* leaves the viewport alone, which
+     * viewport, or the chapter two behind evicted from it — tell the layout to re-anchor to it. Runs as
+     * a side effect of each new [Content] emission, and again when a scroll stops (it holds off while the
+     * viewport moves, since applying it would cancel the fling). A key that is *gone* leaves the viewport alone, which
      * could only happen if the chapter on screen were evicted — something [ReaderWindow] forbids.
      */
     private fun reanchorIfNeeded(items: List<ReaderItem>) {
+        if (scrolling.value) return // sent when the scroll stops (see [onScrollingChange])
         val key = focusedItemKey ?: return
         val index = items.indexOfFirst { it.key == key }
         if (index >= 0 && index != lastAnchoredIndex) {

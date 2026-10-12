@@ -79,8 +79,11 @@ private struct ReaderContentView: View {
     /// Focus is ignored until the layout has parked: before that it reports wherever a fresh scroll view
     /// starts (the first item, a leading transition), which would move the reader's window for nothing.
     @State private var parked = false
+    /// The keys on screen right now, so a re-anchor can tell whether its page is still in view.
+    @State private var visible: Set<String> = []
     @State private var zoomed = false
     @State private var prefetcher = ImagePrefetcher(pipeline: .tanukiPages)
+    @State private var ratios = PageRatios()
 
     var body: some View {
         ZStack {
@@ -108,14 +111,16 @@ private struct ReaderContentView: View {
     @ViewBuilder
     private var layout: some View {
         let items = content.items
-        let onFocus: (String) -> Void = { key in
-            guard parked else { return }
+        let onVisible: ([String]) -> Void = { keys in
+            visible = Set(keys)
+            guard parked, let key = topmost(keys, in: items) else { return }
             vm.onItemFocused(key: key)
             prefetch(around: key)
         }
+        let onScrolling: (Bool) -> Void = { vm.onScrollingChange(scrolling: $0) }
         switch content.readingMode {
         case .webtoon, .continuousVertical:
-            WebtoonStrip(items: items, position: $position, ground: content.background, onFocus: onFocus, onTap: vm.onToggleChrome)
+            WebtoonStrip(items: items, position: $position, ground: content.background, ratios: ratios, onVisible: onVisible, onScrolling: onScrolling, onTap: vm.onToggleChrome)
                 .onAppear { park() }
         default:
             PagedReader(
@@ -125,7 +130,8 @@ private struct ReaderContentView: View {
                 position: $position,
                 zoomed: $zoomed,
                 ground: content.background,
-                onFocus: onFocus,
+                onVisible: onVisible,
+                onScrolling: onScrolling,
                 onTap: vm.onToggleChrome
             )
             .onAppear { park() }
@@ -159,8 +165,16 @@ private struct ReaderContentView: View {
             case .jump:
                 position.scrollTo(id: key, anchor: .top)
             case .reanchor:
-                // SwiftUI keeps the item on screen by id by itself; only correct it when it didn't.
-                if position.viewID(type: String.self) != key { position.scrollTo(id: key, anchor: .top) }
+                // Sent once the viewport is still, after the list changed above the page on screen. SwiftUI
+                // usually keeps that page by id on its own, and a `scrollTo` would drop the offset into it
+                // (a webtoon page can be thousands of points tall), so only bring the page back if it has
+                // actually left the screen. Focus is held meanwhile: a page that slipped would otherwise be
+                // reported as the one being read, and the reader would move on to its chapter.
+                parked = false
+                try? await Task.sleep(for: .milliseconds(100)) // one layout pass for the new list to report
+                if !visible.contains(key) { position.scrollTo(id: key, anchor: .top) }
+                try? await Task.sleep(for: .milliseconds(100))
+                parked = true
             }
         }
     }
