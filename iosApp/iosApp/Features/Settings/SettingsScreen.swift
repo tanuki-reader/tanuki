@@ -35,6 +35,7 @@ struct SettingsScreen: View {
                 .listRowBackground(Color.tk.surfaceRaised)
                 row("puzzlepiece.extension", "settings_sources",
                     tr("settings_source_count", Int(state.sourceCount), table: .settings), .sources)
+                    .badge(Int(state.sourceUpdateCount))
                 row(
                     "arrow.down.circle",
                     "settings_downloads",

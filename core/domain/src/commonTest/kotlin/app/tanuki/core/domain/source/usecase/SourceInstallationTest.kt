@@ -21,12 +21,15 @@ import app.tanuki.core.domain.source.model.SourceRepo
 import app.tanuki.core.domain.source.model.SourceRepoError
 import app.tanuki.core.domain.source.model.SourceRepoException
 import app.tanuki.core.domain.source.repository.SourceRepository
+import app.tanuki.core.domain.update.model.MangaUpdateSummary
+import app.tanuki.core.domain.update.service.LibraryUpdateNotifier
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -43,7 +46,8 @@ private fun remote(
     name: String = id,
     version: Int = 2,
     repoName: String = "Tanuki Sources",
-    compatibility: SourceCompatibility = SourceCompatibility.Compatible
+    compatibility: SourceCompatibility = SourceCompatibility.Compatible,
+    repoUrl: String = "https://example.org/$repoName/"
 ) = RemoteSource(
     id = id,
     name = name,
@@ -51,7 +55,7 @@ private fun remote(
     version = version,
     nsfw = false,
     iconUrl = null,
-    repoUrl = "https://example.org/$repoName/",
+    repoUrl = repoUrl,
     repoName = repoName,
     compatibility = compatibility
 )
@@ -157,12 +161,70 @@ class SourceInstallationTest {
         assertEquals(LogPriority.WARN, logger.entries.single().priority)
     }
 
+    @Test
+    fun `an installed source is offered a newer runnable version as an update`() = runTest {
+        val entry = observeCatalog(installed = listOf(MANGADEX_META), available = listOf(remote(MANGADEX, version = 2))).first().single()
+
+        assertEquals(2, entry.updateVersion)
+    }
+
+    @Test
+    fun `a newer version this app can't run is not an update`() = runTest {
+        val entry =
+            observeCatalog(
+                installed = listOf(MANGADEX_META),
+                available = listOf(remote(MANGADEX, version = 2, compatibility = SourceCompatibility.NeedsAppUpdate))
+            ).first().single()
+
+        assertNull(entry.updateVersion)
+    }
+
+    @Test
+    fun `updates come only from the repo a source was installed from`() = runTest {
+        val other = remote(MANGADEX, version = 5, repoUrl = "https://other.test/")
+        val origin = remote(MANGADEX, version = 3, repoUrl = "https://origin.test/")
+
+        val fromOrigin =
+            observeCatalog(listOf(MANGADEX_META), listOf(other, origin), origins = mapOf(MANGADEX to "https://origin.test/"))
+                .first().single()
+        val originGone =
+            observeCatalog(listOf(MANGADEX_META), listOf(other), origins = mapOf(MANGADEX to "https://origin.test/"))
+                .first().single()
+
+        assertEquals(3, fromOrigin.updateVersion)
+        assertNull(originGone.updateVersion, "another repo must never update it, even once its own repo is gone")
+    }
+
+    @Test
+    fun `the background check notifies only versions new in this run`() = runTest {
+        val available = MutableStateFlow(listOf(remote(MANGADEX, version = 2)))
+        val notifier = RecordingSourceNotifier()
+        val check =
+            CheckSourceUpdates.Default(
+                observeSourceCatalog = ObserveSourceCatalog.Default(
+                    GetInstalledSources.Default(EnumeratingSourceLoader(listOf(MANGADEX_META)), RecordingLogger()),
+                    FakeCatalog(availableFlow = available),
+                    RecordingLogger()
+                ),
+                refreshSourceRepos = RefreshSourceRepos.Default(FakeCatalog(onRefresh = { available.value = listOf(remote(MANGADEX, version = 3)) })),
+                notifier = notifier,
+                logger = RecordingLogger()
+            )
+
+        check()
+        assertEquals(listOf(listOf("MangaDex")), notifier.calls, "v2 was already pending; the refresh brought v3")
+
+        check() // nothing new this time
+        assertEquals(listOf(listOf("MangaDex"), emptyList()), notifier.calls)
+    }
+
     private fun observeCatalog(
         installed: List<SourceMeta> = emptyList(),
-        available: List<RemoteSource> = emptyList()
+        available: List<RemoteSource> = emptyList(),
+        origins: Map<String, String> = emptyMap()
     ) = ObserveSourceCatalog.Default(
         getInstalledSources = GetInstalledSources.Default(EnumeratingSourceLoader(installed), RecordingLogger()),
-        catalog = FakeCatalog(available = available),
+        catalog = FakeCatalog(available = available, origins = origins),
         logger = RecordingLogger()
     )()
 }
@@ -199,15 +261,20 @@ private class FakeBundleStore(
 private class FakeCatalog(
     private val available: List<RemoteSource> = emptyList(),
     private val failure: Throwable? = null,
-    private val availableFailure: Throwable? = null
+    private val availableFailure: Throwable? = null,
+    private val origins: Map<String, String> = emptyMap(),
+    private val availableFlow: Flow<List<RemoteSource>>? = null,
+    private val onRefresh: () -> Unit = {}
 ) : SourceCatalog {
     val installCalls = mutableListOf<String>()
 
     override fun observeAvailable(): Flow<List<RemoteSource>> =
-        flow {
+        availableFlow ?: flow {
             availableFailure?.let { throw it }
             emit(available)
         }
+
+    override fun observeOrigins(): Flow<Map<String, String>> = flowOf(origins)
 
     override suspend fun install(
         sourceId: String,
@@ -225,7 +292,7 @@ private class FakeCatalog(
 
     override suspend fun removeRepo(baseUrl: String) = error("unused")
 
-    override suspend fun refresh() = error("unused")
+    override suspend fun refresh() = onRefresh()
 }
 
 /** A [SourceLoader] that only enumerates; the fetch calls are never reached here. */
@@ -257,4 +324,14 @@ private class EnumeratingSourceLoader(
         sourceId: String,
         chapterId: String
     ): List<Page> = error("unused")
+}
+
+private class RecordingSourceNotifier : LibraryUpdateNotifier {
+    val calls = mutableListOf<List<String>>()
+
+    override suspend fun notifyNewChapters(summaries: List<MangaUpdateSummary>) = Unit
+
+    override suspend fun notifySourceUpdates(sourceNames: List<String>) {
+        calls += sourceNames
+    }
 }

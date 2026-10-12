@@ -1974,6 +1974,57 @@
         }
       }
     },
+    "settings_source_update": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar"
+          }
+        }
+      }
+    },
+    "settings_source_update_all": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update all"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizar tudo"
+          }
+        }
+      }
+    },
+    "settings_source_update_details": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · v%2$lld → v%3$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · v%2$lld → v%3$lld"
+          }
+        }
+      }
+    },
     "settings_source_verifying": {
       "extractionState": "manual",
       "localizations": {
@@ -1987,6 +2038,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verificando"
+          }
+        }
+      }
+    },
+    "settings_source_version_change": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$lld → v%2$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v%1$lld → v%2$lld"
           }
         }
       }
@@ -2106,6 +2174,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "As fontes vêm de repos que você adiciona. Cole o endereço de um repo em que você confia para ver o que ele oferece."
+          }
+        }
+      }
+    },
+    "settings_sources_updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações"
+          }
+        }
+      }
+    },
+    "settings_sources_updates_count": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Updates · %1$lld"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações · %1$lld"
           }
         }
       }

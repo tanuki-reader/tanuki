@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import app.tanuki.features.settings.resources.settings_show_sensitive_hint
 import app.tanuki.features.settings.resources.settings_show_sensitive
+import app.tanuki.assets.designSystem.component.TanukiBadge
 import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -164,6 +165,7 @@ fun SettingsRoute(
                             state.sourceCount
                         ),
                     leading = { ExtensionIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    trailing = { TanukiBadge(count = state.sourceUpdateCount) },
                     onClick = { viewModel.onEntryClick(SettingsEntry.Sources) }
                 )
                 TanukiRowDivider(startInset = RowDividerInset)

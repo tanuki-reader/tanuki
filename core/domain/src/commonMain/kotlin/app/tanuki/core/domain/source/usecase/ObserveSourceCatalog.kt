@@ -38,7 +38,7 @@ sealed interface ObserveSourceCatalog {
         private val logger: Logger
     ) : ObserveSourceCatalog {
         override fun invoke(): Flow<List<CatalogSource>> =
-            combine(getInstalledSources(), available(), ::merge)
+            combine(getInstalledSources(), available(), origins(), ::merge)
 
         // A failing catalog degrades to "nothing to install": the installed half of the screen is still
         // correct and still uninstallable.
@@ -48,9 +48,12 @@ sealed interface ObserveSourceCatalog {
                 emit(emptyList())
             }
 
+        private fun origins(): Flow<Map<String, String>> = catalog.observeOrigins().catch { emit(emptyMap()) }
+
         private fun merge(
             installed: List<SourceMeta>,
-            available: List<RemoteSource>
+            available: List<RemoteSource>,
+            origins: Map<String, String>
         ): List<CatalogSource> {
             // Two repos may offer the same id; prefer one this app can run.
             val offered =
@@ -62,6 +65,14 @@ sealed interface ObserveSourceCatalog {
 
             val installedEntries =
                 installed.map { meta ->
+                    // Updates come only from the repo it was installed from (none if that repo was removed);
+                    // with no origin recorded, from the offer the catalog would install (the first runnable).
+                    val origin = origins[meta.id]
+                    val source = if (origin != null) available.firstOrNull { it.id == meta.id && it.repoUrl == origin } else offered[meta.id]
+                    val update =
+                        source?.takeIf {
+                            it.compatibility == SourceCompatibility.Compatible && meta.version != null && it.version > meta.version
+                        }
                     CatalogSource(
                         sourceId = meta.id,
                         name = meta.name,
@@ -70,7 +81,8 @@ sealed interface ObserveSourceCatalog {
                         installed = true,
                         nsfw = meta.nsfw,
                         version = meta.version,
-                        repoName = offered[meta.id]?.repoName
+                        repoName = offered[meta.id]?.repoName,
+                        updateVersion = update?.version
                     )
                 }
             val availableEntries =

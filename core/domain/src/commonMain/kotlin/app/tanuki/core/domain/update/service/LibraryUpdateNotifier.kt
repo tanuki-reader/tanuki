@@ -22,4 +22,12 @@ interface LibraryUpdateNotifier {
      *   — callers pass the most recently updated first.
      */
     suspend fun notifyNewChapters(summaries: List<MangaUpdateSummary>)
+
+    /**
+     * Announces that repos published newer versions of installed sources, as one notification that a
+     * later call replaces.
+     *
+     * @param sourceNames The sources with a new version, by display name; an empty list is a no-op.
+     */
+    suspend fun notifySourceUpdates(sourceNames: List<String>)
 }

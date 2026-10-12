@@ -157,6 +157,8 @@ private class FakeCatalog : SourceCatalog {
 
     override fun observeAvailable(): Flow<List<RemoteSource>> = error("unused")
 
+    override fun observeOrigins(): Flow<Map<String, String>> = error("unused")
+
     override suspend fun install(
         sourceId: String,
         onProgress: (InstallProgress) -> Unit

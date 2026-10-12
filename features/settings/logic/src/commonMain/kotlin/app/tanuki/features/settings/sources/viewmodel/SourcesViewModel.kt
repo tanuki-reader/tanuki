@@ -98,10 +98,11 @@ class SourcesViewModel(
             val selected = language?.takeIf { it in languages }
             val (installedSources, availableSources) =
                 catalog.filter { selected == null || it.lang?.value == selected }.partition(CatalogSource::installed)
-            val installed = installedSources.map { it.toItem(rows) }
+            val (updates, installed) = installedSources.map { it.toItem(rows) }.partition { it.newVersion != null }
             val available = availableSources.map { it.toItem(rows) }
             SourcesState(
                 loading = false,
+                updates = updates,
                 installed = installed,
                 available = available,
                 languages =
@@ -110,7 +111,7 @@ class SourcesViewModel(
                 showRepo = repos.size > 1,
                 repoCount = repos.size,
                 pendingUsage = usage,
-                pendingRemoval = installed.firstOrNull { it.sourceId == removal.sourceId },
+                pendingRemoval = (updates + installed).firstOrNull { it.sourceId == removal.sourceId },
                 removalDeletesDownloads = removal.deleteDownloads
             )
         }
@@ -126,18 +127,43 @@ class SourcesViewModel(
      */
     fun onInstall(sourceId: String) {
         if (sourceId in rows.value.progress) return
-        rows.update { it.copy(progress = it.progress + (sourceId to InstallProgress.Downloading(null)), installFailures = it.installFailures - sourceId) }
-        viewModelScope.launch {
-            val failure =
-                runCatchingCancellable {
-                    installSource(sourceId) { step -> rows.update { it.copy(progress = it.progress + (sourceId to step)) } }
-                }.getOrElse { SourceRepoError.Unreachable }
-            rows.update {
-                it.copy(
-                    progress = it.progress - sourceId,
-                    installFailures = if (failure == null) it.installFailures else it.installFailures + (sourceId to failure)
-                )
-            }
+        markQueued(listOf(sourceId))
+        viewModelScope.launch { install(sourceId) }
+    }
+
+    /** Update a source to the newer version its repo offers: an install over the bundle on disk. */
+    fun onUpdate(sourceId: String) = onInstall(sourceId)
+
+    /**
+     * Update every source with an update, **one at a time**: each runs the same install path (progress,
+     * named failure, Retry), and one failing doesn't stop the rest.
+     */
+    fun onUpdateAll() {
+        val pending = uiState.value.updates.map(SourceItem::sourceId).filterNot { it in rows.value.progress }
+        markQueued(pending)
+        viewModelScope.launch { pending.forEach { install(it) } }
+    }
+
+    /** Marks rows as in flight at once (reading "Downloading"), so a second tap can't queue them twice. */
+    private fun markQueued(sourceIds: List<String>) {
+        rows.update {
+            it.copy(
+                progress = it.progress + sourceIds.associateWith { InstallProgress.Downloading(null) },
+                installFailures = it.installFailures - sourceIds.toSet()
+            )
+        }
+    }
+
+    private suspend fun install(sourceId: String) {
+        val failure =
+            runCatchingCancellable {
+                installSource(sourceId) { step -> rows.update { it.copy(progress = it.progress + (sourceId to step)) } }
+            }.getOrElse { SourceRepoError.Unreachable }
+        rows.update {
+            it.copy(
+                progress = it.progress - sourceId,
+                installFailures = if (failure == null) it.installFailures else it.installFailures + (sourceId to failure)
+            )
         }
     }
 
@@ -195,6 +221,7 @@ class SourcesViewModel(
             lang = lang?.value,
             iconUrl = iconUrl?.value,
             version = version,
+            newVersion = updateVersion,
             repoName = repoName,
             nsfw = nsfw,
             compatibility = compatibility,

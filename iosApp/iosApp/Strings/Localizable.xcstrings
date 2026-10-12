@@ -69,6 +69,40 @@
         }
       }
     },
+    "notification_channel_source_updates": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Source updates"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atualizações de fontes"
+          }
+        }
+      }
+    },
+    "notification_channel_source_updates_description": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New versions of the sources you installed."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novas versões das fontes que você instalou."
+          }
+        }
+      }
+    },
     "notification_channel_updates": {
       "extractionState": "manual",
       "localizations": {
@@ -290,6 +324,47 @@
           "stringUnit": {
             "state": "translated",
             "value": "Baixando capítulos"
+          }
+        }
+      }
+    },
+    "notification_source_updates_title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld source update"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld source updates"
+                }
+              }
+            }
+          }
+        },
+        "pt-BR": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld atualização de fonte"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$lld atualizações de fontes"
+                }
+              }
+            }
           }
         }
       }

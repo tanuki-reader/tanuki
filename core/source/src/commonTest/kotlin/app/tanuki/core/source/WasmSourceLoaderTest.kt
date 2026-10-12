@@ -37,7 +37,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -145,6 +144,47 @@ class WasmSourceLoaderTest {
             // Not "is not installed" from a stale cache hit — the module was dropped, so the reload is
             // what fails, and the bundle read is what reports it.
             assertFailsWith<IllegalStateException> { loader.loadSource("mangadex") }
+        }
+
+    @Test
+    fun `replacing a bundle re-reports it and its next call runs the new bundle`() =
+        runTest {
+            val store = FakeBundleStore("mangadex")
+            val engine = FakeWasmEngine(metas = mapOf("mangadex" to metaWire("mangadex", "MangaDex")))
+            val loader = loader(engine, store)
+            loader.fetchMangaList("mangadex")
+            val original = engine.instantiated.last { it.first == "mangadex" }.second
+
+            // An update writes over the installed bundle: the id set is unchanged, yet the enumeration must
+            // run again (to report the new version) and the old instance must not keep serving calls.
+            val emissions = mutableListOf<List<String>>()
+            val collecting = launch { loader.observeInstalledSources().collect { emissions += it.map { m -> m.id } } }
+            runCurrent()
+            store.writeBundle("mangadex", byteArrayOf(1))
+            runCurrent()
+            collecting.cancel()
+            loader.fetchMangaList("mangadex")
+
+            assertEquals(2, emissions.size, "the rewrite re-emits even though the ids are the same")
+            assertTrue(original.closed, "the module built from the old bundle is retired")
+            assertEquals(listOf("mangadex"), engine.openIds())
+        }
+
+    @Test
+    fun `a new subscriber does not evict cached modules`() =
+        runTest {
+            val store = FakeBundleStore("mangadex")
+            val engine = FakeWasmEngine(metas = mapOf("mangadex" to metaWire("mangadex", "MangaDex")))
+            val loader = loader(engine, store)
+            loader.fetchMangaList("mangadex")
+
+            // A screen opening reads the installed sources once (GetSourceMeta); that must not cost every
+            // cached source a cold re-instantiation.
+            loader.observeInstalledSources().first()
+            loader.fetchMangaList("mangadex")
+
+            assertEquals(1, engine.instantiated.count { (id, module) -> id == "mangadex" && module.closed.not() })
+            assertEquals(listOf("mangadex"), engine.openIds())
         }
 
     @Test
@@ -751,11 +791,14 @@ private class FakeBundleStore(
 ) : SourceBundleStore {
     private val bundles = installed.associateWith { byteArrayOf(0) }.toMutableMap()
     private val revision = MutableStateFlow(0)
+    private val generations = mutableMapOf<String, Int>()
+
+    override fun generation(sourceId: String): Int = generations[sourceId] ?: 0
 
     override suspend fun installedIds() = bundles.keys.toList()
 
     override fun observeInstalledIds(): Flow<List<String>> =
-        revision.map { installedIds() }.distinctUntilChanged()
+        revision.map { installedIds() }
 
     override suspend fun readBundle(sourceId: String) = bundles[sourceId]
 
@@ -764,6 +807,7 @@ private class FakeBundleStore(
         bytes: ByteArray
     ) {
         bundles[sourceId] = bytes
+        generations[sourceId] = generation(sourceId) + 1
         revision.value++
     }
 

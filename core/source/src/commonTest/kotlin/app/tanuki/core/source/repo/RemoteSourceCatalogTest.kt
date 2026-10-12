@@ -6,6 +6,7 @@ import app.tanuki.core.domain.source.model.InstallProgress
 import app.tanuki.core.domain.source.model.SourceCompatibility
 import app.tanuki.core.domain.source.model.SourceRepoError
 import app.tanuki.core.domain.source.model.SourceRepoException
+import app.tanuki.core.domain.source.repository.SourceInstallationRepository
 import app.tanuki.core.domain.source.repository.SourceRepoRepository
 import app.tanuki.core.domain.source.repository.StoredSourceRepo
 import app.tanuki.core.source.FakeConnectionObserver
@@ -149,6 +150,31 @@ class RemoteSourceCatalogTest {
     }
 
     @Test
+    fun `install records the repo it came from`() = runTest {
+        val world = World()
+        world.publish()
+        world.catalog.addRepo(world.catalog.previewRepo(BASE))
+
+        world.catalog.install("mangadex")
+
+        assertEquals(mapOf("mangadex" to BASE), world.catalog.observeOrigins().first())
+    }
+
+    @Test
+    fun `a source only ever installs from its origin repo`() = runTest {
+        val world = World()
+        world.publish()
+        world.catalog.addRepo(world.catalog.previewRepo(BASE))
+        // Installed from some other repo that is no longer added: this one offers the same id, but must
+        // not be able to replace that author's code.
+        world.installations.origins.value = mapOf("mangadex" to "https://elsewhere.test/")
+
+        assertFailsWith<IllegalArgumentException> { world.catalog.install("mangadex") }
+
+        assertNull(world.store.bundles["mangadex"])
+    }
+
+    @Test
     fun `install writes nothing when the bytes don't match the signed index`() = runTest {
         val world = World()
         world.publish()
@@ -224,7 +250,8 @@ private class World(private val base: String = BASE) {
         HttpClient(MockEngine { request ->
             files[request.url.toString()]?.let { respond(it) } ?: respond(ByteArray(0), HttpStatusCode.NotFound)
         })
-    val catalog = RemoteSourceCatalog(repos, store, http, connection)
+    val installations = FakeInstallations()
+    val catalog = RemoteSourceCatalog(repos, installations, store, http, connection)
 
     /** Serves a repo offering one `mangadex` bundle, with its index signed by [signer]. */
     fun publish(
@@ -287,4 +314,19 @@ private class FakeBundleStore : SourceBundleStore {
     }
 
     override suspend fun isInstalled(sourceId: String) = sourceId in bundles
+}
+
+private class FakeInstallations : SourceInstallationRepository {
+    val origins = MutableStateFlow<Map<String, String>>(emptyMap())
+
+    override fun observeOrigins(): Flow<Map<String, String>> = origins
+
+    override suspend fun getOrigin(sourceId: String): String? = origins.value[sourceId]
+
+    override suspend fun setOrigin(
+        sourceId: String,
+        repoUrl: String
+    ) {
+        origins.value += sourceId to repoUrl
+    }
 }

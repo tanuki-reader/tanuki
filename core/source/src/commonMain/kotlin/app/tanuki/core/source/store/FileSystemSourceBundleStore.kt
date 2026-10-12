@@ -4,8 +4,8 @@ import app.tanuki.core.domain.common.service.DispatcherProvider
 import app.tanuki.core.domain.source.SourceBundleStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import okio.FileSystem
 import okio.Path
@@ -32,6 +32,9 @@ class FileSystemSourceBundleStore(
      */
     private val revision = MutableStateFlow(0)
 
+    /** Per id, how many times its bundle was written in this process. See [SourceBundleStore.generation]. */
+    private val generations = MutableStateFlow<Map<String, Int>>(emptyMap())
+
     override suspend fun installedIds(): List<String> = withContext(dispatchers.io) {
         if (!fileSystem.exists(directory)) {
             emptyList()
@@ -44,11 +47,9 @@ class FileSystemSourceBundleStore(
 
     override fun observeInstalledIds(): Flow<List<String>> =
         revision
+            // Every write emits, even one that leaves the id set unchanged: replacing a bundle is how a
+            // source updates, and its new metadata (and module) must reach every collector.
             .map { installedIds() }
-            // A write that replaces an existing bundle leaves the id set unchanged, and the dev installer
-            // rewrites every bundled source on launch — without this, each of those would push an
-            // identical list to every collector and re-enumerate the whole runtime downstream.
-            .distinctUntilChanged()
 
     override suspend fun readBundle(sourceId: String): ByteArray? = withContext(dispatchers.io) {
         val path = bundlePath(sourceId)
@@ -62,8 +63,12 @@ class FileSystemSourceBundleStore(
         val tmp = directory / "${path.name}.tmp"
         fileSystem.write(tmp) { write(bytes) }
         fileSystem.atomicMove(tmp, path)
+        // Before the revision, so a collector woken by it already sees the new generation.
+        generations.update { it + (sourceId to (it[sourceId] ?: 0) + 1) }
         revision.value++
     }
+
+    override fun generation(sourceId: String): Int = generations.value[sourceId] ?: 0
 
     override suspend fun removeBundle(sourceId: String): Unit = withContext(dispatchers.io) {
         fileSystem.delete(bundlePath(sourceId), mustExist = false)

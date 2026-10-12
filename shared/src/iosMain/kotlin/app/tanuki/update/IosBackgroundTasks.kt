@@ -71,6 +71,7 @@ private fun runLibraryUpdate(task: BGAppRefreshTask) {
 
     val job =
         graph.applicationScope.launch {
+            graph.checkSourceUpdates()
             graph.updateLibrary(UpdateLibrary.Trigger.Background)
             task.setTaskCompletedWithSuccess(true)
         }
