@@ -21,6 +21,12 @@
     <!-- Linha de uma série numa notificação com várias: "One Piece · 3 novos capítulos" -->
     <string name="notification_updates_line">%1$s · %2$s</string>
     <!-- Notificações da fila de downloads -->
+    <string name="notification_channel_source_updates">Atualizações de fontes</string>
+    <string name="notification_channel_source_updates_description">Novas versões das fontes que você instalou.</string>
+    <plurals name="notification_source_updates_title">
+        <item quantity="one">%1$d atualização de fonte</item>
+        <item quantity="other">%1$d atualizações de fontes</item>
+    </plurals>
     <string name="notification_channel_downloads">Baixando</string>
     <string name="notification_channel_downloads_description">Exibida enquanto capítulos são salvos neste aparelho.</string>
     <string name="notification_channel_downloads_done">Downloads concluídos</string>

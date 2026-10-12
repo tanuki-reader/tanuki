@@ -74,7 +74,7 @@ struct SourcesScreen: View {
     private func content(_ state: SourcesState, _ repoState: SourceReposState) -> some View {
         if state.loading || repoState.loading {
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).background(Color.tk.canvas)
-        } else if state.repoCount == 0 && state.installed.isEmpty {
+        } else if state.repoCount == 0 && state.installed.isEmpty && state.updates.isEmpty {
             ContentUnavailableView {
                 VStack(spacing: TK.Space.s3) {
                     Image("LaunchLogo").renderingMode(.template).resizable().scaledToFit().frame(width: 56, height: 56)
@@ -96,11 +96,25 @@ struct SourcesScreen: View {
                 if !state.languages.isEmpty {
                     languageChips(state)
                 }
-                if state.installed.isEmpty && state.available.isEmpty {
+                if state.updates.isEmpty && state.installed.isEmpty && state.available.isEmpty {
                     Text(tr("settings_sources_empty", table: .settings))
                         .tkStyle(.body)
                         .foregroundStyle(Color.tk.inkFaint)
                         .listRowBackground(Color.clear)
+                }
+                if !state.updates.isEmpty {
+                    Section {
+                        ForEach(state.updates, id: \.sourceId) { source in
+                            row(source, state: state, installed: true)
+                        }
+                    } header: {
+                        HStack {
+                            Text(tr("settings_sources_updates", table: .settings))
+                            Spacer()
+                            Button(tr("settings_source_update_all", table: .settings)) { model.vm.onUpdateAll() }
+                                .textCase(nil)
+                        }
+                    }
                 }
                 if !state.installed.isEmpty {
                     Section(tr("settings_sources_installed", table: .settings)) {
@@ -201,6 +215,12 @@ struct SourcesScreen: View {
             failureLine(tr("settings_source_remove_failed", table: .settings))
         } else if let failure = source.installFailure {
             failureLine(installMessage(failure))
+        } else if installed, let new = source.newVersion?.intValue, let old = source.version?.intValue {
+            // Language too, so a source's language variants stay told apart in the Updates list.
+            Text(source.lang.map { tr("settings_source_update_details", languageName($0), old, new, table: .settings) }
+                ?? tr("settings_source_version_change", old, new, table: .settings))
+                .tkStyle(.caption)
+                .foregroundStyle(Color.tk.inkFaint)
         } else if blocked {
             Label(tr(source.compatibility == .outdated ? "settings_source_outdated" : "settings_source_needs_update",
                      table: .settings), systemImage: "exclamationmark.triangle")
@@ -221,6 +241,12 @@ struct SourcesScreen: View {
             }
         } else if source.removing {
             ProgressView()
+        } else if installed, source.newVersion != nil {
+            // The prominent action on an update row (design system: `SourceRow`), unlike Install's bordered.
+            Button(tr("settings_source_update", table: .settings)) { model.vm.onUpdate(sourceId: source.sourceId) }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .tint(Color.tk.accent)
         } else if installed || blocked {
             EmptyView()
         } else if source.installFailure != nil {

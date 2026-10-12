@@ -63,13 +63,13 @@ struct RootView: View {
 /// The tabs, in `TopLevelDestination.entries` order. A Swift enum because `TabView` selection and the
 /// path dictionary need a `Hashable` key, and the titles/icons are the iOS dialect's own.
 private enum TabKey: CaseIterable {
-    case library, home, activity, settings, search
+    case library, activity, home, settings, search
 
     var destination: any TopLevelDestination {
         switch self {
         case .library: TopLevelDestinationLibrary.shared
-        case .home: TopLevelDestinationHome.shared
         case .activity: TopLevelDestinationActivity.shared
+        case .home: TopLevelDestinationHome.shared
         case .settings: TopLevelDestinationSettings.shared
         case .search: TopLevelDestinationSearch.shared
         }
@@ -78,8 +78,8 @@ private enum TabKey: CaseIterable {
     var title: LocalizedStringKey {
         switch self {
         case .library: "tab_library"
-        case .home: "tab_home"
         case .activity: "tab_activity"
+        case .home: "tab_home"
         case .settings: "tab_settings"
         case .search: "tab_search"
         }
@@ -88,8 +88,8 @@ private enum TabKey: CaseIterable {
     var systemImage: String {
         switch self {
         case .library: "books.vertical"
-        case .home: "house"
         case .activity: "chart.line.uptrend.xyaxis"
+        case .home: "house"
         case .settings: "gearshape"
         case .search: "magnifyingglass"
         }

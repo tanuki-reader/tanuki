@@ -12,8 +12,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import app.tanuki.assets.designSystem.TanukiTheme
 
 /**
- * A section title with an optional trailing caption (e.g. a "See all" / count), ported from the iOS
- * `SectionHeaderView`.
+ * A section title with an optional trailing caption (a count), or an optional [action] ("See all",
+ * "Update all") — the design system's `SectionHeader`, ported from the iOS `SectionHeaderView`.
  *
  * Both labels are UI copy, so callers pass **already-resolved localized strings** (`stringResource(...)`)
  * — the Compose equivalent of the SwiftUI `LocalizedStringKey` parameters. The component never inlines
@@ -23,7 +23,9 @@ import app.tanuki.assets.designSystem.TanukiTheme
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
-    trailing: String? = null
+    trailing: String? = null,
+    action: String? = null,
+    onAction: () -> Unit = {}
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -35,12 +37,14 @@ fun SectionHeader(
             style = TanukiTheme.typography.headline,
             color = MaterialTheme.colorScheme.onSurface
         )
-        if (trailing != null) {
-            Text(
-                text = trailing,
-                style = TanukiTheme.typography.caption,
-                color = TanukiTheme.colors.textFaint
-            )
+        when {
+            action != null -> TanukiButton(text = action, onClick = onAction, variant = TanukiButtonVariant.Text, size = TanukiButtonSize.Small)
+            trailing != null ->
+                Text(
+                    text = trailing,
+                    style = TanukiTheme.typography.caption,
+                    color = TanukiTheme.colors.textFaint
+                )
         }
     }
 }

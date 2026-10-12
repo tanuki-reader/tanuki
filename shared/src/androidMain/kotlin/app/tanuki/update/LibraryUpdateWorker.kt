@@ -5,10 +5,12 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
+import app.tanuki.core.domain.source.usecase.CheckSourceUpdates
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
 
 /**
- * The Android background run: wakes up on WorkManager's schedule and refreshes the library.
+ * The Android background run: wakes up on WorkManager's schedule, checks the source repos for updates and
+ * refreshes the library.
  *
  * Thin by design — everything about *how* a library update behaves (concurrency, failure isolation, the
  * interval check, notifying) is in [UpdateLibrary], shared with iOS. This exists only to be the shape
@@ -18,10 +20,14 @@ class LibraryUpdateWorker(
     appContext: Context,
     params: WorkerParameters,
     private val updateLibrary: UpdateLibrary,
+    private val checkSourceUpdates: CheckSourceUpdates,
     private val logger: Logger
 ) : CoroutineWorker(appContext, params) {
     override suspend fun doWork(): Result =
         try {
+            // Sources first: a fresh index is also what any later fetch runs against. Its own failures
+            // are logged inside and never stop the library update.
+            checkSourceUpdates()
             updateLibrary(UpdateLibrary.Trigger.Background)
             // Success even when individual series failed: those are already counted, logged, and will
             // be retried on the next period. Asking WorkManager to retry the whole library because one

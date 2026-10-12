@@ -22,6 +22,13 @@ interface SourceCatalog {
     /** Every source the added repos offer, from their last verified index (so it works offline). */
     fun observeAvailable(): Flow<List<RemoteSource>>
 
+    /**
+     * Source id → base URL of the repo each installed source came from. A source's updates are offered
+     * only from that repo; one with no entry (installed before repos) is adopted by the first repo it is
+     * installed or updated from.
+     */
+    fun observeOrigins(): Flow<Map<String, String>>
+
     /** The added repos, in the order they were added. */
     fun observeRepos(): Flow<List<SourceRepo>>
 
@@ -38,7 +45,8 @@ interface SourceCatalog {
 
     /**
      * Downloads, verifies and installs [sourceId]'s bundle into the [SourceBundleStore], replacing any
-     * bundle already there, reporting each step to [onProgress].
+     * bundle already there (which is how an update happens), reporting each step to [onProgress]. Installs
+     * from the source's origin repo when it has one, and records the repo it installed from.
      *
      * @throws IllegalArgumentException if no added repo offers a compatible [sourceId].
      * @throws app.tanuki.core.domain.source.model.SourceRepoException naming the step that failed.

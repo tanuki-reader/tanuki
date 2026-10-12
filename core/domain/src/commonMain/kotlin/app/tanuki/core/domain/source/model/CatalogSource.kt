@@ -21,6 +21,8 @@ import app.tanuki.core.domain.common.model.Url
  * @property repoName the repo offering it, or `null` for an installed source no added repo offers.
  * @property compatibility whether this app can run the version on offer; always compatible once
  *   installed (an incompatible bundle never loads).
+ * @property updateVersion for an installed source, the newer version its origin repo offers and this app
+ *   can run, or `null` when it is up to date.
  */
 data class CatalogSource(
     val sourceId: String,
@@ -31,5 +33,6 @@ data class CatalogSource(
     val nsfw: Boolean = false,
     val version: Int? = null,
     val repoName: String? = null,
-    val compatibility: SourceCompatibility = SourceCompatibility.Compatible
+    val compatibility: SourceCompatibility = SourceCompatibility.Compatible,
+    val updateVersion: Int? = null
 )

@@ -20,7 +20,9 @@ data class SettingsState(
     val sourceCount: Int = 0,
     val crashReportingEnabled: Boolean = false,
     val downloadQueueCount: Int = 0,
-    val showSensitive: Boolean = false
+    val showSensitive: Boolean = false,
+    /** Installed sources with a newer version on offer: the badge on the Sources row (hidden at 0). */
+    val sourceUpdateCount: Int = 0
 )
 
 /** The index's rows, each opening one sub-screen. */

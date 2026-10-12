@@ -10,7 +10,8 @@ import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
 import app.tanuki.core.domain.settings.usecase.ObserveShowSensitiveContent
 import app.tanuki.core.domain.settings.usecase.SetShowSensitiveContent
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
-import app.tanuki.core.domain.source.usecase.GetInstalledSources
+import app.tanuki.core.domain.source.model.CatalogSource
+import app.tanuki.core.domain.source.usecase.ObserveSourceCatalog
 import app.tanuki.core.navigation.SettingsAppearance
 import app.tanuki.core.navigation.SettingsCategories
 import app.tanuki.core.navigation.SettingsDownloads
@@ -27,6 +28,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 
 /**
@@ -45,7 +47,7 @@ class SettingsViewModel(
     observeThemePreference: ObserveThemePreference,
     observeCrashReportingEnabled: ObserveCrashReportingEnabled,
     observeCategories: ObserveCategories,
-    getInstalledSources: GetInstalledSources,
+    observeSourceCatalog: ObserveSourceCatalog,
     observeDownloadQueueCount: ObserveDownloadQueueCount,
     observeShowSensitiveContent: ObserveShowSensitiveContent,
     private val setShowSensitiveContent: SetShowSensitiveContent,
@@ -58,7 +60,10 @@ class SettingsViewModel(
     override val state: Flow<SettingsState> =
         combine(
             combine(observeThemePreference(), observeCategories(), ::Pair),
-            getInstalledSources(),
+            // Enumerating installed sources instantiates each one, which takes seconds on a cold start. Start
+            // empty so the switches and values above don't sit on their defaults (looking wrong, and
+            // tappable) while it runs; only the Sources row fills in later.
+            observeSourceCatalog().onStart { emit(emptyList()) },
             observeCrashReportingEnabled(),
             observeDownloadQueueCount(),
             combine(observeShowSensitiveContent(), chosenShowSensitive) { stored, chosen -> chosen ?: stored }
@@ -66,7 +71,8 @@ class SettingsViewModel(
             SettingsState(
                 theme = theme,
                 categoryCount = categories.size,
-                sourceCount = sources.size,
+                sourceCount = sources.count(CatalogSource::installed),
+                sourceUpdateCount = sources.count { it.updateVersion != null },
                 crashReportingEnabled = crashReporting,
                 downloadQueueCount = queued,
                 showSensitive = showSensitive

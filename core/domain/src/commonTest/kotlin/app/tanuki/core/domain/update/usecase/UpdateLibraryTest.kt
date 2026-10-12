@@ -652,6 +652,8 @@ private class RecordingNotifier : LibraryUpdateNotifier {
     override suspend fun notifyNewChapters(summaries: List<MangaUpdateSummary>) {
         announced += summaries
     }
+
+    override suspend fun notifySourceUpdates(sourceNames: List<String>) = Unit
 }
 
 /** A [MangaRepository] whose library is canned, recording the schedules a run stamps. */

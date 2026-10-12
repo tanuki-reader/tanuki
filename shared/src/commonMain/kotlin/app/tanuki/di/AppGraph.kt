@@ -4,6 +4,7 @@ import app.tanuki.AppStartup
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.usecase.RunDownloadQueue
 import app.tanuki.core.domain.settings.usecase.ObserveThemePreference
+import app.tanuki.core.domain.source.usecase.CheckSourceUpdates
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
 import app.tanuki.dev.LibrarySeeder
 import dev.zacsweers.metrox.viewmodel.ViewModelGraph
@@ -48,6 +49,9 @@ interface AppGraph : ViewModelGraph {
      * handler with no injected collaborators. No screen owns it.
      */
     val updateLibrary: UpdateLibrary
+
+    /** The background source-update check (refresh repos, notify new versions); iOS's refresh handler runs it. */
+    val checkSourceUpdates: CheckSourceUpdates
 
     /**
      * Works the queue and reports on it. Exposed for the same reason as [updateLibrary]: iOS's

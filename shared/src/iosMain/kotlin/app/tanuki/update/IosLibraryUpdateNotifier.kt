@@ -69,6 +69,24 @@ class IosLibraryUpdateNotifier(
         }
     }
 
+    override suspend fun notifySourceUpdates(sourceNames: List<String>) {
+        if (sourceNames.isEmpty()) return
+        val center = UNUserNotificationCenter.currentNotificationCenter()
+        if (!center.isAuthorized()) {
+            logger.info(TAG, "Notifications are not authorized; skipping ${sourceNames.size} source update(s)")
+            return
+        }
+        val content =
+            UNMutableNotificationContent().apply {
+                setTitle(localizedString("notification_source_updates_title", sourceNames.size))
+                setBody(sourceNames.joinToString(SUMMARY_SEPARATOR))
+            }
+        val request = UNNotificationRequest.requestWithIdentifier(identifier = SOURCE_NOTIFICATION_ID, content = content, trigger = null)
+        center.addNotificationRequest(request) { error ->
+            if (error != null) logger.warn(TAG, "Could not post source update notification: ${error.localizedDescription}")
+        }
+    }
+
     /** One series speaks for itself; several are counted. */
     private fun List<MangaUpdateSummary>.title(): String =
         singleOrNull()?.title ?: localizedString("notification_updates_title", size)
@@ -110,6 +128,7 @@ class IosLibraryUpdateNotifier(
 
         /** Fixed, so each run replaces the previous notification instead of adding to a pile. */
         const val NOTIFICATION_ID = "app.tanuki.library-update"
+        const val SOURCE_NOTIFICATION_ID = "app.tanuki.source-updates"
 
         const val SUMMARY_SEPARATOR = ", "
     }

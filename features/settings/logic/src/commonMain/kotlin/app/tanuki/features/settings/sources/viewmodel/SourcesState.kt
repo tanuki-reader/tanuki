@@ -11,6 +11,8 @@ import app.tanuki.core.domain.source.model.SourceRepoError
  *
  * @property loading `true` until the first catalog emission arrives; the screen shows a spinner rather
  *   than flashing an empty state at a user who does have sources.
+ * @property updates installed sources their origin repo has a newer runnable version of. Listed first and
+ *   not repeated under [installed].
  * @property installed sources whose bundle is on the device, by name, language variants together.
  * @property available sources the repos offer that aren't installed, in the same order.
  * @property languages every language either list has, with how many sources each, for the filter chips.
@@ -27,6 +29,7 @@ import app.tanuki.core.domain.source.model.SourceRepoError
  */
 data class SourcesState(
     val loading: Boolean = true,
+    val updates: List<SourceItem> = emptyList(),
     val installed: List<SourceItem> = emptyList(),
     val available: List<SourceItem> = emptyList(),
     val languages: List<LanguageOption> = emptyList(),
@@ -52,6 +55,7 @@ data class LanguageOption(
  * @property lang BCP-47 language tag, or `null` when it isn't known.
  * @property iconUrl remote icon, or `null` for the lettered avatar.
  * @property version the installed version, or the one on offer for an installable source.
+ * @property newVersion the version an update would install ("v9 → v10"), or `null` when up to date.
  * @property repoName the repo offering it; shown only when [SourcesState.showRepo].
  * @property nsfw adult-only: the row carries an `18+` tag.
  * @property compatibility whether the version on offer runs on this app. An incompatible row is listed,
@@ -67,6 +71,7 @@ data class SourceItem(
     val lang: String?,
     val iconUrl: String?,
     val version: Int? = null,
+    val newVersion: Int? = null,
     val repoName: String? = null,
     val nsfw: Boolean = false,
     val compatibility: SourceCompatibility = SourceCompatibility.Compatible,

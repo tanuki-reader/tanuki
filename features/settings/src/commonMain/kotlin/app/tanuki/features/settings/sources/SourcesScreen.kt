@@ -113,6 +113,11 @@ import app.tanuki.features.settings.resources.settings_source_repo_url_placehold
 import app.tanuki.features.settings.resources.settings_source_repos
 import app.tanuki.features.settings.resources.settings_source_retry
 import app.tanuki.features.settings.resources.settings_source_verifying
+import app.tanuki.features.settings.resources.settings_sources_updates_count
+import app.tanuki.features.settings.resources.settings_source_update_all
+import app.tanuki.features.settings.resources.settings_source_update
+import app.tanuki.features.settings.resources.settings_source_update_details
+import app.tanuki.features.settings.resources.settings_source_version_change
 import app.tanuki.features.settings.resources.settings_sources
 import app.tanuki.features.settings.resources.settings_sources_available
 import app.tanuki.features.settings.resources.settings_sources_available_hint
@@ -168,7 +173,7 @@ fun SourcesRoute(
             // "no sources" for a frame while the bundles are still being read.
             state.loading || repos.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { TanukiLoadingIndicator() }
 
-            state.repoCount == 0 && state.installed.isEmpty() ->
+            state.repoCount == 0 && state.installed.isEmpty() && state.updates.isEmpty() ->
                 Box(Modifier.fillMaxSize(), Alignment.Center) {
                     TanukiEmptyState(
                         title = stringResource(Res.string.settings_sources_empty_title),
@@ -217,12 +222,20 @@ private fun SourceSections(
         if (state.languages.isNotEmpty()) {
             LanguageChips(state.languages, state.selectedLanguage, viewModel::onLanguageSelected)
         }
-        if (state.installed.isEmpty() && state.available.isEmpty()) {
+        if (state.updates.isEmpty() && state.installed.isEmpty() && state.available.isEmpty()) {
             Text(
                 text = stringResource(Res.string.settings_sources_empty),
                 style = TanukiTheme.typography.body,
                 color = TanukiTheme.colors.textFaint
             )
+        }
+        if (state.updates.isNotEmpty()) {
+            SectionHeader(
+                title = stringResource(Res.string.settings_sources_updates_count, state.updates.size),
+                action = stringResource(Res.string.settings_source_update_all),
+                onAction = viewModel::onUpdateAll
+            )
+            SourceGroup(state.updates, installed = true, showRepo = state.showRepo, viewModel = viewModel)
         }
         if (state.installed.isNotEmpty()) {
             SectionHeader(title = stringResource(Res.string.settings_sources_installed))
@@ -287,6 +300,7 @@ private fun SourceGroup(
                 installed = installed,
                 showRepo = showRepo,
                 onInstall = { viewModel.onInstall(source.sourceId) },
+                onUpdate = { viewModel.onUpdate(source.sourceId) },
                 onRemove = { viewModel.onRemovalRequested(source.sourceId) }
             )
         }
@@ -305,9 +319,12 @@ private fun SourceRow(
     installed: Boolean,
     showRepo: Boolean,
     onInstall: () -> Unit,
+    onUpdate: () -> Unit,
     onRemove: () -> Unit
 ) {
     val spacing = TanukiTheme.spacing
+    val newVersion = source.newVersion
+    val version = source.version
     val blocked = !installed && source.compatibility != SourceCompatibility.Compatible
     val failure = if (installed && source.removeFailed) stringResource(Res.string.settings_source_remove_failed) else source.installFailure?.installMessage()
     val status: String? =
@@ -352,6 +369,13 @@ private fun SourceRow(
                 status != null -> StatusLine(status, MaterialTheme.colorScheme.onSurfaceVariant, mono = true)
                 failure != null -> StatusLine(failure, TanukiTheme.colors.danger, glyph = { ErrorIcon(tint = it, size = GlyphSize) })
                 blocked -> StatusLine(source.blockedMessage(), TanukiTheme.colors.warning, glyph = { WarningIcon(tint = it, size = GlyphSize) })
+                // Language too, so a source's language variants stay told apart in the Updates list.
+                installed && newVersion != null && version != null ->
+                    StatusLine(
+                        source.lang?.let { stringResource(Res.string.settings_source_update_details, languageName(it), version, newVersion) }
+                            ?: stringResource(Res.string.settings_source_version_change, version, newVersion),
+                        TanukiTheme.colors.textFaint
+                    )
                 else -> details(source, installed, showRepo)?.let { StatusLine(it, TanukiTheme.colors.textFaint) }
             }
         }
@@ -361,6 +385,14 @@ private fun SourceRow(
                 Box(Modifier.size(spacing.tapMin), Alignment.Center) {
                     TanukiProgressRing(progress = (source.progress as? InstallProgress.Downloading)?.fraction, size = RingSize)
                 }
+            // The one prominent action on an update row (design system: `SourceRow`, filled Update).
+            installed && newVersion != null ->
+                TanukiButton(
+                    text = stringResource(Res.string.settings_source_update),
+                    onClick = onUpdate,
+                    variant = TanukiButtonVariant.Filled,
+                    size = TanukiButtonSize.Small
+                )
             installed -> RemoveMenu(source.name, onRemove)
             blocked -> Unit
             source.installFailure != null ->

@@ -36,6 +36,10 @@ index carries `source_meta`'s `iconUrl`.
 tasks in `:shared`, `removed_source_ids`) went with Phase 2 rather than waiting for Phase 4. Repos live
 on the Sources screen as the design system's `SourcesScreen` shows it, not on a screen of their own.
 
+**Phase 3 (2026-10-12):** updates come only from the repo a source was installed from (a second repo can
+never replace another author's code under the same id). Users get a badge and a notification for new
+versions; auto-update is deliberately left out until there's a setting for it.
+
 ---
 
 ## 2026-09-09 — History is pruned by age, but a series' last read is never deleted

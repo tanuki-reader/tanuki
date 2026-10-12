@@ -296,7 +296,7 @@ class WasmSourceLoader(
      * bundle** by [observeInstalledSources], so routing it through [callModule] left an instance resident
      * per installed source — the largest term in this cache, and for sources the user may never open.
      * Re-instantiating instead is affordable because that enumeration is driven by
-     * [SourceBundleStore.observeInstalledIds], a revision counter behind a `distinctUntilChanged`: it
+     * [SourceBundleStore.observeInstalledIds], a revision counter that emits on install, update and removal: it
      * runs at launch and on install/remove, not per screen. Peak cost becomes one live module instead of
      * one per bundle.
      *
@@ -325,7 +325,15 @@ class WasmSourceLoader(
     private suspend fun pin(sourceId: String): SourceModules = modulesLock.withLock {
         // remove + put rather than a plain get: a LinkedHashMap keeps insertion order, so re-inserting a
         // hit is what makes iteration order least-recently-used first for trim().
-        val pool = modules.remove(sourceId) ?: SourceModules()
+        val generation = bundleStore.generation(sourceId)
+        val cached = modules.remove(sourceId)
+        // A pool built from a bundle that has since been replaced (an update) must not keep serving the old
+        // code: retire it like an uninstalled one, and start a pool for the new bundle.
+        if (cached != null && cached.generation != generation) {
+            cached.retired = true
+            cached.closeIdle()
+        }
+        val pool = cached?.takeIf { it.generation == generation } ?: SourceModules(generation)
         modules[sourceId] = pool
         pool.borrowers++
         trim()
@@ -413,10 +421,8 @@ class WasmSourceLoader(
      * iOS `close` frees the native instance, and freeing one while the guest is executing inside it is a
      * use-after-free rather than a leak.
      *
-     * Only *removal* is handled here. A bundle rewritten in place keeps its id, so this cannot see it —
-     * today that is harmless, because the only writer is the dev installer and it runs at launch before
-     * anything is loaded. The real installer will know it is replacing a bundle and should evict that id
-     * directly.
+     * Only *removal* is handled here. A bundle rewritten in place keeps its id, so this cannot see it;
+     * [pin] retires that pool instead, on the source's next call, by its [SourceModules.generation].
      */
     private suspend fun evictModulesOutside(installed: List<String>) {
         val keep = installed.toSet()
@@ -434,7 +440,8 @@ class WasmSourceLoader(
      * One source's instances: at most one idle, plus however many calls are running on others (bounded by
      * [permits]). Everything but [permits] is guarded by [modulesLock].
      */
-    private class SourceModules {
+    /** @property generation the [SourceBundleStore.generation] of the bundle its instances were built from. */
+    private class SourceModules(val generation: Int) {
         /** One per instance allowed at once; a call holds one from [take] to [giveBack]. */
         val permits = Semaphore(MAX_INSTANCES_PER_SOURCE)
 

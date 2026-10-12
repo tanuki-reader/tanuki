@@ -29,6 +29,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration14To15,
         Migration15To16,
         Migration16To17,
+        Migration17To18,
     )
 
 /**
@@ -427,6 +428,20 @@ internal object Migration16To17 : Migration(16, 17) {
             "CREATE TABLE IF NOT EXISTS `source_repos` (`base_url` TEXT NOT NULL, `name` TEXT NOT NULL, " +
                 "`public_key` TEXT NOT NULL, `index_json` TEXT NOT NULL, `fetched_at` INTEGER NOT NULL, " +
                 "PRIMARY KEY(`base_url`))"
+        )
+    }
+}
+
+/**
+ * Adds `source_installations` — which repo each installed source came from, so its updates come only
+ * from that repo. Starts empty: sources installed before it are adopted by the first repo they are
+ * installed or updated from.
+ */
+internal object Migration17To18 : Migration(17, 18) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `source_installations` (`source_id` TEXT NOT NULL, " +
+                "`repo_url` TEXT NOT NULL, PRIMARY KEY(`source_id`))"
         )
     }
 }

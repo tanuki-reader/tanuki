@@ -6,6 +6,7 @@ import androidx.work.WorkerFactory
 import androidx.work.WorkerParameters
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.download.usecase.RunDownloadQueue
+import app.tanuki.core.domain.source.usecase.CheckSourceUpdates
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
 import app.tanuki.download.AndroidDownloadNotifier
 import app.tanuki.download.DownloadWorker
@@ -30,6 +31,7 @@ import dev.zacsweers.metro.SingleIn
 @SingleIn(AppScope::class)
 class TanukiWorkerFactory(
     private val updateLibrary: UpdateLibrary,
+    private val checkSourceUpdates: CheckSourceUpdates,
     private val runDownloadQueue: RunDownloadQueue,
     private val downloadNotifier: AndroidDownloadNotifier,
     private val logger: Logger,
@@ -41,7 +43,7 @@ class TanukiWorkerFactory(
     ): ListenableWorker? =
         when (workerClassName) {
             LibraryUpdateWorker::class.qualifiedName ->
-                LibraryUpdateWorker(appContext, workerParameters, updateLibrary, logger)
+                LibraryUpdateWorker(appContext, workerParameters, updateLibrary, checkSourceUpdates, logger)
 
             DownloadWorker::class.qualifiedName ->
                 DownloadWorker(appContext, workerParameters, runDownloadQueue, downloadNotifier, logger)

@@ -1,6 +1,6 @@
 # Design — Remote source distribution
 
-Status: **Phase 2 done** (2026-10-12), with the Phase 4 cleanup folded in; Phase 3 (updates) is next.
+Status: **Phases 0–4 done** (2026-10-12). Open: auto-update, key rotation (§6).
 Replaces the "sources ship inside the app" arrangement with user-added, signed, static source repos hosted on GitHub. Decisions are also logged in `decisions.md`
 (2026-09-27).
 
@@ -34,6 +34,14 @@ Replaces the "sources ship inside the app" arrangement with user-added, signed, 
   install is skipped (the index is signed and CI already checked `source_meta`); the shared source
   `HttpClient` is reused for repo fetches; no Languages toolbar action (the chips cover it); the
   signing key was rotated before any app pinned it (backup in the maintainer's Keychain).
+- 2026-10-12 — Phase 3 landed: an installed source is offered the newer, runnable version from the repo it
+  was installed from (`source_installations`, Room v18; a source with no origin is adopted by the first
+  repo it installs from, and a source whose repo was removed gets no updates from any other). Updates
+  section with Update all, a badge on Settings → Sources, and `CheckSourceUpdates` in the background
+  library-update job (WorkManager / BGTaskScheduler), which notifies only versions new in that run.
+  Fixed on the way: a rewritten bundle now re-emits from the bundle store and the loader retires the
+  stale module by a per-source write generation (it used to keep running the old code). Deviations: no
+  12-hour throttle (launch + background job only); auto-update not built.
 ---
 
 ## 1. Current state
@@ -287,7 +295,7 @@ a later setting.
 | **0** Prereqs ✅ | `MIN_SUPPORTED` range, `nsfw` mapping, in-repo fixtures, contract tests on both sides; conformance source = `hello` until Phase 1 | ABI range tests in `:core:source`; wire fixture round-trips (Kotlin + Rust) |
 | **1** Sources repo ✅ | move `native/source-api` + `native/sources` to `tanuki-sources`, `bundles.toml`, `xtask`, CI publish to `repo` branch | xtask golden index test; CI gate rejects bad exports / missing version bump |
 | **2** App install from repo ✅ | `source_repos` / `source_installations` + migration, `RemoteSourceCatalog`, ed25519 + sha256 verify, Repos screen | signature/key-change/sha256/size rejection tests; migration test; use-case tests (kotest) |
-| **3** Updates | `CheckSourceUpdates` / `UpdateSource`, background check, badges | update detection + repo-scoped update tests |
+| **3** Updates ✅ | `CheckSourceUpdates` / `UpdateSource`, background check, badges | update detection + repo-scoped update tests |
 | **4** Cleanup ✅ (with Phase 2) | remove `DevSourceInstaller`, composeResources bundles, cargo tasks, `removed_source_ids` | Android + iOS builds green, fresh-install flow manually |
 
 ---

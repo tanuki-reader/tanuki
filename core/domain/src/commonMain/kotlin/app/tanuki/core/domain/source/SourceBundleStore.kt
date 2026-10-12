@@ -42,4 +42,11 @@ interface SourceBundleStore {
 
     /** Whether a bundle is installed under [sourceId]. */
     suspend fun isInstalled(sourceId: String): Boolean
+
+    /**
+     * How many times [sourceId]'s bundle has been written in this process: bumped by each
+     * [writeBundle], so a cache built from a bundle can tell when it was replaced (an update) even though
+     * the id stays installed. Only compared for equality; `0` until the first write.
+     */
+    fun generation(sourceId: String): Int = 0
 }

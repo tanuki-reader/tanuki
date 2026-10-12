@@ -11,6 +11,7 @@ import app.tanuki.core.domain.source.model.SourceCompatibility
 import app.tanuki.core.domain.source.model.SourceRepo
 import app.tanuki.core.domain.source.model.SourceRepoError
 import app.tanuki.core.domain.source.model.SourceRepoException
+import app.tanuki.core.domain.source.repository.SourceInstallationRepository
 import app.tanuki.core.domain.source.repository.SourceRepoRepository
 import app.tanuki.core.domain.source.repository.StoredSourceRepo
 import app.tanuki.core.source.abi.SourceAbi
@@ -55,6 +56,7 @@ import kotlin.time.Clock
 @ContributesBinding(AppScope::class)
 class RemoteSourceCatalog(
     private val repos: SourceRepoRepository,
+    private val installations: SourceInstallationRepository,
     private val bundleStore: SourceBundleStore,
     private val http: HttpClient,
     private val connection: ConnectionObserver
@@ -69,6 +71,8 @@ class RemoteSourceCatalog(
         combine(repos.observeRepos(), problems) { stored, problems ->
             stored.map { SourceRepo(it.baseUrl, it.name, fingerprint(it.publicKey), problems[it.baseUrl]) }
         }
+
+    override fun observeOrigins(): Flow<Map<String, String>> = installations.observeOrigins()
 
     override fun observeAvailable(): Flow<List<RemoteSource>> =
         repos.observeRepos().map { stored -> stored.flatMap(::offered) }
@@ -123,8 +127,11 @@ class RemoteSourceCatalog(
         sourceId: String,
         onProgress: (InstallProgress) -> Unit
     ) {
+        // From the repo it was installed from, never another one offering the same id; a source with no
+        // origin (installed before repos) is adopted by the first repo with a runnable version.
+        val origin = installations.getOrigin(sourceId)
         val (repo, entry) =
-            repos.getRepos().firstNotNullOfOrNull { repo ->
+            repos.getRepos().filter { origin == null || it.baseUrl == origin }.firstNotNullOfOrNull { repo ->
                 index(repo)?.sources?.firstOrNull { it.id == sourceId && compatibility(it.abi) == SourceCompatibility.Compatible }
                     ?.let { repo to it }
             } ?: throw IllegalArgumentException("No added repo offers a compatible '$sourceId'.")
@@ -139,6 +146,7 @@ class RemoteSourceCatalog(
             throw SourceRepoException(SourceRepoError.Mismatch)
         }
         bundleStore.writeBundle(sourceId, bytes)
+        installations.setOrigin(sourceId, repo.baseUrl)
     }
 
     /** A refused signature means one of two things, and the user must be told which: a new key, or tampering. */

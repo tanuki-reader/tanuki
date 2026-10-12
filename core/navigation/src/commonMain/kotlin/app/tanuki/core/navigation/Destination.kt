@@ -24,6 +24,9 @@ sealed interface TopLevelDestination : Destination {
     @Serializable
     data object Library : TopLevelDestination
 
+    @Serializable
+    data object Activity : TopLevelDestination
+
     /**
      * The Home tab — the app's landing surface. Hosts a "For You" view (activity over the user's
      * library) and a "Sources" view (installed sources, grouped by language). Its per-source manga
@@ -31,9 +34,6 @@ sealed interface TopLevelDestination : Destination {
      */
     @Serializable
     data object Home : TopLevelDestination
-
-    @Serializable
-    data object Activity : TopLevelDestination
 
     @Serializable
     data object Settings : TopLevelDestination

@@ -64,6 +64,35 @@ class AndroidLibraryUpdateNotifier(
         manager.notify(NOTIFICATION_ID, notification)
     }
 
+    override suspend fun notifySourceUpdates(sourceNames: List<String>) {
+        if (sourceNames.isEmpty()) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        if (!manager.areNotificationsEnabled()) {
+            logger.info(TAG, "Notifications are disabled; skipping ${sourceNames.size} source update(s)")
+            return
+        }
+        // Its own channel, so the user can silence source updates without losing chapter updates.
+        manager.createNotificationChannel(
+            NotificationChannel(
+                SOURCE_CHANNEL_ID,
+                context.getString(R.string.notification_channel_source_updates),
+                NotificationManager.IMPORTANCE_LOW,
+            ).apply { description = context.getString(R.string.notification_channel_source_updates_description) },
+        )
+        val notification =
+            Notification
+                .Builder(context, SOURCE_CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_library_update)
+                .setCategory(Notification.CATEGORY_RECOMMENDATION)
+                .setContentIntent(launchIntent())
+                .setAutoCancel(true)
+                .setContentTitle(
+                    context.resources.getQuantityString(R.plurals.notification_source_updates_title, sourceNames.size, sourceNames.size)
+                ).setContentText(sourceNames.joinToString(SUMMARY_SEPARATOR))
+                .build()
+        manager.notify(SOURCE_NOTIFICATION_ID, notification)
+    }
+
     /**
      * Fills in the title and body. One series speaks for itself ("One Piece" / "3 new chapters");
      * several are counted in the title and listed in an expandable inbox style, the only layout in
@@ -127,6 +156,10 @@ class AndroidLibraryUpdateNotifier(
 
         /** Fixed, so each run replaces the previous notification instead of adding to a pile. */
         const val NOTIFICATION_ID = 1
+        const val SOURCE_CHANNEL_ID = "source_updates"
+
+        /** After the download notifier's 2 and 3; fixed, so a later run replaces it. */
+        const val SOURCE_NOTIFICATION_ID = 4
 
         /** Joins the collapsed one-line preview of a multi-series notification. */
         const val SUMMARY_SEPARATOR = ", "
