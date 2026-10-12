@@ -27,6 +27,11 @@ git-URL change for consumers).
 `native/source-api/fixtures/` and the host test embeds them from that path instead of a release tarball.
 `hello` is the conformance source; no separate one yet.
 
+**Phase 1 (2026-10-12):** the sources repo is `tanuki-reader/tanuki-sources`, mounted in the app as a
+**git submodule** (`native/tanuki-sources`), not consumed as a release tarball: the commit pin is the SDK
+version, and a contract change lands as a sources commit plus a pointer bump. Icons aren't hosted; the
+index carries `source_meta`'s `iconUrl`.
+
 ---
 
 ## 2026-09-09 — History is pruned by age, but a series' last read is never deleted

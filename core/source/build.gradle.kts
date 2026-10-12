@@ -20,7 +20,7 @@ plugins {
 // at which point each test skips itself.
 
 /**
- * Source crates under native/sources to compile into test fixtures (`<CRATE>_WASM` byte arrays).
+ * Source crates under native/tanuki-sources/sources to compile into test fixtures (`<CRATE>_WASM` byte arrays).
  *
  * Built with each crate's **default** features, so a multi-language crate (MangaDex, MangaFire) is
  * fixtured in its default language only. The engine tests are about the ABI and the parse contract,
@@ -36,12 +36,12 @@ val fixtureCrates = listOf("hello", "mangadex", "mangafire", "manhastro", "hiper
  */
 fun registerWasmFixture(crate: String): TaskProvider<*> {
     val cap = crate.replaceFirstChar { it.uppercase() }
-    val crateDir = rootProject.layout.projectDirectory.dir("native/sources/$crate")
+    val crateDir = rootProject.layout.projectDirectory.dir("native/tanuki-sources/sources/$crate")
     val wasm = crateDir.file("target/wasm32-unknown-unknown/release/tanuki_source_$crate.wasm")
 
     val cargoBuild = tasks.register<Exec>("cargoBuild${cap}Fixture") {
         group = "rust"
-        description = "Builds native/sources/$crate for the cross-engine test fixture."
+        description = "Builds native/tanuki-sources/sources/$crate for the cross-engine test fixture."
 
         val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
         onlyIf { cargo.exists() }
@@ -52,7 +52,7 @@ fun registerWasmFixture(crate: String): TaskProvider<*> {
 
         inputs.dir(crateDir.dir("src"))
         inputs.file(crateDir.file("Cargo.toml"))
-        inputs.dir(rootProject.layout.projectDirectory.dir("native/source-api/src"))
+        inputs.dir(rootProject.layout.projectDirectory.dir("native/tanuki-sources/source-api/src"))
         outputs.file(wasm)
     }
 
@@ -86,7 +86,7 @@ fun registerWasmFixture(crate: String): TaskProvider<*> {
                 appendLine("import kotlin.io.encoding.Base64")
                 appendLine("import kotlin.io.encoding.ExperimentalEncodingApi")
                 appendLine()
-                appendLine("// Generated from native/sources/$crate. Do not edit.")
+                appendLine("// Generated from native/tanuki-sources/sources/$crate. Do not edit.")
                 appendLine("// Empty when the Rust toolchain was absent at build time.")
                 appendLine("private val CHUNKS: Array<String> = arrayOf(")
                 chunks.forEach { appendLine("    \"$it\",") }
@@ -108,14 +108,14 @@ fun registerWasmFixture(crate: String): TaskProvider<*> {
 val fixtureTasks: List<TaskProvider<*>> = fixtureCrates.map(::registerWasmFixture)
 
 // --- Golden wire fixtures ------------------------------------------------------------------------
-// The ABI's canonical JSON (native/source-api/fixtures/v<ABI>/), shared with the Rust SDK's own tests.
+// The ABI's canonical JSON (native/tanuki-sources/source-api/fixtures/v<ABI>/), shared with the Rust SDK's own tests.
 // Compiled in as `WIRE_FIXTURES` (name → JSON) for the same reason as the .wasm above: native tests
 // can't read files. Phase 1 of design-remote-sources.md swaps the path for the pinned SDK release.
 val generateWireFixtures = tasks.register("generateWireFixtures") {
     group = "tanuki"
-    description = "Generates WireFixtures.kt from native/source-api/fixtures for the wire contract test."
+    description = "Generates WireFixtures.kt from native/tanuki-sources/source-api/fixtures for the wire contract test."
 
-    val fixturesDir = rootProject.layout.projectDirectory.dir("native/source-api/fixtures").asFile
+    val fixturesDir = rootProject.layout.projectDirectory.dir("native/tanuki-sources/source-api/fixtures").asFile
     val outDir = layout.buildDirectory.dir("generated/fixtures/wire/kotlin").get().asFile
     inputs.dir(fixturesDir)
     outputs.dir(outDir)
@@ -130,7 +130,7 @@ val generateWireFixtures = tasks.register("generateWireFixtures") {
         val text = buildString {
             appendLine("package app.tanuki.core.source.fixture")
             appendLine()
-            appendLine("// Generated from native/source-api/fixtures. Do not edit.")
+            appendLine("// Generated from native/tanuki-sources/source-api/fixtures. Do not edit.")
             appendLine("internal val WIRE_FIXTURES: Map<String, String> = mapOf(")
             entries.forEach(::appendLine)
             appendLine(")")

@@ -57,3 +57,8 @@ include(":features:search:logic")
 include(":features:search")
 include(":features:settings")
 include(":features:settings:logic")
+// The source SDK and first-party sources are a submodule (tanuki-reader/tanuki-sources); the bundled dev
+// sources and :core:source's engine and wire-contract tests build from it.
+check(file("native/tanuki-sources/source-api").isDirectory) {
+    "native/tanuki-sources is empty. Run: git submodule update --init"
+}

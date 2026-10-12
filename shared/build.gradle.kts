@@ -311,13 +311,13 @@ val devSourceBundles: List<Triple<String, String, String?>> = listOf(
 )
 
 val wasmTarget = "wasm32-unknown-unknown"
-val nativeSourcesDir = rootProject.layout.projectDirectory.dir("native/sources")
-// A cargo target dir of our own, NOT the crate's default `native/sources/<crate>/target`. :core:source
+val nativeSourcesDir = rootProject.layout.projectDirectory.dir("native/tanuki-sources/sources")
+// A cargo target dir of our own, NOT the crate's default `native/tanuki-sources/sources/<crate>/target`. :core:source
 // builds the very same crates there for its test fixtures, and two tasks in two projects declaring the
 // same output file makes Gradle fail any build that contains both ("uses this output without declaring
 // a dependency"). Separate target dirs decouple them for the price of a second ~1s compile.
 val cargoTargetDir = layout.buildDirectory.dir("wasmSources")
-val sourceApiSrc = rootProject.layout.projectDirectory.dir("native/source-api/src")
+val sourceApiSrc = rootProject.layout.projectDirectory.dir("native/tanuki-sources/source-api/src")
 val bundledSourcesDir = layout.projectDirectory.dir("src/androidMain/resources/sources")
 
 // One cargo build per BUNDLE, not per crate: two language bundles of one crate differ only by feature,
@@ -329,7 +329,7 @@ val cargoTasks = devSourceBundles.map { (bundleId, crate, feature) ->
     val taskSuffix = bundleId.split('-').joinToString("") { it.replaceFirstChar(Char::uppercase) }
     tasks.register<Exec>("cargoBuild$taskSuffix") {
         group = "tanuki"
-        description = "cargo build native/sources/$crate → $bundleId.wasm"
+        description = "cargo build native/tanuki-sources/sources/$crate → $bundleId.wasm"
 
         // Local, so the onlyIf spec (serialized into the CC) captures a File, not the script.
         val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
@@ -367,7 +367,7 @@ if (!File(System.getProperty("user.home"), ".cargo/bin/cargo").exists()) {
 // tasks' outputs makes the ordering explicit, so no CC or implicit-dependency warning.
 val buildDevSources = tasks.register<Copy>("buildDevSources") {
     group = "tanuki"
-    description = "Compiles native/sources/* to .wasm and copies them into the bundled sources dir."
+    description = "Compiles native/tanuki-sources/sources/* to .wasm and copies them into the bundled sources dir."
 
     val cargo = File(System.getProperty("user.home"), ".cargo/bin/cargo")
     onlyIf { cargo.exists() }

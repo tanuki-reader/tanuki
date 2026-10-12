@@ -1,7 +1,7 @@
 # Design — Remote source distribution
 
-Status: **Phase 0 done** (2026-10-12); Phase 1 (the `tanuki-sources` repo) is next. Replaces the "sources ship inside the app" arrangement with
-user-added, signed, static source repos hosted on GitHub. Decisions are also logged in `decisions.md`
+Status: **Phase 1 done** (2026-10-12); Phase 2 (the app installs from a repo) is next. Replaces the
+"sources ship inside the app" arrangement with user-added, signed, static source repos hosted on GitHub. Decisions are also logged in `decisions.md`
 (2026-09-27).
 
 **Progress**
@@ -11,6 +11,13 @@ user-added, signed, static source repos hosted on GitHub. Decisions are also log
   by `cargo test` (`tests/fixtures.rs`) and `WireFixtureTest` (Android + iOS, via the generated
   `WIRE_FIXTURES`). The conformance source is `hello` + `HelloSourceEngineTest`, which already covers
   envelopes, host calls and the in-band error path on both engines.
+- 2026-10-12 — Phase 1 landed: `tanuki-reader/tanuki-sources` (history split from `native/`), mounted
+  in the app as the submodule `native/tanuki-sources`. `xtask build` builds `bundles.toml`, gates each
+  bundle (exports, `abi_version`, `source_meta.id`/`version`), refuses changed bytes under a published
+  version, and writes and signs the index; `publish.yml` pushes it to the `repo` branch. Deviations from
+  the original design are marked in §3: no hosted icons (`iconUrl` from `source_meta`), `hello` and
+  `manhastro` not published, toolchain pinned and lockfiles committed (byte-reproducible builds, which
+  the version gate depends on), and a submodule instead of the SDK release tarball.
 
 ---
 
@@ -119,26 +126,31 @@ the index can't drift from the binary. On install the app still re-checks that t
 
 ```
 tanuki-sources/
-  source-api/            # SDK crate + fixtures/ + conformance source
-  sources/<crate>/       # mangadex, mangafire, hipercool, manhastro, …
-  bundles.toml           # replaces devSourceBundles: bundleId, crate, cargo feature
-  xtask/                 # build → validate → extract meta → hash → write + sign index
+  source-api/            # SDK crate + fixtures/v<ABI>/ (hello is the conformance source)
+  sources/<crate>/       # mangadex, mangafire, hipercool, manhastro, hello
+  bundles.toml           # the PUBLISHED bundles: id, crate, cargo feature (not hello/manhastro)
+  xtask/                 # build → validate → extract meta → hash → write + sign index; keygen
+  rust-toolchain.toml    # pinned rustc: same source + same toolchain = same bytes
   .github/workflows/publish.yml
 ```
 
+The app mounts it as the submodule `native/tanuki-sources` (relative URL `../tanuki-sources`), pinned
+to a commit. That pin plays the role of the "pinned SDK version" in §2.1; Gradle reads the crates and
+the fixtures straight from it, and `settings.gradle.kts` fails fast if it isn't checked out.
+
 **CI (`publish.yml`, on push to `main`):** build all bundles to `wasm32-unknown-unknown`, run the gate
-(§2.1), fail if a crate changed without a `source_meta().version` bump (the rule in today's
-`native/README.md`; `Cargo.toml` versions are not used), then
-commit the output to an orphan **`repo`** branch.
+(§2.1), fail if a bundle's bytes changed under an already-published `source_meta().version` (or the
+version went backwards; compared against the live `repo` branch), then force-push the output as the
+orphan **`repo`** branch. Pull requests run the same build unsigned and don't publish. The signing seed
+is the `TANUKI_SIGNING_KEY` secret (`xtask keygen`).
 
 **Published layout (the `repo` branch):**
 
 ```
 repo.json                     # { formatVersion, name, publicKey }
 index.json                    # signed payload
-index.json.sig                # detached ed25519 signature over the exact bytes of index.json
-wasm/mangadex-v6.wasm         # immutable, versioned file names → safe CDN caching
-icons/mangadex.png
+index.json.sig                # base64 detached ed25519 signature over the exact bytes of index.json
+wasm/mangadex-v9.wasm         # immutable, versioned file names → safe CDN caching
 ```
 
 **`index.json`:**
@@ -157,7 +169,7 @@ icons/mangadex.png
       "nsfw": false,
       "baseUrl": "https://mangadex.org",
       "listings": ["popular", "latest"],
-      "iconPath": "icons/mangadex.png",
+      "iconUrl": "https://mangadex.org/pwa/icons/icon-180.png",
       "wasmPath": "wasm/mangadex-v6.wasm",
       "sha256": "…",
       "size": 412345
@@ -166,11 +178,11 @@ icons/mangadex.png
 }
 ```
 
-`formatVersion` versions the index schema itself. The app ignores an index with a higher
+`iconUrl` and `baseUrl` are omitted when the source reports none. `formatVersion` versions the index schema itself. The app ignores an index with a higher
 `formatVersion` than it understands and tells the user to update the app.
 
 **Serving:** GitHub Pages on the `repo` branch is the primary host, with jsDelivr
-(`cdn.jsdelivr.net/gh/<org>/tanuki-sources@repo/`) as a mirror. The app's only requirement is "a base
+(`https://tanuki-reader.github.io/tanuki-sources/`, mirror `cdn.jsdelivr.net/gh/tanuki-reader/tanuki-sources@repo/`) as a mirror. The app's only requirement is "a base
 URL that serves `repo.json`", so moving to R2/S3/any static host later changes nothing in the app.
 
 **Posture:** the app ships **no** repo URL. Users add repos themselves (Mihon model), so the app never
@@ -258,7 +270,7 @@ a later setting.
 | Phase | Scope | Tests |
 |---|---|---|
 | **0** Prereqs ✅ | `MIN_SUPPORTED` range, `nsfw` mapping, in-repo fixtures, contract tests on both sides; conformance source = `hello` until Phase 1 | ABI range tests in `:core:source`; wire fixture round-trips (Kotlin + Rust) |
-| **1** Sources repo | move `native/source-api` + `native/sources` to `tanuki-sources`, `bundles.toml`, `xtask`, CI publish to `repo` branch | xtask golden index test; CI gate rejects bad exports / missing version bump |
+| **1** Sources repo ✅ | move `native/source-api` + `native/sources` to `tanuki-sources`, `bundles.toml`, `xtask`, CI publish to `repo` branch | xtask golden index test; CI gate rejects bad exports / missing version bump |
 | **2** App install from repo | `source_repos` / `source_installations` + migration, `RemoteSourceCatalog`, ed25519 + sha256 verify, Repos screen | signature/key-change/sha256/size rejection tests; migration test; use-case tests (kotest) |
 | **3** Updates | `CheckSourceUpdates` / `UpdateSource`, background check, badges | update detection + repo-scoped update tests |
 | **4** Cleanup | remove `DevSourceInstaller`, composeResources bundles, cargo tasks, `removed_source_ids` | Android + iOS builds green, fresh-install flow manually |

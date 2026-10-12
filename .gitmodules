@@ -1,0 +1,3 @@
+[submodule "native/tanuki-sources"]
+	path = native/tanuki-sources
+	url = ../tanuki-sources
