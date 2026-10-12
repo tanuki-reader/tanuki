@@ -107,6 +107,41 @@ fun registerWasmFixture(crate: String): TaskProvider<*> {
 
 val fixtureTasks: List<TaskProvider<*>> = fixtureCrates.map(::registerWasmFixture)
 
+// --- Golden wire fixtures ------------------------------------------------------------------------
+// The ABI's canonical JSON (native/source-api/fixtures/v<ABI>/), shared with the Rust SDK's own tests.
+// Compiled in as `WIRE_FIXTURES` (name → JSON) for the same reason as the .wasm above: native tests
+// can't read files. Phase 1 of design-remote-sources.md swaps the path for the pinned SDK release.
+val generateWireFixtures = tasks.register("generateWireFixtures") {
+    group = "tanuki"
+    description = "Generates WireFixtures.kt from native/source-api/fixtures for the wire contract test."
+
+    val fixturesDir = rootProject.layout.projectDirectory.dir("native/source-api/fixtures").asFile
+    val outDir = layout.buildDirectory.dir("generated/fixtures/wire/kotlin").get().asFile
+    inputs.dir(fixturesDir)
+    outputs.dir(outDir)
+
+    doLast {
+        fun String.literal() =
+            "\"" + replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$").replace("\n", "\\n") + "\""
+        val entries = fixturesDir.walkTopDown()
+            .filter { it.extension == "json" }
+            .sortedBy { it.path }
+            .map { "    ${it.relativeTo(fixturesDir).invariantSeparatorsPath.removeSuffix(".json").literal()} to ${it.readText().literal()}," }
+        val text = buildString {
+            appendLine("package app.tanuki.core.source.fixture")
+            appendLine()
+            appendLine("// Generated from native/source-api/fixtures. Do not edit.")
+            appendLine("internal val WIRE_FIXTURES: Map<String, String> = mapOf(")
+            entries.forEach(::appendLine)
+            appendLine(")")
+        }
+        outDir.resolve("app/tanuki/core/source/fixture")
+            .apply { mkdirs() }
+            .resolve("WireFixtures.kt")
+            .writeText(text)
+    }
+}
+
 kotlin {
     listOf(
         iosArm64(),
@@ -201,4 +236,4 @@ kotlin {
 // The generated base64 .wasm fixtures (see registerWasmFixture above) are added as commonTest source
 // dirs here rather than inside `sourceSets {}`: the accessor form `commonTest.kotlin.srcDir`
 // mis-resolves `.kotlin` to the project extension, so use getByName for an unambiguous receiver.
-fixtureTasks.forEach { kotlin.sourceSets.getByName("commonTest").kotlin.srcDir(it) }
+(fixtureTasks + generateWireFixtures).forEach { kotlin.sourceSets.getByName("commonTest").kotlin.srcDir(it) }

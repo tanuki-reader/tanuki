@@ -20,11 +20,21 @@ package app.tanuki.core.source.abi
  */
 object SourceAbi {
     /**
-     * ABI revision the host speaks. A source advertises its own via [Exports.ABI_VERSION]; the host
-     * refuses to run a source whose version it doesn't recognise (no compatibility shims in v1).
-     * Bump on any breaking change to exports, imports, the memory ABI, or a wire shape.
+     * Newest ABI revision the host speaks. A source advertises its own via [Exports.ABI_VERSION]; the
+     * host runs any source in [MIN_SUPPORTED]..[VERSION] (see [isSupported]). Bump only on a breaking
+     * change to exports, imports, the memory ABI, or a wire shape; an additive change (a new optional
+     * field or export) keeps the version, since decoding tolerates absent and unknown fields.
      */
     const val VERSION: Int = 4
+
+    /**
+     * Oldest ABI revision the host still runs. Stays behind [VERSION] after a breaking bump for as long
+     * as the host keeps a shim for the previous revision; raise it in a later release to drop the shim.
+     */
+    const val MIN_SUPPORTED: Int = 4
+
+    /** Whether a source built for ABI [version] can run on this host. */
+    fun isSupported(version: Int): Boolean = version in MIN_SUPPORTED..VERSION
 
     /** Memory-ABI exports a guest must provide so the host can move bytes in/out of its linear memory. */
     object Memory {

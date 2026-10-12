@@ -390,14 +390,16 @@ class WasmSourceLoader(
         }
     }
 
-    /** Reads [sourceId]'s bundle, instantiates it and checks that it speaks this host's ABI version. */
+    /** Reads [sourceId]'s bundle, instantiates it and checks that its ABI version is one this host runs. */
     private suspend fun instantiate(sourceId: String): WasmModule {
         val bytes = bundleStore.readBundle(sourceId)
             ?: error("Source \"$sourceId\" is not installed.")
         return engine.instantiate(sourceId, bytes, host).also { module ->
             val version = module.callReturningI32(SourceAbi.Exports.ABI_VERSION)
-            require(version == SourceAbi.VERSION) {
-                "Source \"$sourceId\" targets ABI v$version, but the host speaks v${SourceAbi.VERSION}."
+            require(SourceAbi.isSupported(version)) {
+                val why = if (version > SourceAbi.VERSION) "needs an app update" else "is outdated"
+                "Source \"$sourceId\" targets ABI v$version and $why: the host runs " +
+                    "v${SourceAbi.MIN_SUPPORTED}..v${SourceAbi.VERSION}."
             }
         }
     }

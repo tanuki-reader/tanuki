@@ -6,6 +6,29 @@ the design doc (`session-source-and-browse.md`); keep entries brief and link to 
 
 ---
 
+## 2026-09-27 — Sources are distributed from user-added, signed static repos on GitHub
+
+**Decision:** sources move out of the app into a `tanuki-sources` GitHub repo. CI publishes a signed
+static index (`repo.json`, `index.json` + ed25519 `.sig`, versioned `.wasm` files) to a `repo` branch,
+served by GitHub Pages with jsDelivr as a mirror. The app ships **no** repo URL: users add repos, as in
+Mihon. The ABI contract is owned by `source-api`, which ships golden wire fixtures plus a conformance
+source; the app pins the SDK version and tests against both, and the loader accepts an ABI range
+(`MIN_SUPPORTED..VERSION`), not an exact match. Full design: `design-remote-sources.md`.
+
+**Why:** bundling ties every source fix to an app release. Static hosting needs no infrastructure and
+can be swapped for any host. User-added repos keep scraper sources out of the app, for takedowns and
+App Store review.
+
+**Rejected:** Supabase Storage (a database and auth we don't need for static files); keeping sources
+bundled; a separate `source-api` repo for now (split it out once third-party authors exist, which is a
+git-URL change for consumers).
+
+**Phase 0 (2026-10-12):** until the SDK moves, the golden fixtures live in
+`native/source-api/fixtures/` and the host test embeds them from that path instead of a release tarball.
+`hello` is the conformance source; no separate one yet.
+
+---
+
 ## 2026-09-09 — History is pruned by age, but a series' last read is never deleted
 
 **Decision:** `PruneHistory` runs once at launch and deletes history older than
