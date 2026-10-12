@@ -5,7 +5,9 @@
 xcuserdata
 !src/**/build/
 local.properties
-.idea
+.idea/*
+# The project icon Android Studio / IntelliJ shows for this project: the leaf mark (assets/logo.svg).
+!.idea/icon.svg
 .DS_Store
 captures
 .externalNativeBuild
