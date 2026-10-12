@@ -216,13 +216,16 @@ kotlin {
             implementation(libs.ktor.client.encoding)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.okio)
+            implementation(libs.cryptography.core)
         }
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.chicory.runtime)
+            implementation(libs.cryptography.provider.jdk)
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+            implementation(libs.cryptography.provider.cryptokit)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

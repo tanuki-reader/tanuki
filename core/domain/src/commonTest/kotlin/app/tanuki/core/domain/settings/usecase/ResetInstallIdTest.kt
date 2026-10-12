@@ -108,12 +108,6 @@ private class InstallIdSettingsRepository : SettingsRepository {
 
     override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) = error("unused")
 
-    override suspend fun getRemovedSourceIds(): Set<String> = error("unused")
-
-    override suspend fun setSourceRemoved(
-        sourceId: String,
-        removed: Boolean
-    ) = error("unused")
 }
 
 private class UserIdCrashReporter : CrashReporter {

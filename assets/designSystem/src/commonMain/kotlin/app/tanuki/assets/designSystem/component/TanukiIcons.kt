@@ -284,3 +284,27 @@ fun EmptyLibraryIcon(
     modifier: Modifier = Modifier,
     size: Dp = 64.dp,
 ) = TanukiLogo(modifier = modifier, size = size, tint = tint)
+
+/** `add`: adding something (a source repo). */
+@Composable
+fun AddIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp,
+) = Symbol(TanukiSymbols.Add, tint, modifier, size)
+
+/** `warning`: a state that blocks an action (a source needing a newer app), in the `warning` colour. */
+@Composable
+fun WarningIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp,
+) = Symbol(TanukiSymbols.Warning, tint, modifier, size)
+
+/** `more_vert`: a row's overflow menu. */
+@Composable
+fun MoreVertIcon(
+    tint: Color,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp,
+) = Symbol(TanukiSymbols.MoreVert, tint, modifier, size)

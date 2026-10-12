@@ -1,6 +1,5 @@
 package app.tanuki.core.domain.source.usecase
 
-import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.repository.SourceRepository
 import dev.zacsweers.metro.AppScope
@@ -18,11 +17,7 @@ import dev.zacsweers.metro.Inject
  * have. [InstallSource] restores full function, and because the row survived, it restores it against
  * the same local identity, so the library reconnects rather than duplicating.
  *
- * Also records the removal in [SettingsRepository.setSourceRemoved], which is what makes an uninstall
- * outlast the app: the bundled sources are seeded on launch, and without the record the next start
- * would quietly put the bundle back.
- *
- * Idempotent — uninstalling a source that isn't installed removes nothing and still records the intent.
+ * Idempotent — uninstalling a source that isn't installed removes nothing.
  *
  * @see InstallSource for the inverse.
  */
@@ -32,15 +27,8 @@ sealed interface UninstallSource {
     @Inject
     @ContributesBinding(AppScope::class)
     class Default(
-        private val bundleStore: SourceBundleStore,
-        private val settingsRepository: SettingsRepository
+        private val bundleStore: SourceBundleStore
     ) : UninstallSource {
-        override suspend fun invoke(sourceId: String) {
-            // Order matters: the bundle goes first so that a failure to record the intent still leaves
-            // the source uninstalled for this run, rather than a recorded removal with the bundle still
-            // on disk (which reads as "installed" everywhere else in the app).
-            bundleStore.removeBundle(sourceId)
-            settingsRepository.setSourceRemoved(sourceId, removed = true)
-        }
+        override suspend fun invoke(sourceId: String) = bundleStore.removeBundle(sourceId)
     }
 }

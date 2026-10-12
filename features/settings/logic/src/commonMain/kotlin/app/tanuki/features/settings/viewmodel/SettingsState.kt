@@ -7,7 +7,8 @@ import app.tanuki.core.domain.settings.model.ThemePreference
  * shows its current setting at a glance without opening it: the active [theme] (Appearance row), the
  * number of user [categoryCount] (Categories row), how many sources are installed (Sources row), and
  * whether crash reporting is on (Privacy row), and how many chapters the download queue is holding
- * (Downloads row).
+ * (Downloads row), and whether adult content is shown (the switch above the Sources row, which filters
+ * both the source lists and the titles inside mixed sources).
  *
  * [downloadQueueCount] is the only number in the app that says the queue exists at all. It counts what
  * the queue *screen* shows — waiting, downloading and failed — rather than only the work still owed, so
@@ -18,7 +19,8 @@ data class SettingsState(
     val categoryCount: Int = 0,
     val sourceCount: Int = 0,
     val crashReportingEnabled: Boolean = false,
-    val downloadQueueCount: Int = 0
+    val downloadQueueCount: Int = 0,
+    val showSensitive: Boolean = false
 )
 
 /** The index's rows, each opening one sub-screen. */

@@ -21,14 +21,14 @@ rustup target add aarch64-apple-ios aarch64-apple-ios-sim   # for wasmi-cabi
 
 ## Building
 
-Until the app installs sources from a repo (Phase 2 of `docs/design-remote-sources.md`), Gradle still
-builds them: `:shared:buildDevSources` compiles each crate in `tanuki-sources/sources/` and copies the
-`.wasm` into `shared/src/androidMain/resources/sources/`, where `DevSourceInstaller` picks it up on
-launch. `:core:source` builds the same crates for its engine tests and embeds
-`tanuki-sources/source-api/fixtures/` for the wire contract test.
+The app doesn't bundle sources: it installs them from user-added, signed repos (see
+`docs/design-remote-sources.md`). Gradle only builds the crates for tests — `:core:source` compiles
+`tanuki-sources/sources/*` for its engine tests and embeds `tanuki-sources/source-api/fixtures/` for
+the wire contract test. Those tasks **skip themselves** if cargo isn't installed, so Android-only
+contributors don't need Rust.
 
-The cargo tasks **skip themselves** if cargo isn't installed, so Android-only contributors don't need
-Rust.
+**Trying a source change in the app:** build and serve a local repo from `tanuki-sources` (its README,
+"Local repo for the dev loop"), or push it and let CI publish.
 
 **Changing a source:** commit in `tanuki-sources` (and push it), then commit the new submodule pointer
-here. The app builds against whatever commit the pointer pins.
+here.

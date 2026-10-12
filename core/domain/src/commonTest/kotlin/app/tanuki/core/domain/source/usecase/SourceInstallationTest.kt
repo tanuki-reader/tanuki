@@ -1,37 +1,34 @@
 package app.tanuki.core.domain.source.usecase
 
 import app.tanuki.core.domain.common.model.Text
-import app.tanuki.core.domain.common.model.Url
 import app.tanuki.core.domain.common.service.LogPriority
 import app.tanuki.core.domain.common.service.RecordingLogger
-import app.tanuki.core.domain.library.model.LibraryPreferences
-import app.tanuki.core.domain.settings.model.AutoDownloadMode
-import app.tanuki.core.domain.settings.model.DeleteAfterReading
-import app.tanuki.core.domain.settings.model.LibraryGridSize
-import app.tanuki.core.domain.settings.model.ReaderBackground
-import app.tanuki.core.domain.settings.model.LibraryUpdateInterval
-import app.tanuki.core.domain.settings.model.ThemePreference
-import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.SourceBundleStore
 import app.tanuki.core.domain.source.SourceCatalog
 import app.tanuki.core.domain.source.SourceLoader
 import app.tanuki.core.domain.source.model.ChapterListing
+import app.tanuki.core.domain.source.model.InstallProgress
 import app.tanuki.core.domain.source.model.MangaListing
 import app.tanuki.core.domain.source.model.MangaPage
 import app.tanuki.core.domain.source.model.Page
+import app.tanuki.core.domain.source.model.RemoteSource
+import app.tanuki.core.domain.source.model.RepoPreview
 import app.tanuki.core.domain.source.model.Source
+import app.tanuki.core.domain.source.model.SourceCompatibility
 import app.tanuki.core.domain.source.model.SourceListing
 import app.tanuki.core.domain.source.model.SourceMeta
+import app.tanuki.core.domain.source.model.SourceRepo
+import app.tanuki.core.domain.source.model.SourceRepoError
+import app.tanuki.core.domain.source.model.SourceRepoException
 import app.tanuki.core.domain.source.repository.SourceRepository
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Instant
-import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 
@@ -41,15 +38,23 @@ private const val COMICK = "comick"
 private val MANGADEX_META =
     SourceMeta(id = MANGADEX, name = Text("MangaDex"), lang = Text("en"), version = 1)
 
-private val MANGADEX_ROW =
-    Source(
-        id = Uuid.random(),
-        sourceId = MANGADEX,
-        lang = Text("en"),
-        name = Text("MangaDex"),
-        url = Url("https://mangadex.org"),
-        iconUrl = Url("https://mangadex.org/icon.png")
-    )
+private fun remote(
+    id: String,
+    name: String = id,
+    version: Int = 2,
+    repoName: String = "Tanuki Sources",
+    compatibility: SourceCompatibility = SourceCompatibility.Compatible
+) = RemoteSource(
+    id = id,
+    name = name,
+    lang = "en",
+    version = version,
+    nsfw = false,
+    iconUrl = null,
+    repoUrl = "https://example.org/$repoName/",
+    repoName = repoName,
+    compatibility = compatibility
+)
 
 /**
  * Tests the source install/uninstall lifecycle: [UninstallSource], [InstallSource], and the
@@ -57,122 +62,84 @@ private val MANGADEX_ROW =
  *
  * That an uninstall **keeps** the persisted source row — the whole reason removing a source is safe to
  * offer, since deleting it would cascade the user's library away — is guaranteed structurally rather
- * than here: [UninstallSource] has no [SourceRepository] dependency to delete through. What is tested is
- * everything that isn't free:
- *  - an uninstall is recorded, so it survives the launch-time seeding rather than being silently undone;
- *  - installing again clears that record, so the same source isn't treated as removed forever;
- *  - a source with no bundle can still be described, from the row the uninstall preserved, so the screen
- *    offers "MangaDex" back rather than a bare slug.
+ * than here: [UninstallSource] has no [SourceRepository] dependency to delete through.
  */
 class SourceInstallationTest {
 
     @Test
-    fun `uninstalling removes the bundle and records the removal`() = runTest {
+    fun `uninstalling removes the bundle`() = runTest {
         val store = FakeBundleStore(installed = setOf(MANGADEX))
-        val settings = FakeSettingsRepository()
 
-        UninstallSource.Default(store, settings)(MANGADEX)
+        UninstallSource.Default(store)(MANGADEX)
 
         assertEquals(emptySet(), store.installed)
-        assertEquals(setOf(MANGADEX), settings.removedSourceIds)
     }
 
     @Test
-    fun `uninstalling a source that isn't installed still records the intent`() = runTest {
-        val settings = FakeSettingsRepository()
+    fun `installing goes through the catalog`() = runTest {
+        val catalog = FakeCatalog()
 
-        UninstallSource.Default(FakeBundleStore(), settings)(MANGADEX)
+        val failure = InstallSource.Default(catalog, RecordingLogger())(MANGADEX)
 
-        assertEquals(setOf(MANGADEX), settings.removedSourceIds)
-    }
-
-    @Test
-    fun `installing writes the bundle and clears the removal`() = runTest {
-        val catalog = FakeCatalog(available = listOf(MANGADEX))
-        val settings = FakeSettingsRepository(removed = mutableSetOf(MANGADEX))
-
-        val installed = InstallSource.Default(catalog, settings, RecordingLogger())(MANGADEX)
-
-        assertTrue(installed)
+        assertNull(failure)
         assertEquals(listOf(MANGADEX), catalog.installCalls)
-        assertEquals(emptySet(), settings.removedSourceIds)
     }
 
     @Test
-    fun `a failed install reports failure and leaves the removal recorded`() = runTest {
-        val settings = FakeSettingsRepository(removed = mutableSetOf(MANGADEX))
+    fun `a failed install names the step that failed and logs it`() = runTest {
         val logger = RecordingLogger()
+        val catalog = FakeCatalog(failure = SourceRepoException(SourceRepoError.Mismatch))
 
-        val installed =
-            InstallSource.Default(
-                FakeCatalog(failure = IllegalStateException("no bundle")),
-                settings,
-                logger
-            )(MANGADEX)
+        val failure = InstallSource.Default(catalog, logger)(MANGADEX)
 
-        assertFalse(installed)
-        assertEquals(setOf(MANGADEX), settings.removedSourceIds)
+        assertEquals(SourceRepoError.Mismatch, failure)
         assertEquals(LogPriority.WARN, logger.entries.single().priority)
     }
 
     @Test
-    fun `the catalog describes an installed source from its bundle metadata`() = runTest {
-        val catalog =
-            observeCatalog(
-                installed = listOf(MANGADEX_META),
-                persisted = emptyList(),
-                available = listOf(MANGADEX)
-            ).first()
+    fun `an installed source is described by its bundle and names the repo offering it`() = runTest {
+        val entry = observeCatalog(installed = listOf(MANGADEX_META), available = listOf(remote(MANGADEX))).first().single()
 
-        val entry = catalog.single()
         assertTrue(entry.installed)
-        assertEquals(MANGADEX, entry.sourceId)
         assertEquals("MangaDex", entry.name.value)
-        assertEquals("en", entry.lang?.value)
+        assertEquals(1, entry.version, "the installed version, not the one on offer")
+        assertEquals("Tanuki Sources", entry.repoName)
     }
 
     @Test
-    fun `an uninstalled source is described from the row the uninstall preserved`() = runTest {
-        val catalog =
-            observeCatalog(
-                installed = emptyList(),
-                persisted = listOf(MANGADEX_ROW),
-                available = listOf(MANGADEX)
-            ).first()
+    fun `an installable source is described by its repo's index`() = runTest {
+        val entry =
+            observeCatalog(available = listOf(remote(COMICK, name = "Comick", compatibility = SourceCompatibility.NeedsAppUpdate)))
+                .first()
+                .single()
 
-        val entry = catalog.single()
         assertFalse(entry.installed)
-        assertEquals("MangaDex", entry.name.value)
+        assertEquals("Comick", entry.name.value)
         assertEquals("en", entry.lang?.value)
-        assertEquals("https://mangadex.org/icon.png", entry.iconUrl?.value)
-    }
-
-    @Test
-    fun `a source that has never been installed falls back to its id`() = runTest {
-        val catalog =
-            observeCatalog(
-                installed = emptyList(),
-                persisted = emptyList(),
-                available = listOf(COMICK)
-            ).first()
-
-        val entry = catalog.single()
-        assertEquals(COMICK, entry.name.value)
-        assertNull(entry.lang)
-        assertFalse(entry.installed)
+        assertEquals(2, entry.version)
+        assertEquals(SourceCompatibility.NeedsAppUpdate, entry.compatibility)
     }
 
     @Test
     fun `an installed source is never also offered as available`() = runTest {
-        val catalog =
-            observeCatalog(
-                installed = listOf(MANGADEX_META),
-                persisted = listOf(MANGADEX_ROW),
-                available = listOf(MANGADEX, COMICK)
-            ).first()
+        val catalog = observeCatalog(installed = listOf(MANGADEX_META), available = listOf(remote(MANGADEX), remote(COMICK))).first()
 
         assertEquals(listOf(COMICK, MANGADEX), catalog.map { it.sourceId })
         assertEquals(listOf(false, true), catalog.map { it.installed })
+    }
+
+    @Test
+    fun `when two repos offer a source the runnable one wins`() = runTest {
+        val entry =
+            observeCatalog(
+                available = listOf(
+                    remote(COMICK, repoName = "Old", compatibility = SourceCompatibility.Outdated),
+                    remote(COMICK, repoName = "Current")
+                )
+            ).first().single()
+
+        assertEquals("Current", entry.repoName)
+        assertEquals(SourceCompatibility.Compatible, entry.compatibility)
     }
 
     @Test
@@ -182,8 +149,7 @@ class SourceInstallationTest {
         val catalog =
             ObserveSourceCatalog.Default(
                 getInstalledSources = GetInstalledSources.Default(EnumeratingSourceLoader(listOf(MANGADEX_META)), logger),
-                observeSources = ObserveSources.Default(FakeSourceRepository()),
-                catalog = FakeCatalog(availableFailure = IllegalStateException("offline")),
+                catalog = FakeCatalog(availableFailure = IllegalStateException("corrupt cache")),
                 logger = logger
             )().first()
 
@@ -191,14 +157,11 @@ class SourceInstallationTest {
         assertEquals(LogPriority.WARN, logger.entries.single().priority)
     }
 
-    /** Builds the use case under test from the three things it joins, so each case reads as its inputs. */
     private fun observeCatalog(
-        installed: List<SourceMeta>,
-        persisted: List<Source>,
-        available: List<String>
+        installed: List<SourceMeta> = emptyList(),
+        available: List<RemoteSource> = emptyList()
     ) = ObserveSourceCatalog.Default(
         getInstalledSources = GetInstalledSources.Default(EnumeratingSourceLoader(installed), RecordingLogger()),
-        observeSources = ObserveSources.Default(FakeSourceRepository(persisted)),
         catalog = FakeCatalog(available = available),
         logger = RecordingLogger()
     )()
@@ -231,126 +194,38 @@ private class FakeBundleStore(
 
 /**
  * A [SourceCatalog] that records what it was asked to install. [failure] fails the install itself;
- * [availableFailure] fails the enumeration, standing in for a catalog that can't be reached.
+ * [availableFailure] fails the listing, standing in for a catalog that can't be read.
  */
 private class FakeCatalog(
-    private val available: List<String> = emptyList(),
+    private val available: List<RemoteSource> = emptyList(),
     private val failure: Throwable? = null,
     private val availableFailure: Throwable? = null
 ) : SourceCatalog {
     val installCalls = mutableListOf<String>()
 
-    override suspend fun availableIds(): List<String> = availableFailure?.let { throw it } ?: available
+    override fun observeAvailable(): Flow<List<RemoteSource>> =
+        flow {
+            availableFailure?.let { throw it }
+            emit(available)
+        }
 
-    override suspend fun install(sourceId: String) {
+    override suspend fun install(
+        sourceId: String,
+        onProgress: (InstallProgress) -> Unit
+    ) {
         failure?.let { throw it }
         installCalls += sourceId
     }
-}
 
-/** Records the removal set; the settings this lifecycle doesn't touch are unused. */
-private class FakeSettingsRepository(
-    removed: MutableSet<String> = mutableSetOf()
-) : SettingsRepository {
-    var removedSourceIds: Set<String> = removed
-        private set
+    override fun observeRepos(): Flow<List<SourceRepo>> = error("unused")
 
-    override suspend fun getRemovedSourceIds(): Set<String> = removedSourceIds
+    override suspend fun previewRepo(url: String): RepoPreview = error("unused")
 
-    override suspend fun setSourceRemoved(
-        sourceId: String,
-        removed: Boolean
-    ) {
-        removedSourceIds = if (removed) removedSourceIds + sourceId else removedSourceIds - sourceId
-    }
+    override suspend fun addRepo(preview: RepoPreview) = error("unused")
 
-    override fun observeThemePreference(): Flow<ThemePreference> = error("unused")
+    override suspend fun removeRepo(baseUrl: String) = error("unused")
 
-    override suspend fun setThemePreference(preference: ThemePreference) = error("unused")
-
-    override fun observeCrashReportingEnabled(): Flow<Boolean> = error("unused")
-
-    override suspend fun setCrashReportingEnabled(enabled: Boolean) = error("unused")
-
-    override suspend fun getOrCreateInstallId(): String = error("unused")
-
-    override suspend fun resetInstallId(): String = error("unused")
-
-    override fun observeLibraryUpdateInterval(): Flow<LibraryUpdateInterval> = error("unused")
-
-    override suspend fun setLibraryUpdateInterval(interval: LibraryUpdateInterval) = error("unused")
-
-    override suspend fun getLastLibraryUpdate(): Instant? = error("unused")
-
-    override suspend fun setLastLibraryUpdate(at: Instant) = error("unused")
-
-    override fun observeDownloadsPaused(): Flow<Boolean> = error("unused")
-
-    override suspend fun setDownloadsPaused(paused: Boolean) = error("unused")
-
-    override fun observeAutoDownloadMode(): Flow<AutoDownloadMode> = error("unused")
-
-    override fun observeAutoDownloadCategories(): Flow<Set<Uuid>> = error("unused")
-
-    override suspend fun setAutoDownload(
-        mode: AutoDownloadMode,
-        categories: Set<Uuid>
-    ) = error("unused")
-
-    override fun observeDownloadOnWifiOnly(): Flow<Boolean> = error("unused")
-
-    override suspend fun setDownloadOnWifiOnly(wifiOnly: Boolean) = error("unused")
-
-    override fun observeDeleteAfterReading(): Flow<DeleteAfterReading> = error("unused")
-
-
-    override fun observeLibraryPreferences(): Flow<LibraryPreferences> = error("unused")
-
-
-
-    override fun observeLibraryGridSize(): Flow<LibraryGridSize> = error("unused")
-
-    override fun observeReaderBackground(): Flow<ReaderBackground> = error("unused")
-
-    override suspend fun setReaderBackground(background: ReaderBackground) = error("unused")
-
-
-
-
-    override fun observeShowSensitiveContent(): Flow<Boolean> = error("unused")
-
-
-
-
-    override suspend fun setShowSensitiveContent(show: Boolean) = error("unused")
-
-
-
-    override suspend fun setLibraryGridSize(size: LibraryGridSize) = error("unused")
-
-
-    override suspend fun updateLibraryPreferences(
-
-        transform: (LibraryPreferences) -> LibraryPreferences
-
-    ) = error("unused")
-
-    override suspend fun setDeleteAfterReading(setting: DeleteAfterReading) = error("unused")
-}
-
-/** A [SourceRepository] over a fixed set of rows — what survives an uninstall. */
-private class FakeSourceRepository(
-    private val sources: List<Source> = emptyList()
-) : SourceRepository {
-    override fun observeSources(): Flow<List<Source>> = flowOf(sources)
-
-    override suspend fun getSource(id: Uuid): Source? = sources.firstOrNull { it.id == id }
-
-    override suspend fun getSourceByNativeId(sourceId: String): Source? = sources.firstOrNull { it.sourceId == sourceId }
-
-    override suspend fun addSource(source: Source) = error("unused")
-
-    override suspend fun deleteSource(source: Source) = error("unused")
+    override suspend fun refresh() = error("unused")
 }
 
 /** A [SourceLoader] that only enumerates; the fetch calls are never reached here. */

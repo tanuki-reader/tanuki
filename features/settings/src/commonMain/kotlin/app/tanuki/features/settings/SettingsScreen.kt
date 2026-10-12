@@ -10,6 +10,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import app.tanuki.features.settings.resources.settings_show_sensitive_hint
+import app.tanuki.features.settings.resources.settings_show_sensitive
+import app.tanuki.assets.designSystem.component.TanukiSwitchRow
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -141,6 +144,15 @@ fun SettingsRoute(
                         ),
                     leading = { LabelIcon(tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     onClick = { viewModel.onEntryClick(SettingsEntry.Categories) }
+                )
+                TanukiRowDivider(startInset = RowDividerInset)
+                // Above Sources, as the design system places it: it filters the source lists as well as the
+                // adult titles inside mixed sources, so it isn't a setting of the Sources screen alone.
+                TanukiSwitchRow(
+                    title = stringResource(Res.string.settings_show_sensitive),
+                    subtitle = stringResource(Res.string.settings_show_sensitive_hint),
+                    checked = state.showSensitive,
+                    onCheckedChange = viewModel::onShowSensitiveChange
                 )
                 TanukiRowDivider(startInset = RowDividerInset)
                 TanukiListRow(

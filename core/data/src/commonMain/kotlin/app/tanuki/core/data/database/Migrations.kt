@@ -28,6 +28,7 @@ internal val MIGRATIONS: Array<Migration> =
         Migration13To14,
         Migration14To15,
         Migration15To16,
+        Migration16To17,
     )
 
 /**
@@ -413,5 +414,19 @@ internal object Migration15To16 : Migration(15, 16) {
             "CREATE UNIQUE INDEX IF NOT EXISTS `index_page_bookmark_chapter_id_page` ON `page_bookmark` (`chapter_id`, `page`)",
         )
         connection.execSQL("CREATE INDEX IF NOT EXISTS `index_page_bookmark_manga_id` ON `page_bookmark` (`manga_id`)")
+    }
+}
+
+/**
+ * Adds `source_repos` — the source repos the user added, each with its pinned signing key and last
+ * verified index (see `docs/design-remote-sources.md`). Starts empty: the app ships no repo.
+ */
+internal object Migration16To17 : Migration(16, 17) {
+    override fun migrate(connection: SQLiteConnection) {
+        connection.execSQL(
+            "CREATE TABLE IF NOT EXISTS `source_repos` (`base_url` TEXT NOT NULL, `name` TEXT NOT NULL, " +
+                "`public_key` TEXT NOT NULL, `index_json` TEXT NOT NULL, `fetched_at` INTEGER NOT NULL, " +
+                "PRIMARY KEY(`base_url`))"
+        )
     }
 }

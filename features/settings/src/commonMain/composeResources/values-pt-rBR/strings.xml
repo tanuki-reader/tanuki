@@ -54,12 +54,12 @@
     <string name="settings_delete">Excluir</string>
 
     <!-- Tela de fontes -->
-    <string name="settings_sources_empty">Nenhuma fonte ainda. Elas aparecerão aqui quando houver alguma para instalar.</string>
+    <string name="settings_sources_empty">Seus repos ainda não oferecem nenhuma fonte.</string>
     <string name="settings_sources_installed">Instaladas</string>
-    <string name="settings_show_sensitive">Mostrar conteúdo sensível</string>
+    <string name="settings_show_sensitive">Mostrar conteúdo adulto</string>
     <string name="settings_show_sensitive_hint">Mostra fontes só com conteúdo adulto e os títulos adultos das outras fontes. Desligado por padrão.</string>
     <string name="settings_sources_available">Disponíveis</string>
-    <string name="settings_sources_available_hint">Fontes que você removeu. Instale novamente para voltar a buscar os títulos dela.</string>
+    <string name="settings_sources_available_hint">Oferecidas pelos seus repos. Instalar uma baixa a fonte e confere a assinatura do repo.</string>
     <string name="settings_install">Instalar</string>
     <string name="settings_remove">Remover</string>
     <string name="settings_remove_source_action">Remover %1$s</string>
@@ -134,4 +134,49 @@
     <string name="settings_kilobytes">%1$s KB</string>
     <string name="settings_megabytes">%1$s MB</string>
     <string name="settings_gigabytes">%1$s GB</string>
+    <!-- Source repos (design system: SourcesScreen, AddSourceRepo, SourceRow) -->
+    <string name="settings_ok">OK</string>
+    <string name="settings_source_repos">Repos</string>
+    <string name="settings_sources_empty_title">Nenhuma fonte ainda</string>
+    <string name="settings_sources_no_repos">As fontes vêm de repos que você adiciona. Cole o endereço de um repo em que você confia para ver o que ele oferece.</string>
+    <string name="settings_source_repo_add">Adicionar repo</string>
+    <string name="settings_languages_all">Todas</string>
+    <string name="settings_source_details_installed">%1$s · v%2$d</string>
+    <string name="settings_source_details_available">%1$s · v%2$d · %3$s</string>
+    <string name="settings_source_adult">18+</string>
+    <string name="settings_source_needs_update">Requer um Tanuki mais novo</string>
+    <string name="settings_source_outdated">Desatualizada</string>
+    <string name="settings_source_downloading">Baixando</string>
+    <string name="settings_source_downloading_percent">Baixando · %1$d%%</string>
+    <string name="settings_source_verifying">Verificando</string>
+    <string name="settings_source_retry">Tentar de novo</string>
+    <string name="settings_source_failed_offline">Não foi possível instalar — sem conexão</string>
+    <string name="settings_source_failed_unreachable">Não foi possível instalar — o repo não respondeu</string>
+    <string name="settings_source_failed_mismatch">Não foi possível verificar — o arquivo não confere com o repo</string>
+    <string name="settings_source_repo_url_label">Endereço do repo</string>
+    <string name="settings_source_repo_url_placeholder">https://example.github.io/sources</string>
+    <string name="settings_source_repo_continue">Continuar</string>
+    <string name="settings_source_repo_confirm_title">Adicionar %1$s?</string>
+    <plurals name="settings_source_repo_summary">
+        <item quantity="one">%1$d fonte · %2$s</item>
+        <item quantity="other">%1$d fontes · %2$s</item>
+    </plurals>
+    <string name="settings_source_repo_signed">Assinado · impressão digital da chave ed25519</string>
+    <string name="settings_source_repo_trust">Adicione só repos em que você confia. As fontes deles buscam páginas para você. O Tanuki confere cada download com esta chave e não aceita o repo se a chave mudar.</string>
+    <string name="settings_source_repo_remove_title">Remover %1$s?</string>
+    <string name="settings_source_repo_remove_message">As fontes dele continuam instaladas, mas deixam de ser oferecidas por ele.</string>
+    <string name="settings_source_repo_remove_action">Remover %1$s</string>
+    <string name="settings_source_repo_key_changed">A chave de assinatura deste repo mudou. Remova e adicione de novo só se você confiar na nova chave.</string>
+    <string name="settings_source_repo_tampered">O índice deste repo não confere com a assinatura, então as fontes dele não foram atualizadas.</string>
+    <string name="settings_source_repo_error_title">Não foi possível adicionar o repo</string>
+    <string name="settings_source_repo_refresh_error_title">Não foi possível atualizar seus repos</string>
+    <string name="settings_source_repo_error_invalid_url">Digite um endereço https://.</string>
+    <string name="settings_source_repo_error_unreachable">Nenhum repo encontrado nesse endereço. Confira e tente de novo.</string>
+    <string name="settings_source_repo_error_unsigned">Este repo não é assinado, então as fontes dele não podem ser verificadas.</string>
+    <string name="settings_source_repo_error_bad_signature">A assinatura não foi verificada. O repo pode ter sido adulterado.</string>
+    <string name="settings_source_repo_error_key_changed">A chave de assinatura do repo mudou.</string>
+    <string name="settings_source_repo_error_mismatch">Um arquivo não confere com o repo.</string>
+    <string name="settings_source_repo_error_unsupported">Este repo requer um Tanuki mais novo.</string>
+    <string name="settings_source_repo_error_offline">Sem conexão. Confira e tente de novo.</string>
+    <string name="settings_source_repo_error_already_added">Esse repo já foi adicionado.</string>
 </resources>

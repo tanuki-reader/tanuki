@@ -1,28 +1,27 @@
 package app.tanuki.features.settings.sources.viewmodel
 
 import app.tanuki.core.domain.download.model.SourceDownloadUsage
+import app.tanuki.core.domain.source.model.InstallProgress
+import app.tanuki.core.domain.source.model.SourceCompatibility
+import app.tanuki.core.domain.source.model.SourceRepoError
 
 /**
- * Immutable UI state for the source-management screen: the sources on the device, and the ones that
- * could be put back.
- *
- * The two lists are pre-split here rather than in the composable because which side a source belongs on
- * *is* presentation — the screen shows installed sources and installable ones as two labelled sections,
- * and a row's only action follows from its section.
+ * Immutable UI state for the Sources screen (design system: `SourcesScreen`): installed sources and the
+ * ones the user's repos offer, filtered by language and by the adult-content setting.
  *
  * @property loading `true` until the first catalog emission arrives; the screen shows a spinner rather
  *   than flashing an empty state at a user who does have sources.
- * @property installed sources whose bundle is on the device, ordered by name.
- * @property available sources that could be installed, ordered by name. Empty once everything the
- *   catalog offers is installed.
- * @property busyIds sources with an install or uninstall in flight — their row's action is disabled and
- *   shows progress, so a second tap can't queue a duplicate.
- * @property failedIds sources whose last action failed. The row reads it against its own section to say
- *   which action failed, and it clears the moment that source is acted on again.
- * @property pendingUsage what the source awaiting confirmation has downloaded, or `null` while that
- *   answer is still being read (and whenever no dialog is open). The remove dialog offers to delete
- *   those files only once this arrives non-empty, so the offer never appears without the count and size
- *   that make it answerable.
+ * @property installed sources whose bundle is on the device, by name, language variants together.
+ * @property available sources the repos offer that aren't installed, in the same order.
+ * @property languages every language either list has, with how many sources each, for the filter chips.
+ *   Empty when there is only one language, since a filter with one choice filters nothing.
+ * @property selectedLanguage the language tag the lists are filtered to, or `null` for all.
+ * @property showRepo whether rows name their repo: only when more than one repo is added.
+ * @property repoCount how many repos are added. With none and nothing installed, the screen is the
+ *   first-run empty state whose one action is Add repo.
+ * @property pendingUsage what the source awaiting removal has downloaded, or `null` while that answer is
+ *   still being read (and whenever no dialog is open). The remove dialog offers to delete those files
+ *   only once this arrives non-empty.
  * @property pendingRemoval the source the remove dialog is asking about, or `null` when it is closed.
  * @property removalDeletesDownloads whether the dialog's "also delete downloads" option is ticked.
  */
@@ -30,27 +29,49 @@ data class SourcesState(
     val loading: Boolean = true,
     val installed: List<SourceItem> = emptyList(),
     val available: List<SourceItem> = emptyList(),
-    val busyIds: Set<String> = emptySet(),
-    val failedIds: Set<String> = emptySet(),
+    val languages: List<LanguageOption> = emptyList(),
+    val selectedLanguage: String? = null,
+    val showRepo: Boolean = false,
+    val repoCount: Int = 0,
     val pendingUsage: SourceDownloadUsage? = null,
     val pendingRemoval: SourceItem? = null,
-    val removalDeletesDownloads: Boolean = false,
-    /** Whether sensitive (adult) content is allowed — the toggle at the top of the screen. */
-    val showSensitive: Boolean = false
+    val removalDeletesDownloads: Boolean = false
+)
+
+/** One language chip. [tag] is the source's BCP-47 tag; each platform words it in the user's language. */
+data class LanguageOption(
+    val tag: String,
+    val count: Int
 )
 
 /**
- * One source row.
+ * One source row (design system: `SourceRow`), carrying its whole install life cycle.
  *
  * @property sourceId source-native id, and the row's stable list key.
- * @property name display name — already the fallback-resolved one from the domain, never blank.
- * @property lang language tag shown as the row's subtitle, or `null` when it isn't known (a source that
- *   has never been installed on this device reports nothing until it is).
+ * @property name display name, verbatim from the source or its repo.
+ * @property lang BCP-47 language tag, or `null` when it isn't known.
  * @property iconUrl remote icon, or `null` for the lettered avatar.
+ * @property version the installed version, or the one on offer for an installable source.
+ * @property repoName the repo offering it; shown only when [SourcesState.showRepo].
+ * @property nsfw adult-only: the row carries an `18+` tag.
+ * @property compatibility whether the version on offer runs on this app. An incompatible row is listed,
+ *   so the user knows it exists, but offers no action.
+ * @property progress the install in flight, or `null`.
+ * @property installFailure the step the last install failed at, or `null`; the row offers Retry.
+ * @property removing an uninstall is in flight.
+ * @property removeFailed the last uninstall failed.
  */
 data class SourceItem(
     val sourceId: String,
     val name: String,
     val lang: String?,
-    val iconUrl: String?
+    val iconUrl: String?,
+    val version: Int? = null,
+    val repoName: String? = null,
+    val nsfw: Boolean = false,
+    val compatibility: SourceCompatibility = SourceCompatibility.Compatible,
+    val progress: InstallProgress? = null,
+    val installFailure: SourceRepoError? = null,
+    val removing: Boolean = false,
+    val removeFailed: Boolean = false
 )

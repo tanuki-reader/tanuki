@@ -1,4 +1,0 @@
-Dev source bundles (*.wasm) are generated here by the :shared:buildDevSources Gradle task,
-which compiles the crates under native/sources/. They are gitignored — see native/README.md.
-
-This directory is temporary: it disappears once sources are fetched from a remote repo.

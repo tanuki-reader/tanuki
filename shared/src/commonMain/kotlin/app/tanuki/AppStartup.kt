@@ -5,9 +5,9 @@ import app.tanuki.core.domain.download.service.DownloadScheduler
 import app.tanuki.core.domain.download.usecase.VerifyDownloads
 import app.tanuki.core.domain.history.usecase.PruneHistory
 import app.tanuki.core.domain.settings.usecase.ObserveCrashReportingEnabled
+import app.tanuki.core.domain.source.usecase.RefreshSourceRepos
 import app.tanuki.core.domain.update.usecase.KeepLibraryUpdateScheduled
 import app.tanuki.core.domain.update.usecase.UpdateLibrary
-import app.tanuki.dev.DevSourceInstaller
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.Inject
 import dev.zacsweers.metro.SingleIn
@@ -36,7 +36,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 @SingleIn(AppScope::class)
 class AppStartup(
     private val applicationScope: CoroutineScope,
-    private val devSourceInstaller: DevSourceInstaller,
+    private val refreshSourceRepos: RefreshSourceRepos,
     private val updateLibrary: UpdateLibrary,
     private val verifyDownloads: VerifyDownloads,
     private val downloadScheduler: DownloadScheduler,
@@ -55,9 +55,10 @@ class AppStartup(
         // No-op once the library has any entry. Needs a `LibrarySeeder` constructor parameter if revived.
         // applicationScope.launch { librarySeeder.seedIfEmpty() }
 
-        // Dev-only: install the app-bundled `.wasm` sources so the source pipeline has something to load.
-        // Separate job from the seeder because the two are independent — neither should block the other.
-        applicationScope.launch { devSourceInstaller.installBundled() }
+        // Re-fetch every source repo's signed index, so the catalog offers what the repos publish now.
+        // A failure (offline, a repo down) is not worth surfacing at launch: each repo keeps its last
+        // verified index, and the repos screen refreshes on demand.
+        applicationScope.launch { runCatching { refreshSourceRepos() } }
 
         // Check the library for new chapters if the user's interval says one is due.
         //

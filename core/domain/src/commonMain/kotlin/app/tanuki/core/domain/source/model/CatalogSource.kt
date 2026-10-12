@@ -6,26 +6,21 @@ import app.tanuki.core.domain.common.model.Url
 /**
  * A source as the *management* surface sees it: identity, how to label it, and whether its bundle is
  * currently on disk. This is the one shape that spans both sides of that screen — an installed source
- * and an uninstalled-but-reinstallable one differ only in [installed].
+ * and an installable one differ only in [installed].
  *
- * Distinct from its two neighbours by what it can describe:
- * - [SourceMeta] comes from a bundle's own metadata, so it exists **only while the source is
- *   installed** — there is nothing to read once the `.wasm` is gone.
- * - [Source] is the persisted local row, which survives an uninstall but is only minted once a source
- *   has actually been loaded.
- *
- * A management screen needs to list both, so [name]/[lang]/[iconUrl] are filled from whichever of the
- * two is available — the live metadata when installed, the persisted snapshot when not. When neither
- * is (a bundled source that has never been installed on this device), [name] falls back to [sourceId],
- * which is a slug like `"mangadex"` — poor copy, but it never leaves a row blank.
+ * An installed source is described by its bundle's own metadata ([SourceMeta]); an installable one by
+ * the verified index of the repo offering it ([RemoteSource]).
  *
  * @property sourceId source-native identifier the runtime addresses the source by.
- * @property name display name, or the raw [sourceId] when nothing better is known.
- * @property lang language tag the source serves, or `null` when it isn't known yet.
+ * @property name display name.
+ * @property lang language tag the source serves, or `null` when it isn't known.
  * @property iconUrl remote icon URL, or `null` for the lettered fallback avatar.
  * @property installed whether this source's bundle is on disk right now.
- * @property nsfw whether the source is adult-only. Only known once installed (it comes from the bundle's
- *   metadata), so an available source reads `false`.
+ * @property nsfw whether the source is adult-only.
+ * @property version the installed bundle's version, or the version on offer when not installed.
+ * @property repoName the repo offering it, or `null` for an installed source no added repo offers.
+ * @property compatibility whether this app can run the version on offer; always compatible once
+ *   installed (an incompatible bundle never loads).
  */
 data class CatalogSource(
     val sourceId: String,
@@ -33,5 +28,8 @@ data class CatalogSource(
     val lang: Text? = null,
     val iconUrl: Url? = null,
     val installed: Boolean = false,
-    val nsfw: Boolean = false
+    val nsfw: Boolean = false,
+    val version: Int? = null,
+    val repoName: String? = null,
+    val compatibility: SourceCompatibility = SourceCompatibility.Compatible
 )

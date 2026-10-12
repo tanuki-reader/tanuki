@@ -2,11 +2,14 @@ package app.tanuki.core.domain.source.usecase
 
 import app.tanuki.core.domain.common.service.Logger
 import app.tanuki.core.domain.common.service.warn
-import app.tanuki.core.domain.settings.repository.SettingsRepository
 import app.tanuki.core.domain.source.SourceCatalog
+import app.tanuki.core.domain.source.model.InstallProgress
+import app.tanuki.core.domain.source.model.SourceRepoError
+import app.tanuki.core.domain.source.model.SourceRepoException
 import dev.zacsweers.metro.AppScope
 import dev.zacsweers.metro.ContributesBinding
 import dev.zacsweers.metro.Inject
+import kotlinx.coroutines.CancellationException
 
 /**
  * Use case: install a source from the [SourceCatalog], writing its bundle to the device.
@@ -16,32 +19,37 @@ import dev.zacsweers.metro.Inject
  * against the same local identity — the library titles that were already there simply start fetching
  * again instead of being duplicated under a new source.
  *
- * Clearing the removal record is part of installing, not a separate step: leaving it set would have the
- * launch-time seeding treat a source the user just installed as one they had removed.
+ * Reports failure as a value, not a throw: what went wrong — offline, a repo that can't serve the bundle,
+ * bytes that don't match the signed index — is not exceptional, and the screen names the failed step
+ * next to a Retry.
  *
- * Returns whether the install succeeded rather than throwing. The failure a caller actually hits —
- * a bundle that can't be read, a catalog that can't reach it — is not exceptional and not the UI's to
- * diagnose; it just means the row stays where it was and the screen says so.
- *
- * @return `true` when the source is now installed, `false` when it could not be.
+ * @return `null` when the source is now installed, otherwise the step that failed.
  */
 sealed interface InstallSource {
-    suspend operator fun invoke(sourceId: String): Boolean
+    suspend operator fun invoke(
+        sourceId: String,
+        onProgress: (InstallProgress) -> Unit = {}
+    ): SourceRepoError?
 
     @Inject
     @ContributesBinding(AppScope::class)
     class Default(
         private val catalog: SourceCatalog,
-        private val settingsRepository: SettingsRepository,
         private val logger: Logger
     ) : InstallSource {
-        override suspend fun invoke(sourceId: String): Boolean =
-            runCatching {
-                catalog.install(sourceId)
-                settingsRepository.setSourceRemoved(sourceId, removed = false)
-            }.onFailure { error ->
+        override suspend fun invoke(
+            sourceId: String,
+            onProgress: (InstallProgress) -> Unit
+        ): SourceRepoError? =
+            try {
+                catalog.install(sourceId, onProgress)
+                null
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
                 logger.warn(TAG, "Could not install source '$sourceId'", error)
-            }.isSuccess
+                (error as? SourceRepoException)?.error ?: SourceRepoError.Unreachable
+            }
 
         private companion object {
             const val TAG = "InstallSource"

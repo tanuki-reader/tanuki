@@ -34,6 +34,9 @@ ksp = "2.3.10"
 # okio — file IO for the on-disk source-bundle store. 3.14+ ships the kotlin.time.Clock-based
 # FakeFileSystem needed for tests on kotlinx-datetime 0.7.x.
 okio = "3.18.0"
+# cryptography-kotlin — ed25519 verification of source-repo indexes. JDK provider on Android (minSdk 36
+# has Ed25519 in the platform), CryptoKit provider on iOS.
+cryptography = "0.6.0"
 # Chicory — pure-JVM WebAssembly interpreter (zero native deps); the Android-side WASM engine.
 chicory = "1.7.5"
 # Coil 3 — Compose Multiplatform image loading (covers). Network layer via its Ktor 3 integration so
@@ -77,6 +80,9 @@ ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "kto
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 ktor-client-mock = { module = "io.ktor:ktor-client-mock", version.ref = "ktor" }
 okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
+cryptography-core = { module = "dev.whyoleg.cryptography:cryptography-core", version.ref = "cryptography" }
+cryptography-provider-jdk = { module = "dev.whyoleg.cryptography:cryptography-provider-jdk", version.ref = "cryptography" }
+cryptography-provider-cryptokit = { module = "dev.whyoleg.cryptography:cryptography-provider-cryptokit", version.ref = "cryptography" }
 okio-fakefilesystem = { module = "com.squareup.okio:okio-fakefilesystem", version.ref = "okio" }
 chicory-runtime = { module = "com.dylibso.chicory:runtime", version.ref = "chicory" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }

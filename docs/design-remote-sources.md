@@ -1,7 +1,7 @@
 # Design — Remote source distribution
 
-Status: **Phase 1 done** (2026-10-12); Phase 2 (the app installs from a repo) is next. Replaces the
-"sources ship inside the app" arrangement with user-added, signed, static source repos hosted on GitHub. Decisions are also logged in `decisions.md`
+Status: **Phase 2 done** (2026-10-12), with the Phase 4 cleanup folded in; Phase 3 (updates) is next.
+Replaces the "sources ship inside the app" arrangement with user-added, signed, static source repos hosted on GitHub. Decisions are also logged in `decisions.md`
 (2026-09-27).
 
 **Progress**
@@ -22,6 +22,18 @@ Status: **Phase 1 done** (2026-10-12); Phase 2 (the app installs from a repo) is
   are authoritative. Submodule instead of the SDK release tarball. Live at
   `https://tanuki-reader.github.io/tanuki-sources/` (mangadex 10, mangafire 7, hipercool 4).
 
+- 2026-10-12 — Phase 2 landed (and Phase 4 with it): the app ships and seeds no source. `RemoteSourceCatalog`
+  (`:core:source/repo`) is the `SourceCatalog`: preview fetches `repo.json` **and** verifies the index
+  (so the confirmation shows the source count), add pins the key, refresh verifies against the pinned
+  key (a refusal keeps the last good index and is reported per repo as `KeyChanged` — the repo now
+  publishes another key — or `BadSignature`), install streams `InstallProgress` and checks size +
+  sha256. ed25519 via cryptography-kotlin 0.6.0 (JDK provider on Android, CryptoKit on iOS). Room v17
+  adds `source_repos`. UI follows the design system's `SourcesScreen` / `AddSourceRepo` / `SourceRow`
+  on both platforms (repos are a section of the Sources screen; adult toggle moved to Settings).
+  Deviations: `source_installations` deferred to Phase 3 (nothing reads it yet); the probe-instantiate on
+  install is skipped (the index is signed and CI already checked `source_meta`); the shared source
+  `HttpClient` is reused for repo fetches; no Languages toolbar action (the chips cover it); the
+  signing key was rotated before any app pinned it (backup in the maintainer's Keychain).
 ---
 
 ## 1. Current state
@@ -274,9 +286,9 @@ a later setting.
 |---|---|---|
 | **0** Prereqs ✅ | `MIN_SUPPORTED` range, `nsfw` mapping, in-repo fixtures, contract tests on both sides; conformance source = `hello` until Phase 1 | ABI range tests in `:core:source`; wire fixture round-trips (Kotlin + Rust) |
 | **1** Sources repo ✅ | move `native/source-api` + `native/sources` to `tanuki-sources`, `bundles.toml`, `xtask`, CI publish to `repo` branch | xtask golden index test; CI gate rejects bad exports / missing version bump |
-| **2** App install from repo | `source_repos` / `source_installations` + migration, `RemoteSourceCatalog`, ed25519 + sha256 verify, Repos screen | signature/key-change/sha256/size rejection tests; migration test; use-case tests (kotest) |
+| **2** App install from repo ✅ | `source_repos` / `source_installations` + migration, `RemoteSourceCatalog`, ed25519 + sha256 verify, Repos screen | signature/key-change/sha256/size rejection tests; migration test; use-case tests (kotest) |
 | **3** Updates | `CheckSourceUpdates` / `UpdateSource`, background check, badges | update detection + repo-scoped update tests |
-| **4** Cleanup | remove `DevSourceInstaller`, composeResources bundles, cargo tasks, `removed_source_ids` | Android + iOS builds green, fresh-install flow manually |
+| **4** Cleanup ✅ (with Phase 2) | remove `DevSourceInstaller`, composeResources bundles, cargo tasks, `removed_source_ids` | Android + iOS builds green, fresh-install flow manually |
 
 ---
 
