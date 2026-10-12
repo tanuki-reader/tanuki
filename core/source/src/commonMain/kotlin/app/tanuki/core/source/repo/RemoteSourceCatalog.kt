@@ -79,6 +79,11 @@ class RemoteSourceCatalog(
         if (repo.formatVersion > FORMAT_VERSION) throw SourceRepoException(SourceRepoError.UnsupportedFormat)
         val key = repo.publicKey?.decodeBase64()
         if (key == null || key.size != ED25519_KEY_SIZE) throw SourceRepoException(SourceRepoError.Unsigned)
+        // A repo the app knows must present the key the app ships with, so even the first add can't be
+        // fooled by a compromised host. Any other repo is trusted on first use, behind the fingerprint.
+        PINNED_REPO_KEYS[baseUrl]?.let { pinned ->
+            if (pinned != repo.publicKey) throw SourceRepoException(SourceRepoError.KeyChanged)
+        }
         if (repos.getRepos().any { it.baseUrl == baseUrl }) throw SourceRepoException(SourceRepoError.AlreadyAdded)
         // Verified now rather than on add, so the confirmation can say how many sources the user is trusting.
         val index = fetchVerifiedIndex(baseUrl, repo.publicKey)
@@ -251,6 +256,20 @@ class RemoteSourceCatalog(
         const val INDEX_JSON = "index.json"
         const val INDEX_SIG = "index.json.sig"
         private const val ED25519_KEY_SIZE = 32
+
+        /** The first-party repo's signing key (`tanuki-reader/tanuki-sources`, base64 ed25519). */
+        private const val TANUKI_SOURCES_KEY = "T+bZfLVGYzHZ0g7lDWQMUdgXkKD8eDLtmH4jqEZSgPI="
+
+        /**
+         * Keys the app ships for repos it knows, by normalized base URL: both addresses the first-party
+         * repo is served from. Rotating that key now takes an app release (see the sources README); the
+         * app still ships no repo *URL* — the user adds it.
+         */
+        internal val PINNED_REPO_KEYS: Map<String, String> =
+            mapOf(
+                "https://tanuki-reader.github.io/tanuki-sources/" to TANUKI_SOURCES_KEY,
+                "https://cdn.jsdelivr.net/gh/tanuki-reader/tanuki-sources@repo/" to TANUKI_SOURCES_KEY
+            )
 
         private val json = Json { ignoreUnknownKeys = true }
 

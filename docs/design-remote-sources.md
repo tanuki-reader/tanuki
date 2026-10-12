@@ -295,6 +295,10 @@ a later setting.
 ## 6. Risks and open questions
 
 - **ed25519 on KMP/iOS**: choose between a library and a vendored verifier (§2.2).
+- **First-party key is pinned in the app** (2026-10-12): `RemoteSourceCatalog.PINNED_REPO_KEYS` maps both
+  first-party addresses (GitHub Pages, jsDelivr) to the `tanuki-sources` key, so adding that repo
+  can't be fooled by a compromised host even the first time. Other repos stay trust-on-first-use behind the
+  fingerprint. Consequence: rotating that key needs an app release that ships the new key first.
 - **Key rotation**: a new key signed by the old one, published in `repo.json`. Design this before the
   key ever needs to change.
 - **App Store 2.5.2**: downloading executable code is still a review risk even with user-added repos.

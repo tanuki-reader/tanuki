@@ -186,6 +186,23 @@ class RemoteSourceCatalogTest {
     }
 
     @Test
+    fun `the first-party repo must present the key the app ships`() = runTest {
+        val world = World(base = "https://tanuki-reader.github.io/tanuki-sources/")
+        world.publish() // signed by a key that isn't the pinned one, as a compromised host would serve
+
+        val error = assertFailsWith<SourceRepoException> { world.catalog.previewRepo("tanuki-reader.github.io/tanuki-sources") }
+
+        assertEquals(SourceRepoError.KeyChanged, error.error)
+        assertTrue(world.repos.stored.value.isEmpty())
+    }
+
+    @Test
+    fun `both first-party addresses pin the same key`() {
+        assertEquals(1, RemoteSourceCatalog.PINNED_REPO_KEYS.values.toSet().size)
+        assertEquals(2, RemoteSourceCatalog.PINNED_REPO_KEYS.size)
+    }
+
+    @Test
     fun `urls normalize to an https base ending in a slash`() {
         assertEquals(BASE, RemoteSourceCatalog.normalize(" repo.test/tanuki "))
         assertEquals(BASE, RemoteSourceCatalog.normalize("https://repo.test/tanuki/repo.json"))
@@ -194,7 +211,7 @@ class RemoteSourceCatalogTest {
 }
 
 /** A static host of files, a signing key, and a catalog over in-memory stores. */
-private class World {
+private class World(private val base: String = BASE) {
     private val keys = CryptographyProvider.Default.get(EdDSA).keyPairGenerator(EdDSA.Curve.Ed25519).generateKeyBlocking()
     val signer = keys.privateKey
     val publicKey: String = keys.publicKey.encodeToByteArrayBlocking(EdDSA.PublicKey.Format.RAW).toByteString().base64()
@@ -218,15 +235,15 @@ private class World {
         publicKey: String = this.publicKey
     ) {
         val key = if (publishKey) "\"$publicKey\"" else "null"
-        files["${BASE}repo.json"] = """{"formatVersion":1,"name":"Tanuki Sources","publicKey":$key}""".encodeToByteArray()
+        files["${base}repo.json"] = """{"formatVersion":1,"name":"Tanuki Sources","publicKey":$key}""".encodeToByteArray()
         val index =
             """{"formatVersion":1,"generatedAt":"2026-10-12T00:00:00Z","sources":[{"id":"mangadex","name":"MangaDex",""" +
                 """"lang":"en","version":$version,"abi":$abi,"nsfw":false,"listings":[],"wasmPath":"wasm/mangadex-v9.wasm",""" +
                 """"sha256":"${WASM.toByteString().sha256().hex()}","size":${WASM.size}}]}"""
         val bytes = index.encodeToByteArray()
-        files["${BASE}index.json"] = bytes
-        files["${BASE}index.json.sig"] = signer.signatureGenerator().generateSignatureBlocking(bytes).toByteString().base64().encodeToByteArray()
-        files["${BASE}wasm/mangadex-v9.wasm"] = WASM
+        files["${base}index.json"] = bytes
+        files["${base}index.json.sig"] = signer.signatureGenerator().generateSignatureBlocking(bytes).toByteString().base64().encodeToByteArray()
+        files["${base}wasm/mangadex-v9.wasm"] = WASM
     }
 }
 
