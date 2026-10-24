@@ -329,4 +329,8 @@ private class FakeInstallations : SourceInstallationRepository {
     ) {
         origins.value += sourceId to repoUrl
     }
+
+    override suspend fun clearOrigin(sourceId: String) {
+        origins.value -= sourceId
+    }
 }

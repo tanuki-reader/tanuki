@@ -23,4 +23,6 @@ class SourceInstallationRepositoryImp(
         sourceId: String,
         repoUrl: String
     ) = dao.upsert(SourceInstallationEntity(sourceId, repoUrl))
+
+    override suspend fun clearOrigin(sourceId: String) = dao.delete(sourceId)
 }
