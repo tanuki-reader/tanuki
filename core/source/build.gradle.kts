@@ -27,7 +27,7 @@ plugins {
  * which the other language build shares by construction — there is nothing a second fixture would
  * cover except doubling the compile time of every test run.
  */
-val fixtureCrates = listOf("hello", "mangadex", "mangafire", "manhastro", "hipercool")
+val fixtureCrates = listOf("hello", "mangadex", "mangafire", "manhastro")
 
 /**
  * Registers the cargo-build + code-gen task pair for one fixture crate and returns the generate task

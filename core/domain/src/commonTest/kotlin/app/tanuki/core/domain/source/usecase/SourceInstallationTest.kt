@@ -20,6 +20,7 @@ import app.tanuki.core.domain.source.model.SourceMeta
 import app.tanuki.core.domain.source.model.SourceRepo
 import app.tanuki.core.domain.source.model.SourceRepoError
 import app.tanuki.core.domain.source.model.SourceRepoException
+import app.tanuki.core.domain.source.repository.SourceInstallationRepository
 import app.tanuki.core.domain.source.repository.SourceRepository
 import app.tanuki.core.domain.update.model.MangaUpdateSummary
 import app.tanuki.core.domain.update.service.LibraryUpdateNotifier
@@ -71,12 +72,14 @@ private fun remote(
 class SourceInstallationTest {
 
     @Test
-    fun `uninstalling removes the bundle`() = runTest {
+    fun `uninstalling removes the bundle and releases its origin`() = runTest {
         val store = FakeBundleStore(installed = setOf(MANGADEX))
+        val installations = FakeInstallations(mutableMapOf(MANGADEX to "https://origin.test/"))
 
-        UninstallSource.Default(store)(MANGADEX)
+        UninstallSource.Default(store, installations)(MANGADEX)
 
         assertEquals(emptySet(), store.installed)
+        assertNull(installations.getOrigin(MANGADEX), "a reinstall may come from another repo")
     }
 
     @Test
@@ -252,6 +255,25 @@ private class FakeBundleStore(
         sourceId: String,
         bytes: ByteArray
     ) = error("unused")
+}
+
+private class FakeInstallations(
+    private val origins: MutableMap<String, String> = mutableMapOf()
+) : SourceInstallationRepository {
+    override fun observeOrigins(): Flow<Map<String, String>> = flowOf(origins)
+
+    override suspend fun getOrigin(sourceId: String): String? = origins[sourceId]
+
+    override suspend fun setOrigin(
+        sourceId: String,
+        repoUrl: String
+    ) {
+        origins[sourceId] = repoUrl
+    }
+
+    override suspend fun clearOrigin(sourceId: String) {
+        origins -= sourceId
+    }
 }
 
 /**

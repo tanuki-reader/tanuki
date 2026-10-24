@@ -16,4 +16,7 @@ interface SourceInstallationDao {
 
     @Upsert
     suspend fun upsert(installation: SourceInstallationEntity)
+
+    @Query("DELETE FROM source_installations WHERE source_id = :sourceId")
+    suspend fun delete(sourceId: String)
 }
